@@ -69,11 +69,11 @@ The Pathway engine inherits several capabilities directly from the v13 Telltale 
 - selected-result and witness semantics exported directly by the search runtime
 - explicit execution-policy control through `SearchExecutionPolicy` and `SearchRunConfig`
 - replay artifacts that preserve epoch trace, batch schedule, fairness bundle, and final authoritative state
-- explicit epoch reconfiguration with a real reseeding policy, where Pathway currently uses `PreserveOpenAndIncons`
+- explicit epoch reconfiguration with a real reseeding policy, where Pathway uses `PreserveOpenAndIncons`
 
-Pathway currently uses `SearchQuery::SingleGoal` for exact node destinations and `SearchQuery::CandidateSet` for service or gateway objectives that select among multiple acceptable destinations. For exact queries, the runtime can also emit the optional path-problem helper surfaces. Candidate-set queries stay on the generic selected-result surface and intentionally do not rely on a distinguished goal anchor.
+Pathway uses `SearchQuery::SingleGoal` for exact node destinations and `SearchQuery::CandidateSet` for service or gateway objectives that select among multiple acceptable destinations. For exact queries, the runtime can also emit the optional path-problem helper surfaces. Candidate-set queries stay on the generic selected-result surface and intentionally do not rely on a distinguished goal anchor.
 
-Pathway currently exposes only exact run-to-completion profiles to the router. The supported public modes are canonical serial and threaded exact single-lane, both with `batch_width = 1`, `SearchCachingProfile::EphemeralPerStep`, and `SearchEffortProfile::RunToCompletion`.
+Pathway exposes only exact run-to-completion profiles to the router. The supported public modes are canonical serial and threaded exact single-lane, both with `batch_width = 1`, `SearchCachingProfile::EphemeralPerStep`, and `SearchEffortProfile::RunToCompletion`.
 
 Budgeted or bounded execution contracts remain part of the generic Telltale runtime surface. Pathway rejects them fail-closed for router-visible planning until it has a Pathway-owned policy for exposing them.
 
@@ -87,7 +87,7 @@ Pathway also inherits proof-oriented guarantees and trace surfaces from the Tell
 - state and artifact traces that expose canonical batches, normalized commits, fairness certificates, epoch transitions, and final authoritative machine state
 - theorem-backed exact observable equivalence between canonical serial and threaded exact single-lane execution for the current Pathway domain
 
-These guarantees belong to the Telltale search substrate, not to Pathway's route policy layer. Pathway relies on them to justify exactness, replayability, and debug visibility at the search boundary while still owning topology freezing, route-objective mapping, candidate derivation, and router publication semantics.
+These guarantees belong to the Telltale search substrate, not to Pathway's route policy layer. Pathway relies on them to justify exactness, replayability, and debug visibility at the search boundary while owning topology freezing, route-objective mapping, candidate derivation, and router publication semantics.
 
 Pathway defaults to canonical serial search with `batch_width = 1`, `epsilon = 1.0`, `SearchCachingProfile::EphemeralPerStep`, `SearchEffortProfile::RunToCompletion`, and the minimum exact fairness bundle required by the generic runtime. `ThreadedExactSingleLane` is available as an explicit opt-in planner mode. Batched parallel, budgeted, and bounded profiles are not exposed because the weaker fairness or approximation story is not acceptable for default routing behavior.
 
@@ -99,7 +99,7 @@ Admission and witness generation operate on shared result objects. The pathway e
 - `BackendRouteRef` stays opaque at the shared boundary, but in pathway it is a self-contained plan token rather than a cache key
 - pathway may memoize derived candidates internally, but cache hits and misses must produce the same result for the same topology
 - admitted routes carry that opaque backend ref forward so `materialize_route` can decode the selected pathway plan without searching planner cache state
-- materialization still revalidates that decoded plan against the latest observed topology, the shared topology epoch, and the plan validity window before issuing a proof
+- materialization revalidates that decoded plan against the latest observed topology, the shared topology epoch, and the plan validity window before issuing a proof
 
 Pathway route ids are path identities. The stable route id is derived from source, destination, route class, and concrete segment path. Epoch stays in the plan token and proof instead of becoming part of the stable route identity. Pathway-private plan tokens, route-identity bytes, ordering keys, and runtime checkpoints all use the same versioned canonical binary encoding policy so replay, hashing, and checkpoint recovery stay aligned.
 
@@ -156,9 +156,9 @@ Pathway also keeps one pathway-owned choreography interpreter surface above the 
 
 Host-owned ingress draining stops outside pathway itself. The router or bridge drains `TransportDriver`, converts raw ingress into shared observations, and feeds those observations into pathway through explicit router ingestion before a synchronous round. Inside pathway, those observations enter a bounded pending-ingress queue. A round consumes that queue deterministically and records a host-facing pathway round-progress snapshot that reports whether the round advanced state, waited quietly, or dropped excess ingress fail-closed.
 
-This is intentionally still pathway-private. The router should only observe shared route objects, shared tick context, shared round outcome, and shared checkpoint orchestration. It should not depend on pathway-private choreography payloads or generated effect interfaces.
+This is intentionally pathway-private. The router should only observe shared route objects, shared tick context, shared round outcome, and shared checkpoint orchestration. It should not depend on pathway-private choreography payloads or generated effect interfaces.
 
-The generated or protocol-local Telltale effect interfaces are not the shared Jacquard effect contract. They stay inside `jacquard-pathway` as implementation-facing protocol surfaces. Concrete host adapters still implement the shared traits from `jacquard-traits`, and the pathway choreography interpreter translates protocol-local requests onto those stable cross-engine traits instead of replacing them.
+The generated or protocol-local Telltale effect interfaces are not the shared Jacquard effect contract. They stay inside `jacquard-pathway` as implementation-facing protocol surfaces. Concrete host adapters implement the shared traits from `jacquard-traits`, and the pathway choreography interpreter translates protocol-local requests onto those stable cross-engine traits instead of replacing them.
 
 At runtime, pathway entry points cross one private guest-runtime layer before touching transport send capability, retention, or route-event logging directly. `forward_payload`, materialization-side activation, maintenance-side repair and handoff, retained-payload replay, round-side ingress recording, route export, neighbor advertisement, and anti-entropy exchange all enter that pathway-local choreography boundary first.
 
@@ -175,13 +175,13 @@ Materialization stores a pathway-private active-route object under the router-ow
 
 Canonical route identity, admission, and lease ownership remain outside this pathway-private runtime object.
 
-Pathway decodes the admitted opaque backend ref during materialization instead of recovering route shape from planner cache state. Token decode alone is not enough. The runtime re-derives the candidate against the latest observed topology and fails closed if the plan epoch, handle epoch, witness epoch, latest topology epoch, or plan validity window do not still agree. Materialization itself fails closed until the engine has observed topology through `engine_tick`, so pathway does not synthesize a pre-observation route health or an empty-world fallback.
+Pathway decodes the admitted opaque backend ref during materialization instead of recovering route shape from planner cache state. Token decode alone is not enough. The runtime re-derives the candidate against the latest observed topology and fails closed if the plan epoch, handle epoch, witness epoch, latest topology epoch, or plan validity window do not agree. Materialization itself fails closed until the engine has observed topology through `engine_tick`, so pathway does not synthesize a pre-observation route health or an empty-world fallback.
 
 ### Route Health
 
 Route health is derived from the active route's remaining suffix rather than from engine-global topology presence. Pathway validates the current owner-relative suffix against the latest observed topology and folds first-hop transport observations into that route-local view when available. It publishes `ReachabilityState::Unknown` when it lacks route-local validation data rather than pretending the route is generically reachable or unreachable.
 
-The runtime route-health calculation currently combines three signal groups:
+The runtime route-health calculation combines three signal groups:
 
 | Signal group | Inputs |
 | --- | --- |
@@ -189,7 +189,7 @@ The runtime route-health calculation currently combines three signal groups:
 | Remaining-suffix topology view | delivery confidence, symmetry, loss-derived congestion penalty |
 | Pathway control state | transport stability score, anti-entropy pressure |
 
-As in planning, `median_rtt_ms` is not currently part of the published route-health calculation.
+As in planning, `median_rtt_ms` is not part of the published route-health calculation.
 
 ### Lifecycle and Maintenance
 

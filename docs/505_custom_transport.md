@@ -104,7 +104,7 @@ Custom transports own physical transport facts. A LoRa profile owns spreading fa
 
 Use `jacquard-cast-support` when the profile needs to shape those facts into bounded unicast, multicast, or broadcast evidence, or when profile/host integration needs deterministic route-neutral delivery support for an explicit delivery objective. The helper crate sorts receiver sets deterministically, enforces explicit bounds, carries typed freshness and capacity fields, and keeps directional support separate from reverse confirmation. The helper does not implement a transport, endpoint, retry loop, or send driver.
 
-The in-memory profile shows the intended fixture path. `jacquard-cast-support` derives delivery support from explicit facts and an objective. `jacquard-mem-link-profile` can then adapt that support into ordinary directed `Link` observations, while the caller still owns endpoint authoring:
+The in-memory profile shows the intended fixture path. `jacquard-cast-support` derives delivery support from explicit facts and an objective. `jacquard-mem-link-profile` can then adapt that support into ordinary directed `Link` observations, while the caller owns endpoint authoring:
 
 ```rust
 use jacquard_cast_support::{
@@ -135,7 +135,7 @@ fn links_from_unicast(evidence: &[UnicastEvidence], sender: NodeId, receiver: No
 
 ## Composing With A Host Bridge
 
-The composed profile plugs into the reference client's `ClientBuilder` or into a custom host bridge. The default builder currently expects the in-memory network, so a non-default transport requires composing the router and engines directly or forking the builder. See [Reference Client](408_reference_client.md) for the composition the reference client exposes.
+The composed profile plugs into the reference client's `ClientBuilder` or into a custom host bridge. The default builder expects the in-memory network, so a non-default transport requires composing the router and engines directly or forking the builder. See [Reference Client](408_reference_client.md) for the composition the reference client exposes.
 
 The minimum composition wires three things together. First, a router that owns canonical route publication. Second, one or more engines registered on that router, each holding a queue-backed `TransportSenderEffects` handle. Third, a host bridge that owns the `TransportDriver`, drains ingress, stamps `Tick`, and advances the router through synchronous rounds.
 

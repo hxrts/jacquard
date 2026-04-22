@@ -23,13 +23,13 @@ The `mem-*` crates stay routing-engine-neutral and transport-neutral. They carry
 
 `jacquard-host-support` likewise stays transport-neutral. It owns generic ownership scaffolding only, not endpoint constructors, protocol state, or driver traits.
 
-`jacquard-mem-link-profile` can adapt `jacquard-cast-support` delivery support into ordinary in-memory directed `Link` observations through `CastLinkPreset`. Endpoint authoring still belongs to the caller through an explicit resolver closure.
+`jacquard-mem-link-profile` can adapt `jacquard-cast-support` delivery support into ordinary in-memory directed `Link` observations through `CastLinkPreset`. Endpoint authoring belongs to the caller through an explicit resolver closure.
 
 Reference-client fixtures are the single place where a service descriptor picks up engine-specific routing-engine tags such as `PATHWAY_ENGINE_ID`, `BATMAN_BELLMAN_ENGINE_ID`, or `BABEL_ENGINE_ID`. That decision is composition, not profile. The reference-client bridge is also the only sanctioned place where transport ingress is drained and stamped before delivery to the router.
 
 ## Composition
 
-`ClientBuilder` is the wiring entry point. It attaches one bridge-owned `InMemoryTransport` driver to a `SharedInMemoryNetwork`, constructs queue-backed sender capabilities for each enabled engine, registers the engine set on a fresh `MultiEngineRouter`, and returns a `ReferenceClient` host bridge. The builder supports any combination of `pathway`, `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `field`, `scatter`, and `mercator` engines. Multiple clients built against the same network share one deterministic carrier while still advancing routing state through explicit bridge rounds.
+`ClientBuilder` is the wiring entry point. It attaches one bridge-owned `InMemoryTransport` driver to a `SharedInMemoryNetwork`, constructs queue-backed sender capabilities for each enabled engine, registers the engine set on a fresh `MultiEngineRouter`, and returns a `ReferenceClient` host bridge. The builder supports any combination of `pathway`, `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `field`, `scatter`, and `mercator` engines. Multiple clients built against the same network share one deterministic carrier while advancing routing state through explicit bridge rounds.
 
 ```mermaid
 graph LR

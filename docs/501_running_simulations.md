@@ -128,7 +128,7 @@ for round in &replay.rounds {
 }
 ```
 
-For analysis work, convert the full replay into the reduced surface through `ReducedReplayView::from_replay(&replay)`. To trade detail for throughput at capture time, call `run_scenario_with_capture` with `SimulationCaptureLevel::FullReplay`, `ReducedReplay`, or `SummaryOnly`. Summary-only runs still produce `JacquardSimulationStats` without materializing per-round artifacts.
+For analysis work, convert the full replay into the reduced surface through `ReducedReplayView::from_replay(&replay)`. To trade detail for throughput at capture time, call `run_scenario_with_capture` with `SimulationCaptureLevel::FullReplay`, `ReducedReplay`, or `SummaryOnly`. Summary-only runs produce `JacquardSimulationStats` without materializing per-round artifacts.
 
 ## Asserting Expectations
 

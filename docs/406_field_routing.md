@@ -11,7 +11,7 @@ Field owns four private layers:
 3. a bounded private summary-exchange choreography runtime
 4. a Telltale-backed search substrate over frozen field snapshots
 
-Those layers stay engine-private. The router still owns canonical route identity, publication, and cross-engine selection.
+Those layers stay engine-private. The router owns canonical route identity, publication, and cross-engine selection.
 
 The Rust implementation makes the operational layer explicit:
 
@@ -80,7 +80,7 @@ For each routing objective, the planner:
 4. derives one selected private continuation from the selected-result witness
 5. emits a shared `RouteCandidate` with `CorridorEnvelope` visibility
 
-The public result shape stays corridor-only even when the private selected-result witness is a concrete node path. That split is deliberate. Search is an internal implementation substrate, not a new source of canonical route truth. Field may consider multiple admissible continuations internally. That plurality stays private. One routing objective still yields one field-selected private result and one planner-visible corridor claim.
+The public result shape stays corridor-only even when the private selected-result witness is a concrete node path. That split is deliberate. Search is an internal implementation substrate, not a new source of canonical route truth. Field may consider multiple admissible continuations internally. That plurality stays private. One routing objective yields one field-selected private result and one planner-visible corridor claim.
 
 The query split is:
 
@@ -101,7 +101,7 @@ The planning boundary is explicit as well:
 
 - the engine-internal `FieldPlannerSnapshot` is the read-only route-choice projection used by the pure planner reducer and the `RoutingEnginePlannerModel` impl
 - search query construction and frozen-search successor derivation read that snapshot and the observed topology only
-- planner wrapper methods still record the latest search record for replay. The route-choice result is derived from the projected snapshot rather than hidden mutable engine state
+- planner wrapper methods record the latest search record for replay. The route-choice result is derived from the projected snapshot rather than hidden mutable engine state
 
 ## Experimental Surface
 
@@ -139,7 +139,7 @@ Field keeps truth semantics and execution policy separate.
 
 ## Posture Control
 
-Posture is the field engine's local execution stance. It determines how the engine reacts to the currently detected regime when it ranks continuations, publishes corridor claims, and chooses a search execution profile.
+Posture is the field engine's local execution stance. It determines how the engine reacts to the detected regime when it ranks continuations, publishes corridor claims, and chooses a search execution profile.
 
 Field chooses among four postures:
 
@@ -155,7 +155,7 @@ The posture controller scores all four against the current regime, mean-field st
 - retention-favorable regime -> `RetentionBiased`
 - unstable or adversarial regime -> `RiskSuppressed`
 
-As with regimes, posture changes are damped. Field keeps a posture switch threshold and a short dwell window after each transition. That prevents one tick of changed evidence from causing immediate flapping. When the regime is very strong, the controller can move more quickly back to that regime's primary posture. Posture still remains an execution choice rather than a truth owner.
+As with regimes, posture changes are damped. Field keeps a posture switch threshold and a short dwell window after each transition. That prevents one tick of changed evidence from causing immediate flapping. When the regime is very strong, the controller can move more quickly back to that regime's primary posture. Posture remains an execution choice rather than a truth owner.
 
 Field defaults to canonical serial exact search and may promote to threaded exact single-lane search on native targets when the engine enters a congested regime or a risk-suppressed posture. Query meaning, admissible destinations, and corridor-envelope publication stay unchanged.
 
@@ -214,13 +214,13 @@ Field route publication also has an explicit bootstrap phase. A bootstrap route 
 - continuation coherence inside the installed corridor envelope
 - freshness of the leading continuation
 
-Between `Steady` and `Bootstrap`, runtime keeps one explicit degraded-steady continuity band. A degraded-steady route is still a conservative steady corridor claim at the publication boundary. The runtime has started preserving narrowed corridor structure, asymmetric continuation shifts, and anti-entropy carry-forward more aggressively because the corridor is no longer comfortably steady.
+Between `Steady` and `Bootstrap`, runtime keeps one explicit degraded-steady continuity band. A degraded-steady route is a conservative steady corridor claim at the publication boundary. The runtime preserves narrowed corridor structure, asymmetric continuation shifts, and anti-entropy carry-forward more aggressively because the corridor is not comfortably steady.
 
 Runtime and replay surfaces then distinguish five bootstrap transitions:
 
 - activation
 - hold
-- narrowing when the corridor is still conservative but must contract before it can strengthen
+- narrowing when the corridor is conservative but must contract before it can strengthen
 - upgrade to steady state
 - withdrawal when the corridor collapses
 
@@ -228,7 +228,7 @@ Replay also distinguishes continuity-band movement itself:
 
 - entering degraded-steady before bootstrap collapse
 - recovering from degraded-steady back to steady
-- downgrading from degraded-steady into bootstrap when continuity can no longer be preserved
+- downgrading from degraded-steady into bootstrap when continuity cannot be preserved
 
 When promotion does not occur, replay also records the dominant blocker:
 
@@ -278,7 +278,7 @@ The most important assurance is ownership discipline:
 - runtime artifact reduction is observational-only
 - canonical route truth remains router-owned
 
-Router-owned truth can still be richer than support-only ranking. The current verification tree also carries a stronger support-then-hop-then-stable router selector and the matching system-level selector lift. Field does not publish extra planner-visible candidates to satisfy that richer objective. It still publishes one corridor candidate per objective and leaves richer canonical choice to the router or system layer.
+Router-owned truth can be richer than support-only ranking. The verification tree also carries a stronger support-then-hop-then-stable router selector and the matching system-level selector lift. Field does not publish extra planner-visible candidates to satisfy that richer objective. It publishes one corridor candidate per objective and leaves richer canonical choice to the router or system layer.
 
 The current broader resilience story is likewise router or system-owned rather than field-private-search-owned. The maintained proof stack includes bounded dropout and bounded non-participation stability packs under the reduced reliable-immediate regime. Those results say how router-owned canonical support stabilizes once the selected winner survives the stated fault budget. They do not turn field-private replay or protocol reconfiguration into new owners of canonical route truth.
 

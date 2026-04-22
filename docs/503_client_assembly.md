@@ -41,6 +41,10 @@ The single-engine constructors are `pathway`, `batman_bellman`, `batman_classic`
 
 The built `ReferenceClient` bundles a router, the configured engines, and the host bridge. Bind it once with `.bind()`, then advance synchronous rounds. Every round drains ingress, runs engine and router logic, and flushes the outbound queue through the bridge-owned transport driver.
 
+Outbound transport sends carry explicit delivery intent. Existing point-to-point transports can continue using `send_transport`, which is treated as unicast. Transports with physical fanout, such as BLE GATT notification, should use `TransportDeliverySupport` and router delivery admission helpers so a multicast or broadcast carrier is not exposed as a node-targeted unicast link. After admission, the bridge flushes the resulting `TransportDeliveryIntent` to the driver without reinterpreting the mode.
+
+Jacquard carries delivery-intent vocabulary, support shaping, effect-boundary plumbing, and admission helpers. The built-in engines produce ordinary node routes. They do not perform full multicast or broadcast route activation. Downstream integrations such as BLE profiles can depend on the vocabulary to model fanout honestly without assuming engine-level cast routing is complete.
+
 ## Running A Client As A Binary
 
 A minimal binary wraps the library. The `main` function constructs the builder, binds the bridge, and drives rounds on a cadence the application chooses.

@@ -8,11 +8,11 @@ This page describes the crate layout, the boundary rules, and the implementation
 
 `core` owns shared identifiers, data types, constants, error types, and the full model pipeline from world objects through observations, engine-neutral estimates, policy, and action. Derives, trivial constructors, and simple validation are allowed. Cross-crate behavioral interfaces belong in `traits`.
 
-`traits` owns the cross-crate behavioral interfaces, grouped below by purpose. The layering subset is forward-looking. The shared shape is part of the stable design, but in-tree coverage is still contract-oriented rather than a mature production layering stack.
+`traits` owns the cross-crate behavioral interfaces, grouped below by purpose. The layering subset is forward-looking. The shared shape is part of the stable design. In-tree coverage is contract-oriented rather than a mature production layering stack.
 
-Shared transport vocabulary follows the same rule. `core` keeps a small observed-world transport schema in `TransportKind`, `EndpointLocator`, and `LinkEndpoint` because those types appear in shared `Link`, `ServiceDescriptor`, and `TransportObservation` facts. Jacquard intentionally does not force those types fully opaque today.
+Shared transport vocabulary follows the same rule. `core` keeps a small observed-world transport schema in `TransportKind`, `EndpointLocator`, `LinkEndpoint`, `TransportDeliveryIntent`, `TransportDeliverySupport`, and `RouteDeliveryObjective` because those types appear in shared link, service, send-intent, and admission surfaces. Jacquard intentionally does not force those types fully opaque.
 
-`EndpointLocator` keeps only the neutral locator families the shared model actually needs. Transport-specific endpoint builders belong in transport-owned profile crates rather than in `core` or the transport-neutral mem profile crates.
+`EndpointLocator` keeps only the neutral locator families the shared model actually needs. Endpoint identity and delivery intent are separate: a `LinkEndpoint` names the carrier, while `TransportDeliveryIntent` says whether an admitted send is unicast, multicast, or broadcast. Transport-specific endpoint builders belong in transport-owned profile crates rather than in `core` or the transport-neutral mem profile crates.
 
 | Category | Traits |
 |---|---|
@@ -91,7 +91,11 @@ The routing core does not call platform APIs directly. Hashing, storage, route-e
 
 `jacquard-host-support` sits alongside that boundary, not inside it. Reusable host-side ingress mailboxes, unresolved and resolved peer bookkeeping, claim guards, transport-neutral endpoint conveniences, and host-side topology projectors live there so `core` stays data-only and `traits` stays contract-only. The router consumes explicit ingress and advances through synchronous rounds rather than polling transports ambiently. That is how native execution, tests, and simulation share one semantic model.
 
-`jacquard-cast-support` sits alongside profile and host-integration crates as deterministic evidence and delivery support. It normalizes unicast, multicast, and broadcast cast inputs into bounded, ordered helper records, then can derive route-neutral delivery support from those records and an explicit delivery objective. It leaves transport send/receive, endpoint authoring, retry scheduling, custody storage, and route publication to their owning crates.
+`jacquard-cast-support` sits alongside profile and host-integration crates as deterministic evidence and delivery support. It normalizes unicast, multicast, and broadcast cast inputs into bounded, ordered helper records, then can derive route-neutral delivery support from those records and an explicit delivery objective. Profiles can map that support into route-visible `TransportDeliverySupport` without flattening multicast or broadcast into fake unicast links. It leaves transport send/receive, endpoint authoring, retry scheduling, custody storage, and route publication to their owning crates.
+
+Cast objective admission stays above engines. Profiles expose delivery support, router-owned compatibility helpers compare that support with `RouteDeliveryObjective`, and host effects receive the admitted `TransportDeliveryIntent`. Broadcast objectives name an explicit `BroadcastDomainId` plus receiver coverage requirements; there is no implicit default broadcast domain. Engines continue to produce generic route candidates and must not depend on `jacquard-cast-support` to understand multicast, broadcast, BLE fanout, or endpoint materialization.
+
+The cast surface is integration vocabulary and helper plumbing, not complete multicast or broadcast route activation in the built-in engines. The in-tree engines materialize ordinary routes. A host or downstream profile can use the delivery-support and admission helpers to avoid lying about fanout transports while full cast route activation remains a router/profile integration concern.
 
 The effect traits are narrower than the higher-level component traits. They model runtime capabilities, not whole subsystems. `RoutingEngine`, `Router`, and `RetentionStore` are larger behavioral contracts and should not be forced through the effect layer.
 
@@ -131,9 +135,9 @@ Each crate owns a narrow slice of runtime state.
 | `jacquard-babel` | Babel-private route table, feasibility-distance state, additive-metric scoring, seqno management, and active next-hop forwarding records. |
 | `jacquard-olsrv2` | OLSRv2-private HELLO state, symmetric-neighbor and two-hop reachability tables, deterministic MPR state, TC topology tuples, shortest-path derivation, and active next-hop forwarding records. |
 | `jacquard-scatter` | Scatter-private retained messages, peer observations, per-route progress, replication and handoff state, and deterministic regime, budget, and transport policy thresholds. |
-| `jacquard-router` | Canonical route identity, materialization inputs, leases, handle issuance, top-level route-health publication, and multi-engine orchestration state. |
+| `jacquard-router` | Canonical route identity, materialization inputs, leases, handle issuance, top-level route-health publication, delivery objective compatibility, and multi-engine orchestration state. |
 | `jacquard-mem-node-profile` | In-memory node capability and node-state modeling only. No routing semantics. |
-| `jacquard-mem-link-profile` | In-memory link capability, carrier, retention, and runtime-effect adapter state only. No canonical routing truth. |
+| `jacquard-mem-link-profile` | In-memory link capability, carrier, retention, route-visible delivery-support fixtures, and runtime-effect adapter state only. No canonical routing truth. |
 | `jacquard-reference-client` | Narrow host-side bridge composition of profile implementations, bridge-owned drivers, router, and one or more in-tree engine instances for tests and examples. Observational with respect to canonical route truth, but owner of ingress queueing and round advancement in the reference harness. |
 | `jacquard-testkit` | Shared test fixtures and scenario helpers consumed by the simulator and reference-client test suites. No canonical route truth. |
 | `jacquard-simulator` | Replay artifacts, scenario traces, post-run analysis, and model-lane orchestration over engine-owned planner, reducer, and restore surfaces. No canonical route truth during a live run. |

@@ -43,7 +43,7 @@ HELLO state expires when the engine-local hold window passes. Expiry uses `Tick`
 
 ## MPR Election
 
-MPR election is deterministic and local. The input surface is the currently symmetric one-hop neighbors, two-hop neighbors reachable through those one-hop neighbors, and the integer link metric derived from the shared observation model.
+MPR election is deterministic and local. The input surface is the symmetric one-hop neighbors, two-hop neighbors reachable through those one-hop neighbors, and the integer link metric derived from the shared observation model.
 
 The algorithm chooses a minimal covering relay set for the known two-hop neighbors. Ties break first on lower metric cost, then on canonical node order. The elected set is exported only as engine-local control state plus the local HELLO advertisement. It is not promoted into shared `core` vocabulary.
 

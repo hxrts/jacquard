@@ -12,7 +12,7 @@ Run the smaller smoke sweep:
 cargo run --bin tuning_matrix -- smoke
 ```
 
-Smoke runs a single seed across every family and completes quickly enough for a pre-PR sanity pass. Use it to confirm the binary builds and the families still produce non-empty artifacts.
+Smoke runs a single seed across every family and completes quickly enough for a pre-PR sanity pass. Use it to confirm the binary builds and the families produce non-empty artifacts.
 
 Run the full local sweep and generate the report:
 
@@ -110,7 +110,7 @@ When the default `aggregate_runs` reduction does not answer the question being a
 
 ## Catalog Extensibility Limits
 
-The in-tree family catalog is currently crate-private, which means a 3rd party cannot add a new family directly through the library API without modifying the simulator crate. Two workarounds apply. One: upstream the family into `jacquard-simulator` itself so the catalog exposes it through the standard `tuning_matrix` entry. Two: duplicate the suite-assembly flow in a dependent crate, assembling runs with public `ExperimentSuite` and `ExperimentParameterSet` APIs.
+The in-tree family catalog is crate-private, which means a 3rd party cannot add a new family directly through the library API without modifying the simulator crate. Two workarounds apply. One: upstream the family into `jacquard-simulator` itself so the catalog exposes it through the standard `tuning_matrix` entry. Two: duplicate the suite-assembly flow in a dependent crate, assembling runs with public `ExperimentSuite` and `ExperimentParameterSet` APIs.
 
 The canonical reference for programmatic suite composition is the `tuning_matrix` binary at `crates/simulator/src/bin/tuning_matrix.rs`. It demonstrates CLI parsing, seed selection, stage filtering, suite dispatch, and report generation. A 3rd party assembling a custom harness outside the simulator crate can mirror its structure.
 

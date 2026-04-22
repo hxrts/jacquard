@@ -75,13 +75,13 @@ The shared model-trait family in `jacquard-traits` captures that same split for 
 
 The simulator consumes those engine-owned model traits directly instead of maintaining a parallel simulator-specific engine API.
 
-This activation step also enforces the shared control-plane invariants. The admission decision must still be admissible. The realized protection must satisfy the objective protection floor. Lease validity must be checked explicitly before maintenance or publication proceeds.
+This activation step also enforces the shared control-plane invariants. The admission decision must be admissible. The realized protection must satisfy the objective protection floor. Lease validity must be checked explicitly before maintenance or publication proceeds.
 
 ## Engine Tick
 
 `engine_tick` is the optional engine-wide bootstrap and convergence hook. The router or host owns cadence and passes a shared `RoutingTickContext` containing the authoritative merged topology observation for that step. The engine returns a small `RoutingTickOutcome` so the router can observe whether the tick changed engine-private state without standardizing engine internals. The hook itself does not publish canonical route truth directly.
 
-`RoutingTickOutcome.next_tick_hint` is advisory scheduling pressure, not self-scheduling authority. Proactive engines such as Babel- or BATMAN-style implementations can report that more work is due soon. The host or router still owns final cadence.
+`RoutingTickOutcome.next_tick_hint` is advisory scheduling pressure, not self-scheduling authority. Proactive engines such as Babel- or BATMAN-style implementations can report that more work is due soon. The host or router owns final cadence.
 
 An engine may use a richer internal runtime model behind that hook. First-party pathway, for example, drives protocol-side ingress and bounded control-state refresh through a private choreography guest runtime while keeping the shared `engine_tick` signature unchanged.
 
@@ -218,4 +218,4 @@ pub trait LayeringPolicyEngine {
 
 `PolicyEngine`, `CommitteeSelector`, `CommitteeCoordinatedEngine`, `SubstratePlanner`, and `LayeredRoutingEnginePlanner` are planning or read-only surfaces. `SubstrateRuntime`, `LayeredRoutingEngine`, and `LayeringPolicyEngine` are effectful. `CommitteeSelector` is optional. Jacquard standardizes the `CommitteeSelection` result shape, not one formation algorithm, and selectors may return `None` when no committee applies.
 
-Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band. The substrate and layering traits are still forward-looking contract surfaces for host-owned composition.
+Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band. The substrate and layering traits are forward-looking contract surfaces for host-owned composition.

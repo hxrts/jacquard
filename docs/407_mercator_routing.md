@@ -8,9 +8,9 @@ See [Routing Engines](303_routing_engines.md) for the shared trait contract and 
 
 ## Router Boundary
 
-Mercator implements the same `RoutingEngine` and `RouterManagedEngine` surfaces as the other in-tree engines. Candidate production reads explicit topology observations plus Mercator's private evidence graph. Materialization still happens only after router admission and router identity allocation.
+Mercator implements the same `RoutingEngine` and `RouterManagedEngine` surfaces as the other in-tree engines. Candidate production reads explicit topology observations plus Mercator's private evidence graph. Materialization happens only after router admission and router identity allocation.
 
-The engine does not own transport streams, drain ingress, or assign `Tick`. Host bridges still attach time and advance router rounds. Mercator stays below that boundary: it maintains evidence, searches for a corridor, and exposes bounded diagnostics and router analysis snapshots.
+The engine does not own transport streams, drain ingress, or assign `Tick`. Host bridges attach time and advance router rounds. Mercator stays below that boundary: it maintains evidence, searches for a corridor, and exposes bounded diagnostics and router analysis snapshots.
 
 Its published route shape is `CorridorEnvelope`. Internally, a corridor contains one primary realization plus bounded alternates. Externally, the router sees one candidate for one destination, service, or gateway objective.
 
