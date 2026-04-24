@@ -84,7 +84,7 @@ The initial Rust research boundary is `crates/field/src/research.rs`. It defines
 - `EvidenceOriginUpdateCounts`
 - `ReceiverInferenceQualitySummary`
 
-The Lean theorem boundary is `verification/Field/CodedDiffusion.lean`, imported as `Field.CodedDiffusion`. It now owns the Phase 1 proof-facing core for k-of-n reconstruction, duplicate non-inflation, innovative rank growth, reconstruction monotonicity, parent-contribution recoding soundness, recoded duplicate non-inflation, observer projection preservation, rank-deficit and duplicate-pressure accounting, and finite deterministic work recurrence. Probability-heavy anomaly-margin and observer-erasure claims remain explicit Phase 2+ placeholders.
+The Lean theorem boundary is `verification/Field/CodedDiffusion.lean`, imported as `Field.CodedDiffusion`. It now owns the Phase 1 proof-facing core for k-of-n reconstruction, duplicate non-inflation, innovative rank growth, reconstruction monotonicity, parent-contribution recoding soundness, recoded duplicate non-inflation, observer projection preservation, rank-deficit and duplicate-pressure accounting, and finite deterministic work recurrence. Probability-heavy anomaly-margin and full observer-ambiguity claims remain measured experimental claims unless a later formal privacy theorem is actually proved.
 
 The Phase 2 anomaly-localization surface is now implemented on top of the Phase 1 contribution gate. Locally generated evidence carries `LocalObservationId`, recoded aggregate evidence carries parent contribution lineage plus an aggregate-with-local-observation ledger path, and `ReceiverRankState` exposes canonical accepted contribution ids. `EvidenceVectorRecord` attaches one deterministic integer score vector to one `CodedEvidenceId` plus `ContributionLedgerId` for one `AnomalyLandscape`. The pure `reduce_landscape_updates` reducer canonicalizes contribution order, applies innovative vectors once with saturating integer arithmetic, leaves duplicate arrivals quality-neutral, and emits `LandscapeUpdateEvent` records for replay. `DecisionCommitmentState` records a separate typed `Tick` when the top-hypothesis margin and minimum independent-evidence guard first pass; this remains distinct from exact k-of-n reconstruction. `ReceiverInferenceQualitySummary` reports receiver rank, reconstruction tick, commitment tick, top/runner-up hypotheses, margin, uncertainty, energy gap, innovative and duplicate update counts, and source/local/recoded origin counts.
 
@@ -173,6 +173,33 @@ W_infer is the weighted integer sum of uncertainty, wrong-basin mass, duplicate 
 The target-band and budget sweep covers subcritical, near-critical, and supercritical regions across low, nominal, and high forwarding budgets. Each cell runs the full controller and the controller ablation, then records recovery, commitment, quality, byte cost, transmission cost, storage pressure, duplicate pressure, W_infer, and W_diff. Plot-ready rows expose per-round R_est, target-band state, controller action, cap state, W_infer, W_diff, byte cost, and transmission cost; summary rows expose boundedness, recovery, commitment, cost, duplicate, storage, and potential maxima.
 
 Near-critical control must not publish routes, construct corridor plans, own transport, assign host time, use floating-point control state, depend on host iteration order, or use ambient randomness. Any controller ablation or sweep uses the same deterministic trace and hard-cap schema as the full controller unless the ablation explicitly disables only the near-critical adjustment path.
+
+## Phase 6 Observer Ambiguity Placement
+
+Phase 6 observer ambiguity remains simulator-owned and measured. The simulator owns observer projections, the first attacker model, ambiguity metric proxies, ambiguity knob sweeps, robustness summaries, and plot-ready observer artifacts. Field and Lean remain definition and proof-scaffolding surfaces only; they do not turn the measured ambiguity frontier into a formal privacy claim.
+
+The implemented observer projections are read-only views over coded-inference traces:
+
+- `global` sees all contact and forwarding events,
+- `regional` sees events touching a configured node subset,
+- `endpoint` sees only endpoint-local contacts and forwarding arrivals,
+- `blind` preserves coarse event timing and cost while erasing selected forwarding choices.
+
+The first attacker is deterministic and targets anomaly-region inference from one projection at a time. It receives policy-family knowledge as explicit configuration and never reads hidden simulator state except for post-run scoring of the true target rank. Attacker result rows carry projection identity, target kind, policy family, hidden cluster id for scoring, top guess, true-target rank, top score, posterior-uncertainty proxy, and per-cluster hypothesis scores.
+
+The ambiguity metrics are empirical proxies:
+
+- attacker top-1 accuracy,
+- posterior uncertainty in permille,
+- a mutual-information-style hidden-variable/trace proxy,
+- a mutual-information-style forwarding/contact graph proxy,
+- area under the ambiguity-cost frontier.
+
+Every proxy label includes `proxy` in the artifact-facing field so report text does not imply formal privacy. Exact mutual information is not claimed by these metrics.
+
+The ambiguity sweep covers coding rate `k/n`, fragment dispersion, deterministic forwarding randomness, path-diversity preference where supported by the policy surface, reproduction target band, and observer projection. Forwarding randomness is represented only by explicit stable or seeded deterministic ordering identities. It never uses ambient randomness.
+
+The theorem-backed explanation is intentionally narrow: the blind projection erases forwarding-choice fields such as receiver id, fragment id, evidence id, and policy id from forwarding rows. Projection tests prove those fields are absent from blind rows, and the attacker consumes only projection rows. This supports an erasure/noninterference explanation for that selected projection. It does not prove end-to-end privacy, differential privacy, or exact mutual-information bounds for the full temporal-network process.
 
 ## Legacy Field Baseline
 
