@@ -201,6 +201,47 @@ The ambiguity sweep covers coding rate `k/n`, fragment dispersion, deterministic
 
 The theorem-backed explanation is intentionally narrow: the blind projection erases forwarding-choice fields such as receiver id, fragment id, evidence id, and policy id from forwarding rows. Projection tests prove those fields are absent from blind rows, and the attacker consumes only projection rows. This supports an erasure/noninterference explanation for that selected projection. It does not prove end-to-end privacy, differential privacy, or exact mutual-information bounds for the full temporal-network process.
 
+## Phase 7 Core Experiments
+
+Phase 7 core experiments live in
+`crates/simulator/src/diffusion/core_experiment.rs` and write under the
+`artifacts/coded-inference/core-experiments` namespace when exported. The rows
+are figure inputs, not route-analysis rows, and they reuse the readiness,
+baseline, near-critical, and observer surfaces described above.
+
+The experiment set is:
+
+- Experiment A, `coded_landscape_focus`: score landscape, receiver rank, margin,
+  uncertainty, bytes, duplicates, and merged-statistic quality over time.
+- Experiment A2, `coded_evidence_origin_modes`: source-coded reconstruction,
+  distributed local evidence, and in-network recoding or aggregation, each with
+  its merge algebra and useful contribution accounting.
+- Experiment B, `coded_path_free_recovery`: recovery probability, cost to
+  recover, and path-free successful reconstruction fraction.
+- Experiment C, `coded_phase_diagram`: reproduction target band, forwarding
+  budget, coding rate `k/n`, exact reconstruction, additive-inference quality,
+  bytes, duplicate pressure, and measured R_est.
+- Experiment D, `coded_vs_replication`: equal-payload-byte
+  coding-versus-replication comparison with fixed budget metadata on every row.
+- Experiment E, `coded_observer_frontier`: observer ambiguity proxy frontier
+  over fragment dispersion, deterministic forwarding randomness, reproduction
+  band, cost, latency, and quality.
+
+The Phase 7 claim boundary is deliberately stronger than route availability but
+narrower than general inference. The core fixtures machine-check that no
+instantaneous source-to-receiver path exists in the core window while a
+time-respecting evidence journey still exists. Useful inference can therefore
+appear before any full payload or full raw observation set transits as a
+continuous path. This is a claim about temporal evidence accumulation and
+mergeable sufficient statistics, not about maintaining a stable route.
+
+Exact `k`-of-`n` recovery is the set-union threshold case. The anomaly
+localization surface is the additive integer score-vector case. Recoding and
+aggregation are valid only when canonical contribution lineage prevents
+duplicate rank inflation and duplicate statistic inflation. Arbitrary machine
+learning inference, new erasure-code construction, and formal privacy claims are
+outside this phase unless a later theorem or experiment explicitly adds them.
+
 ## Legacy Field Baseline
 
 `docs/406_field_routing.md` is legacy context. It documents the old corridor-envelope Field engine that still exists as a runnable baseline.

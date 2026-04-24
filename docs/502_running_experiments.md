@@ -146,6 +146,35 @@ cargo test -p jacquard-simulator observer_artifacts
 
 Observer fixtures build explicit global, regional, endpoint, and blind projections over coded-inference traces. The first attacker infers anomaly region from one projection at a time. Metrics are empirical proxies for attacker advantage, posterior uncertainty, forwarding/contact trace coupling, and ambiguity-cost frontier area; they are not formal privacy measures. The sweep varies coding rate, fragment dispersion, deterministic forwarding-randomness mode, path-diversity preference, reproduction target band, and projection identity. Plot-ready observer rows carry projection identity, attacker target, knob values, attacker result, ambiguity metrics, cost, latency, and quality fields.
 
+The coded-diffusion core-experiment package is exposed through focused simulator
+tests while the report export path remains optional. These tests generate or
+validate the deterministic rows for the paper-facing figures without appending
+them to route-analysis tables:
+
+```bash
+cargo test -p jacquard-simulator core_experiment
+cargo test -p jacquard-simulator experiment_a_landscape
+cargo test -p jacquard-simulator experiment_a2_evidence_modes
+cargo test -p jacquard-simulator experiment_b_path_free_recovery
+cargo test -p jacquard-simulator experiment_c_phase_diagram
+cargo test -p jacquard-simulator experiment_d_coding_vs_replication
+cargo test -p jacquard-simulator experiment_e_observer_frontier
+```
+
+The artifact namespace is `artifacts/coded-inference/core-experiments`.
+Experiment A emits the landscape-over-time rows. Experiment A2 emits
+evidence-origin mode rows. Experiment B emits path-free recovery rows.
+Experiment C emits phase-diagram rows over target band, forwarding budget, and
+coding rate. Experiment D emits the equal-byte coding-versus-replication rows.
+Experiment E emits the observer ambiguity frontier rows. Generated report
+datasets may use the optional CSV names checked by `just report-sanity`:
+`coded_inference_experiment_a_landscape.csv`,
+`coded_inference_experiment_a2_evidence_modes.csv`,
+`coded_inference_experiment_b_path_free_recovery.csv`,
+`coded_inference_experiment_c_phase_diagram.csv`,
+`coded_inference_experiment_d_coding_vs_replication.csv`, and
+`coded_inference_experiment_e_observer_frontier.csv`.
+
 ## Review Guidance
 
 When reviewing report output, prefer the PDF report and CSV tables over any single composite score. Use the transition table to distinguish robust settings from lucky averages. Use the boundary table to see where an engine stops being acceptable. Rerun the matrix after meaningful engine, router, or simulator changes before updating defaults.

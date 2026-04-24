@@ -45,3 +45,14 @@ The `analysis/` Python package reads those artifacts. `data.py` loads them into 
 Report outputs are stable across releases subject to explicit schema versioning. A 3rd party can rely on the artifact shape to build custom reductions or alternate reports without waiting on changes to the included pipeline.
 
 Coded-diffusion observer ambiguity is reported as a measured frontier, not as a formal privacy guarantee. Its independent variables include observer projection, coding rate, fragment dispersion, deterministic forwarding-randomness mode, path-diversity preference, and reproduction target band. Its dependent variables include attacker top-1 accuracy, posterior uncertainty, mutual-information-style trace proxies, ambiguity-cost frontier area, cost, latency, and inference quality.
+
+The coded-diffusion core experiments are simulator-local research fixtures, not
+route-continuity tuning runs. Their central claim is path-free inference from
+partial, independent evidence under deterministic temporal contacts. Exact
+`k`-of-`n` recovery is treated as the set-union threshold case. The anomaly
+localization task is treated as additive integer score-vector merging, where
+the merged statistic directly determines margin, uncertainty, and decision
+quality. The methodology does not claim a new erasure code or arbitrary machine
+learning inference; it claims deterministic transport and merging of supported
+mergeable sufficient statistics, plus measured near-critical cost control and
+measured observer ambiguity proxies.
