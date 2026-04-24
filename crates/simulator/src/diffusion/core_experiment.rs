@@ -22,6 +22,10 @@ use super::{
         run_near_critical_sweep, ControllerModeKind, NearCriticalSweepArtifact,
         NearCriticalSweepRegion,
     },
+    observer::{
+        observer_artifact_rows, ObserverArtifactRow, ObserverForwardingRandomness,
+        ObserverProjectionKind,
+    },
 };
 
 const CORE_EXPERIMENT_NAMESPACE: &str = "artifacts/coded-inference/core-experiments";
@@ -130,6 +134,10 @@ pub(crate) struct CoreExperimentArtifactRow {
     pub fixed_payload_budget_bytes: u32,
     pub equal_quality_cost_reduction_permille: u32,
     pub equal_cost_quality_improvement_permille: u32,
+    pub fragment_dispersion_permille: u32,
+    pub forwarding_randomness_permille: u32,
+    pub path_diversity_preference_permille: u32,
+    pub ambiguity_metric_is_proxy: bool,
     pub byte_count: u32,
     pub duplicate_count: u32,
     pub latency_rounds: u32,
@@ -327,6 +335,10 @@ pub(crate) fn experiment_a_landscape_rows(
             fixed_payload_budget_bytes: summary.fixed_payload_budget_bytes,
             equal_quality_cost_reduction_permille: 0,
             equal_cost_quality_improvement_permille: 0,
+            fragment_dispersion_permille: 0,
+            forwarding_randomness_permille: 0,
+            path_diversity_preference_permille: 0,
+            ambiguity_metric_is_proxy: false,
             byte_count: summary.bytes_transmitted,
             duplicate_count: summary.duplicate_arrival_count,
             latency_rounds: summary
@@ -430,6 +442,10 @@ pub(crate) fn experiment_b_path_free_recovery_rows(
                 fixed_payload_budget_bytes: summary.fixed_payload_budget_bytes,
                 equal_quality_cost_reduction_permille: 0,
                 equal_cost_quality_improvement_permille: 0,
+                fragment_dispersion_permille: 0,
+                forwarding_randomness_permille: 0,
+                path_diversity_preference_permille: 0,
+                ambiguity_metric_is_proxy: false,
                 byte_count: summary.bytes_transmitted,
                 duplicate_count: summary.duplicate_arrival_count,
                 latency_rounds: summary
@@ -505,6 +521,83 @@ pub(crate) fn experiment_d_coding_vs_replication_rows(
     Ok(rows)
 }
 
+pub(crate) fn experiment_e_observer_frontier_rows(seed: u64) -> Vec<CoreExperimentArtifactRow> {
+    let bundle = observer_artifact_rows(seed);
+    let path_evidence = core_path_evidence(&deterministic_core_fixture_edges(), 1, 5);
+    let mut rows = bundle
+        .rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| {
+            experiment_e_row(
+                seed,
+                &path_evidence,
+                u32::try_from(index).unwrap_or(u32::MAX),
+                row,
+            )
+        })
+        .collect::<Vec<_>>();
+    sort_core_experiment_rows(&mut rows);
+    rows
+}
+
+fn experiment_e_row(
+    seed: u64,
+    path_evidence: &CoreExperimentPathEvidence,
+    ordering_key: u32,
+    row: &ObserverArtifactRow,
+) -> CoreExperimentArtifactRow {
+    CoreExperimentArtifactRow {
+        identity: core_experiment_identity(
+            CoreExperimentId::ObserverAmbiguityFrontier,
+            "coded-inference-observer",
+            seed,
+            &observer_mode_label(row),
+        ),
+        mergeable_statistic: observer_projection_descriptor(),
+        path_evidence: path_evidence.clone(),
+        round_index: row.latency_rounds,
+        ordering_key,
+        hidden_hypothesis_id: 0,
+        hypothesis_id: row.top_guess_cluster_id,
+        top_hypothesis_id: row.top_guess_cluster_id,
+        scaled_score: i32::try_from(row.attacker_top1_accuracy_permille).unwrap_or(i32::MAX),
+        energy_gap: i32::try_from(row.posterior_uncertainty_permille).unwrap_or(i32::MAX),
+        available_evidence_count: row.true_target_rank,
+        useful_contribution_count: row.true_target_rank,
+        recovery_probability_permille: row.quality_permille,
+        path_free_success_permille: path_free_success_permille(path_evidence, row.quality_permille),
+        cost_to_recover_bytes: row.cost_bytes,
+        reproduction_target_low_permille: row.reproduction_target_low_permille,
+        reproduction_target_high_permille: row.reproduction_target_high_permille,
+        r_est_permille: row.reproduction_target_low_permille,
+        forwarding_budget: row.path_diversity_preference_permille,
+        coding_k: row.coding_rate_k,
+        coding_n: row.coding_rate_n,
+        duplicate_rate_permille: row.forwarding_contact_proxy_permille,
+        fixed_payload_budget_bytes: row.cost_bytes,
+        equal_quality_cost_reduction_permille: 0,
+        equal_cost_quality_improvement_permille: 0,
+        fragment_dispersion_permille: row.fragment_dispersion_permille,
+        forwarding_randomness_permille: forwarding_randomness_permille(row.forwarding_randomness),
+        path_diversity_preference_permille: row.path_diversity_preference_permille,
+        ambiguity_metric_is_proxy: true,
+        byte_count: row.cost_bytes,
+        duplicate_count: row.forwarding_contact_proxy_permille,
+        latency_rounds: row.latency_rounds,
+        storage_pressure_bytes: row.cost_bytes,
+        receiver_rank: row.true_target_rank,
+        top_hypothesis_margin: i32::try_from(
+            1000_u32.saturating_sub(row.attacker_top1_accuracy_permille),
+        )
+        .unwrap_or(i32::MAX),
+        uncertainty_permille: row.posterior_uncertainty_permille,
+        quality_permille: row.quality_permille,
+        merged_statistic_quality_permille: row.quality_permille,
+        observer_advantage_permille: row.attacker_top1_accuracy_permille,
+    }
+}
+
 fn experiment_d_row(
     seed: u64,
     path_evidence: &CoreExperimentPathEvidence,
@@ -555,6 +648,10 @@ fn experiment_d_row(
             summary, reference,
         ),
         equal_cost_quality_improvement_permille: reference_quality.saturating_sub(summary_quality),
+        fragment_dispersion_permille: 0,
+        forwarding_randomness_permille: 0,
+        path_diversity_preference_permille: 0,
+        ambiguity_metric_is_proxy: false,
         byte_count: summary.bytes_transmitted,
         duplicate_count: summary.duplicate_arrival_count,
         latency_rounds: summary
@@ -615,6 +712,10 @@ fn experiment_c_row(
         fixed_payload_budget_bytes: artifact.cell.payload_byte_cap,
         equal_quality_cost_reduction_permille: 0,
         equal_cost_quality_improvement_permille: 0,
+        fragment_dispersion_permille: 0,
+        forwarding_randomness_permille: 0,
+        path_diversity_preference_permille: 0,
+        ambiguity_metric_is_proxy: false,
         byte_count: artifact.byte_cost,
         duplicate_count: artifact.duplicate_pressure,
         latency_rounds: artifact.transmission_cost,
@@ -666,6 +767,10 @@ fn experiment_a_landscape_event_row(
         fixed_payload_budget_bytes: 0,
         equal_quality_cost_reduction_permille: 0,
         equal_cost_quality_improvement_permille: 0,
+        fragment_dispersion_permille: 0,
+        forwarding_randomness_permille: 0,
+        path_diversity_preference_permille: 0,
+        ambiguity_metric_is_proxy: false,
         byte_count: cumulative_payload_bytes(log, event.round_index),
         duplicate_count: duplicate_arrivals_at_or_before(log, event.round_index),
         latency_rounds: event.round_index,
@@ -716,6 +821,10 @@ fn experiment_a_oracle_row(
         fixed_payload_budget_bytes: summary.uncoded_fixed_payload_budget_bytes,
         equal_quality_cost_reduction_permille: 0,
         equal_cost_quality_improvement_permille: 0,
+        fragment_dispersion_permille: 0,
+        forwarding_randomness_permille: 0,
+        path_diversity_preference_permille: 0,
+        ambiguity_metric_is_proxy: false,
         byte_count: summary.uncoded_fixed_payload_budget_bytes,
         duplicate_count: 0,
         latency_rounds: final_round,
@@ -774,6 +883,10 @@ fn origin_mode_row(
         fixed_payload_budget_bytes: 0,
         equal_quality_cost_reduction_permille: 0,
         equal_cost_quality_improvement_permille: 0,
+        fragment_dispersion_permille: 0,
+        forwarding_randomness_permille: 0,
+        path_diversity_preference_permille: 0,
+        ambiguity_metric_is_proxy: false,
         byte_count: accumulator.byte_count,
         duplicate_count: accumulator.duplicate_count,
         latency_rounds: accumulator.latest_arrival_round,
@@ -980,6 +1093,40 @@ fn equal_quality_cost_reduction_permille(
         / summary.bytes_transmitted
 }
 
+fn observer_mode_label(row: &ObserverArtifactRow) -> String {
+    format!(
+        "{}-dispersion-{}-randomness-{}-band-{}-{}",
+        observer_projection_label(row.observer_projection_identity),
+        row.fragment_dispersion_permille,
+        forwarding_randomness_label(row.forwarding_randomness),
+        row.reproduction_target_low_permille,
+        row.reproduction_target_high_permille
+    )
+}
+
+fn observer_projection_label(kind: ObserverProjectionKind) -> &'static str {
+    match kind {
+        ObserverProjectionKind::Global => "global",
+        ObserverProjectionKind::Regional => "regional",
+        ObserverProjectionKind::Endpoint => "endpoint",
+        ObserverProjectionKind::Blind => "blind",
+    }
+}
+
+fn forwarding_randomness_label(randomness: ObserverForwardingRandomness) -> &'static str {
+    match randomness {
+        ObserverForwardingRandomness::StableOrder => "stable-order",
+        ObserverForwardingRandomness::SeededPermutation => "seeded-permutation",
+    }
+}
+
+fn forwarding_randomness_permille(randomness: ObserverForwardingRandomness) -> u32 {
+    match randomness {
+        ObserverForwardingRandomness::StableOrder => 0,
+        ObserverForwardingRandomness::SeededPermutation => 1000,
+    }
+}
+
 fn cumulative_payload_bytes(log: &CodedInferenceReadinessLog, round_index: u32) -> u32 {
     log.budget_events
         .iter()
@@ -1162,6 +1309,10 @@ mod tests {
             fixed_payload_budget_bytes: 64,
             equal_quality_cost_reduction_permille: 0,
             equal_cost_quality_improvement_permille: 0,
+            fragment_dispersion_permille: 0,
+            forwarding_randomness_permille: 0,
+            path_diversity_preference_permille: 0,
+            ambiguity_metric_is_proxy: false,
             byte_count: 64,
             duplicate_count: 1,
             latency_rounds: 4,
@@ -1588,5 +1739,78 @@ mod tests {
             row.identity.policy_or_mode == "uncoded-replication"
                 && row.mergeable_statistic.statistic_kind == MergeableStatisticKind::SetUnionRank
         }));
+    }
+
+    #[test]
+    fn experiment_e_observer_frontier_covers_required_knobs() {
+        let rows = experiment_e_observer_frontier_rows(41);
+        let dispersions = rows
+            .iter()
+            .map(|row| row.fragment_dispersion_permille)
+            .collect::<BTreeSet<_>>();
+        let randomness = rows
+            .iter()
+            .map(|row| row.forwarding_randomness_permille)
+            .collect::<BTreeSet<_>>();
+        let bands = rows
+            .iter()
+            .map(|row| {
+                (
+                    row.reproduction_target_low_permille,
+                    row.reproduction_target_high_permille,
+                )
+            })
+            .collect::<BTreeSet<_>>();
+
+        assert!(dispersions.len() >= 2);
+        assert!(randomness.len() >= 2);
+        assert!(bands.len() >= 2);
+        assert!(rows
+            .iter()
+            .all(|row| row.identity.experiment_id == CoreExperimentId::ObserverAmbiguityFrontier));
+    }
+
+    #[test]
+    fn experiment_e_observer_frontier_ambiguity_is_not_free() {
+        let rows = experiment_e_observer_frontier_rows(41);
+        let low_dispersion = rows
+            .iter()
+            .filter(|row| row.fragment_dispersion_permille == 200)
+            .map(|row| row.byte_count.saturating_add(row.latency_rounds))
+            .min()
+            .unwrap_or(0);
+        let high_dispersion = rows
+            .iter()
+            .filter(|row| row.fragment_dispersion_permille == 800)
+            .map(|row| row.byte_count.saturating_add(row.latency_rounds))
+            .max()
+            .unwrap_or(0);
+
+        assert!(high_dispersion > low_dispersion);
+        assert!(rows
+            .iter()
+            .any(|row| { row.forwarding_randomness_permille == 1000 && row.latency_rounds > 8 }));
+    }
+
+    #[test]
+    fn experiment_e_observer_frontier_labels_ambiguity_metrics_as_proxies() {
+        let rows = experiment_e_observer_frontier_rows(41);
+
+        assert!(rows.iter().all(|row| row.ambiguity_metric_is_proxy));
+        assert!(rows.iter().all(|row| {
+            row.mergeable_statistic.statistic_kind
+                == MergeableStatisticKind::ObserverProjectionSummary
+        }));
+    }
+
+    #[test]
+    fn experiment_e_observer_frontier_rows_are_deterministic() {
+        let first = experiment_e_observer_frontier_rows(41);
+        let second = experiment_e_observer_frontier_rows(41);
+
+        assert_eq!(first, second);
+        assert_eq!(first.len(), 64);
+        assert!(first.iter().any(|row| row.uncertainty_permille > 0));
+        assert!(first.iter().any(|row| row.quality_permille >= 700));
     }
 }
