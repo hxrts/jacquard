@@ -169,6 +169,15 @@ fn base_builder(
         EngineLane::AllEngines => {
             ClientBuilder::all_engines(local_node_id, topology, network, observed_at_tick)
         }
+        EngineLane::RouteVisibleEngines => {
+            ClientBuilder::pathway(local_node_id, topology, network, observed_at_tick)
+                .with_batman_bellman()
+                .with_batman_classic()
+                .with_babel()
+                .with_olsrv2()
+                .with_scatter()
+                .with_mercator()
+        }
         EngineLane::BatmanBellman => {
             ClientBuilder::batman_bellman(local_node_id, topology, network, observed_at_tick)
         }

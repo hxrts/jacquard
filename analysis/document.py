@@ -35,11 +35,9 @@ from .sections import (
     batman_classic_algorithm_lines,
     comparison_findings_lines,
     document_title,
-    diffusion_field_posture_lines,
     diffusion_takeaway_lines,
     engine_section_lines,
     executive_summary_lines,
-    field_algorithm_lines,
     head_to_head_findings_lines,
     head_to_head_regime_lines,
     head_to_head_takeaway_lines,
@@ -68,10 +66,6 @@ from .tables import (
     diffusion_regime_engine_summary_table_rows,
     diffusion_engine_summary_table_rows,
     diffusion_weight_sensitivity_table_rows,
-    field_vs_best_diffusion_alternative_table_rows,
-    field_diffusion_regime_table_rows,
-    field_profile_table_rows,
-    field_routing_regime_table_rows,
     head_to_head_table_rows,
     large_population_diffusion_transition_table_rows,
     large_population_route_summary_table_rows,
@@ -299,7 +293,6 @@ class FigureLayout:
 FIGURE_LAYOUT_STANDARD = FigureLayout(16.4 * cm, 7.4 * cm)
 FIGURE_LAYOUT_TALL = FigureLayout(16.4 * cm, 8.6 * cm)
 FIGURE_LAYOUT_SCATTER = FigureLayout(16.4 * cm, 9.4 * cm)
-FIGURE_LAYOUT_FIELD = FigureLayout(16.4 * cm, 10.2 * cm)
 FIGURE_LAYOUT_COMPARISON_TILE = FigureLayout(14.8 * cm, 10.2 * cm, keep_together=True)
 FIGURE_LAYOUT_COMPARISON_BAR = FigureLayout(16.4 * cm, 10.2 * cm, keep_together=True)
 FIGURE_LAYOUT_COMPARISON_HEATMAP = FigureLayout(17.2 * cm, 9.6 * cm, keep_together=True)
@@ -323,8 +316,6 @@ FIGURE_LAYOUTS: dict[str, FigureLayout] = {
     "scatter_profile_runtime": FIGURE_LAYOUT_SCATTER,
     "pathway_budget_route_presence": FIGURE_LAYOUT_STANDARD,
     "pathway_budget_activation": FIGURE_LAYOUT_STANDARD,
-    "field_budget_route_presence": FIGURE_LAYOUT_FIELD,
-    "field_budget_reconfiguration": FIGURE_LAYOUT_FIELD,
     "comparison_dominant_engine": FIGURE_LAYOUT_COMPARISON_TILE,
     "head_to_head_route_presence": FIGURE_LAYOUT_COMPARISON_BAR,
     "head_to_head_timing_profile": FIGURE_LAYOUT_COMPARISON_HEATMAP,
@@ -352,7 +343,6 @@ PART_I_SETUP_SECTIONS = [
     ("Scatter Algorithm", scatter_algorithm_lines),
     ("Mercator Algorithm", mercator_algorithm_lines),
     ("Pathway Algorithm", pathway_algorithm_lines),
-    ("Field Algorithm", field_algorithm_lines),
     ("Recommendation Logic", scoring_lines),
 ]
 
@@ -404,13 +394,6 @@ ENGINE_ANALYSIS_SECTIONS = [
         "context_heading": "Budget Figures",
         "context_section": "Pathway Budget Figures Intro",
         "figure_ids": ("pathway_budget_route_presence", "pathway_budget_activation"),
-    },
-    {
-        "title": "9. Field Analysis",
-        "engine_family": "field",
-        "context_heading": "Corridor Figures",
-        "context_section": "Field Corridor Figures Intro",
-        "figure_ids": ("field_budget_route_presence", "field_budget_reconfiguration"),
     },
 ]
 
@@ -860,7 +843,6 @@ def write_pdf_report(
                 field_vs_best_diffusion_alternative,
             ),
         )
-        add_paragraphs(story, styles, diffusion_field_posture_lines(diffusion_engine_comparison))
 
     story.append(Paragraph("Appendix A. Tuning Reference Tables", styles["Section"]))
     add_paragraphs(story, styles, section_lines("Tuning Reference Tables Intro"))
@@ -900,31 +882,6 @@ def write_pdf_report(
         table_counter,
         profile_block.description_lines,
     )
-    field_profile_block = asset_block("Field Continuity Profiles", "table")
-    add_table_section(
-        story,
-        styles,
-        "Field Continuity Profiles",
-        field_profile_block.lines,
-        ["Profile", "Configuration", "Score", "Route", "Shifts", "Carry", "Narrow", "Degraded"],
-        field_profile_table_rows(field_profile_recommendations),
-        [3.0 * cm, 4.6 * cm, 1.6 * cm, 1.5 * cm, 1.5 * cm, 1.8 * cm, 1.4 * cm, 1.6 * cm],
-        table_counter,
-        field_profile_block.description_lines,
-    )
-    field_regime_block = asset_block("Field Regime Calibration", "table")
-    add_table_section(
-        story,
-        styles,
-        "Field Regime Calibration",
-        field_regime_block.lines,
-        ["Regime", "Success Criteria", "Configuration", "Route", "Transition", "Shifts", "Carry", "Stress"],
-        field_routing_regime_table_rows(field_routing_regime_calibration),
-        [2.2 * cm, 5.1 * cm, 3.6 * cm, 1.2 * cm, 1.4 * cm, 1.2 * cm, 1.4 * cm, 1.1 * cm],
-        table_counter,
-        field_regime_block.description_lines,
-    )
-
     story.append(Paragraph("Appendix B. Route-Visible Reference Tables", styles["Section"]))
     add_paragraphs(story, styles, section_lines("Route-Visible Reference Tables Intro"))
     mixed_regime_block = asset_block("Mixed-Engine Regime Split", "table")
@@ -957,10 +914,9 @@ def write_pdf_report(
             "Scatter",
             "Mercator",
             "Pathway",
-            "Field",
         ],
         comparison_engine_round_breakdown_table_rows(comparison_engine_round_breakdown),
-        [2.7 * cm, 1.3 * cm, 1.1 * cm, 0.9 * cm, 1.0 * cm, 1.0 * cm, 0.8 * cm, 0.8 * cm, 0.8 * cm, 0.9 * cm, 0.8 * cm, 0.8 * cm],
+        [2.7 * cm, 1.3 * cm, 1.1 * cm, 0.9 * cm, 1.0 * cm, 1.0 * cm, 0.8 * cm, 0.8 * cm, 0.8 * cm, 0.9 * cm, 0.8 * cm],
         table_counter,
         comparison_breakdown_block.description_lines,
     )
@@ -1085,32 +1041,6 @@ def write_pdf_report(
             [4.6 * cm, 2.0 * cm, 3.4 * cm, 1.8 * cm, 3.4 * cm, 1.8 * cm],
             table_counter,
             diffusion_boundary_block.description_lines,
-        )
-        field_diff_regime_block = asset_block("Field Diffusion Regime Calibration", "table")
-        add_table_section(
-            story,
-            styles,
-            "Field Diffusion Regime Calibration",
-            field_diff_regime_block.lines,
-            ["Regime", "Success Criteria", "Configuration", "Posture", "State", "Transition", "Delivery", "Tx", "Fit"],
-            field_diffusion_regime_table_rows(field_diffusion_regime_calibration),
-            [1.6 * cm, 4.8 * cm, 3.0 * cm, 1.9 * cm, 1.3 * cm, 1.7 * cm, 1.3 * cm, 1.0 * cm, 1.2 * cm],
-            table_counter,
-            field_diff_regime_block.description_lines,
-        )
-        field_alt_block = asset_block("Field Vs Best Alternative", "table")
-        add_table_section(
-            story,
-            styles,
-            "Field Vs Best Alternative",
-            field_alt_block.lines,
-            ["Regime", "Field", "OK", "State", "Alternative", "Alt State", "dDel", "dCov", "dClus", "dTx", "dScore"],
-            field_vs_best_diffusion_alternative_table_rows(
-                field_vs_best_diffusion_alternative
-            ),
-            [1.5 * cm, 3.0 * cm, 0.8 * cm, 1.3 * cm, 3.0 * cm, 1.5 * cm, 1.0 * cm, 1.0 * cm, 1.1 * cm, 0.9 * cm, 1.1 * cm],
-            table_counter,
-            field_alt_block.description_lines,
         )
         diffusion_sensitivity_block = asset_block("Diffusion Winner Sensitivity", "table")
         add_table_section(

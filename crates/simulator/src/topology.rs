@@ -157,6 +157,19 @@ impl TopologyNodePreset {
     }
 
     #[must_use]
+    pub(crate) fn route_visible_engines(self) -> Self {
+        self.for_engines(&[
+            PATHWAY_ENGINE_ID,
+            BATMAN_BELLMAN_ENGINE_ID,
+            BATMAN_CLASSIC_ENGINE_ID,
+            BABEL_ENGINE_ID,
+            OLSRV2_ENGINE_ID,
+            SCATTER_ENGINE_ID,
+            MERCATOR_ENGINE_ID,
+        ])
+    }
+
+    #[must_use]
     pub(crate) fn observed_at(mut self, observed_at_tick: Tick) -> Self {
         self.observed_at_tick = observed_at_tick;
         self

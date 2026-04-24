@@ -61,9 +61,9 @@ The Pathway matrix shows a clear minimum-budget boundary. Budget `1` remains the
 
 The practical interpretation is that `2` is the minimum viable budget floor, `3` to `4` is the sensible default range, and larger budgets need a regime-specific justification.
 
-### Field
+### Legacy Field
 
-The Field sweep produces non-zero activation success and route presence at the router-visible boundary. The tested Field settings cluster closely, so the results should be read as a viable range rather than one sharply preferred point. The continuity profile table is the better place to choose between lower-churn and broader-reselection behavior.
+Historical Field corridor-routing sweeps remain useful for baseline inspection, but Field is no longer part of future routing-engine comparison runs. New research-path Field outputs belong to the coded-diffusion artifact namespace and must not be appended to routing-tuning tables as route-quality rows.
 
 ### Mercator
 
@@ -71,11 +71,11 @@ Mercator is now represented on both the route-visible and diffusion surfaces. In
 
 ### Mixed Comparison
 
-The comparison regimes inform regime suitability rather than global winners. Low-loss connected-only cases favor the distance-vector stacks. Concurrent mixed workloads favor Pathway. High-loss bridge and some field-favorable comparison cases remain hard failure regimes across every tested stack.
+The comparison regimes inform regime suitability rather than global winners. Low-loss connected-only cases favor the distance-vector stacks. Concurrent mixed workloads favor Pathway. High-loss bridge and corridor-continuity cases remain hard failure regimes across several tested stacks.
 
 ### Head-To-Head Engine Sets
 
-The head-to-head corpus runs the same regimes under explicit single-engine stacks: `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `scatter`, `mercator`, `pathway`, `field`, or `pathway-batman-bellman`. This is separate from the mixed-engine comparison, which asks which engine a router selects when several are available. Head-to-head asks what happens when only one is available.
+The head-to-head corpus runs the same regimes under explicit single-engine stacks: `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `scatter`, `mercator`, `pathway`, or `pathway-batman-bellman`. This is separate from the mixed-engine comparison, which asks which engine a router selects when several are available. Head-to-head asks what happens when only one is available.
 
 ## Assembling A Custom Suite
 

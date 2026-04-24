@@ -32,6 +32,7 @@ pub enum EngineLane {
     PathwayAndField,
     FieldAndBatmanBellman,
     AllEngines,
+    RouteVisibleEngines,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -226,6 +227,15 @@ impl HostSpec {
         Self {
             local_node_id,
             lane: EngineLane::AllEngines,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn route_visible_engines(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::RouteVisibleEngines,
             overrides: HostOverrides::default(),
         }
     }

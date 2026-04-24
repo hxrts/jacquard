@@ -1416,6 +1416,7 @@ def head_to_head_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
     head_to_head_rows = aggregates.filter(
         (pl.col("engine_family") == "head-to-head")
         & pl.col("comparison_engine_set").is_not_null()
+        & pl.col("comparison_engine_set").is_in(ROUTE_VISIBLE_ENGINE_SET_ORDER)
     )
     if head_to_head_rows.is_empty():
         return pl.DataFrame()

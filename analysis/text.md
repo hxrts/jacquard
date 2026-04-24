@@ -4,7 +4,7 @@
 
 ### Executive Summary Intro
 
-This report studies Jacquard routing behavior across eight engines using a common simulator corpus and analysis pipeline. The engines in scope are `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `mercator`, `pathway`, and `field`. The goal is to understand where each engine works well, where performance degrades, what kind of failures arise, and to compare engines under the same network conditions. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
+This report studies Jacquard routing behavior across seven active routing engines using a common simulator corpus and analysis pipeline. The engines in scope are `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `mercator`, and `pathway`; historical Field corridor-routing artifacts are treated as legacy inputs rather than active comparison members. The goal is to understand where each active engine works well, where performance degrades, what kind of failures arise, and to compare engines under the same network conditions. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
 
 The report is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles. Part IV evaluates these calibrated profiles under message-diffusion scenarios where node movement and intermittent contact opportunities carry messages, and end-to-end paths may not exist.
 
@@ -30,7 +30,7 @@ Column guide: Score is the composite ranking value; Activation is the share of r
 
 #### Recommendation Detail Note
 
-Detailed transition, failure-boundary, profile, and field-regime tables are collected in Appendix A so the main report can stay focused on the key recommendations and figures.
+Detailed transition, failure-boundary, and profile tables are collected in Appendix A so the main report can stay focused on the key recommendations and figures.
 
 #### Transition Behavior
 
@@ -60,7 +60,7 @@ The simulator now also records model-lane snapshot and reducer artifacts for val
 
 #### Matrix Design
 
-The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-classic`, `batman-bellman`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. For `scatter`, the route-visible sweep compares the maintained `balanced`, `conservative`, and `degraded-network` profiles. For `mercator`, the route-visible sweep uses the fixed bounded-custody posture against the same maintained route-visible families. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
+The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-classic`, `batman-bellman`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. For `scatter`, the route-visible sweep compares the maintained `balanced`, `conservative`, and `degraded-network` profiles. For `mercator`, the route-visible sweep uses the fixed bounded-custody posture against the same maintained route-visible families. For `pathway`, the main sweep changes per-objective search budget and heuristic mode.
 
 The recommendations are meant to be good defaults for this modeled corpus, not single winners from one scenario.
 
@@ -127,13 +127,13 @@ Unlike an acknowledgement-driven custody protocol, `scatter` does not assume aut
 
 `mercator` combines connected corridor search, maintained repair evidence, weakest-flow reservation, broker-pressure accounting, and bounded custody posture. It publishes one connected corridor claim only when connected support exists. When support does not exist, custody remains engine-private and bounded through the shared retention boundary rather than becoming a synthetic connected route.
 
-The route-visible experiments exercise Mercator as a fixed representative engine set. The diffusion experiments use its bounded custody profile to compare strict-improvement carrier selection, protected bridge budget, and suppression behavior against `scatter`, `field`, and proactive baselines.
+The route-visible experiments exercise Mercator as a fixed representative engine set. The diffusion experiments use its bounded custody profile to compare strict-improvement carrier selection, protected bridge budget, and suppression behavior against `scatter` and proactive baselines.
 
 #### Pathway Algorithm
 
 Pathway explores candidate continuations and chooses a full routing decision for the requested destination or service. The main tuning question is how much search budget it needs before it reliably finds good candidates. It is also one of the in-tree routing engines that supports bounded deferred delivery of payloads: when a route enters partition mode, payloads can be retained through the shared retention boundary and later replayed on recovery or handoff.
 
-#### Field Algorithm
+#### Legacy Field Algorithm
 
 Field maintains a continuously updated field model, searches over frozen snapshots, and publishes one corridor-style routing claim while allowing the concrete realization to move inside that corridor. It has an explicit bootstrap phase where weaker corridor claims can be published when evidence is coherent but not yet strong enough for steady admission. The tuning surface is now split deliberately: search breadth still lives in `FieldSearchConfig`, while continuation, promotion, continuity, and evidence behavior sit behind a separate internal operational policy surface that the experiments can sweep more cleanly. Field does carry forward bounded routing and service evidence, but that carry-forward supports corridor and service continuity rather than acting as a general payload store-and-forward cache.
 
@@ -143,13 +143,13 @@ The recommendation score rewards settings that activate routes reliably, maintai
 
 Profile-specific recommendations allow different operational priorities. Conservative profiles weight stability and failure avoidance more heavily, while aggressive or service-heavy profiles tolerate more risk.
 
-`field` is calibrated on two surfaces in Part I: the generic route-visible recommendation surface and a separate regime-specific surface that explicitly scores corridor continuity, bootstrap upgrade quality, service continuity, and transition health.
+Historical Field corridor-routing calibration is not part of the active route-visible recommendation surface. Existing Field artifacts may still be parsed as legacy evidence, but new routing recommendations exclude Field rows.
 
 When several nearby settings score about the same, the report prefers the middle of the acceptable range.
 
 #### Tuning Reference Material
 
-Appendix A contains the detailed transition, failure-boundary, profile, and field-specific calibration tables that support the main tuning recommendation.
+Appendix A contains the detailed transition, failure-boundary, and profile tables that support the main tuning recommendation.
 
 #### Profile Recommendation Logic
 
@@ -165,7 +165,7 @@ No profile-specific recommendations are available for this artifact set.
 
 Column guide: Profile is the ranking policy; Score is the profile-weighted composite value; Activation is share of runs that installed a route; Route is average route presence; Max Stress is highest stress level survived.
 
-#### Field Continuity Profiles
+#### Legacy Field Continuity Profiles
 
 @table field-profile-recommendations
 
@@ -175,7 +175,7 @@ Column guide: Profile names the continuity objective; Score is the profile-weigh
 
 Interpretation guide: `field-stable-service` favors limited disruption; `field-low-churn` pushes harder against unnecessary movement; `field-broad-reselection` preserves more alternate branches and accepts more shifts; `field-conservative-publication` favors earlier narrowing and less corridor breadth.
 
-#### Field Regime Calibration
+#### Legacy Field Regime Calibration
 
 @table field-routing-regime-calibration
 
@@ -301,7 +301,7 @@ Pathway active route presence by search budget. Higher values are better: they i
 
 Pathway activation by search budget. Higher values are better: they indicate objectives activate successfully more often. The y-axis is shown as a percentage, and step changes reveal the budget threshold where Pathway moves from under-search to reliable activation.
 
-#### Field Corridor Figures Intro
+#### Legacy Field Corridor Figures Intro
 
 The first figure shows route-visible continuity across corridor-oriented families. The second shows the control-motion cost paid to preserve that continuity. Together they distinguish a healthy corridor default from an unstable bootstrap regime.
 
@@ -377,7 +377,7 @@ Column guide: Surface is the comparison surface (`comparison` or `head-to-head`)
 
 @table head-to-head-summary
 
-Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `mercator`, `pathway`, `pathway-batman-bellman`, and `field`. Column guide: Engine Set is the only stack enabled; Activation is objective activation success; Active Route is total-window route presence; Selected Leader is the selected-round leader for that run and may be `tie`; Stress is the regime stress score.
+Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `mercator`, `pathway`, and `pathway-batman-bellman`. Column guide: Engine Set is the only stack enabled; Activation is objective activation success; Active Route is total-window route presence; Selected Leader is the selected-round leader for that run and may be `tie`; Stress is the regime stress score.
 
 #### Benchmark Profile Audit
 
@@ -395,7 +395,7 @@ The head-to-head regimes are:
 - `connected-high-loss`: repairable connected route over a lossy bridge.
 - `bridge-transition`: bridge that degrades, partitions, and restores.
 - `medium-bridge-repair`: moderate bridge degradation with a repair window rewarding durable recovery without needing a fully mixed workload.
-- `partial-observability-bridge`: bridge case with Field bootstrap summaries for corridor-style routing under incomplete evidence.
+- `partial-observability-bridge`: bridge case with incomplete evidence and asymmetric repair pressure.
 - `corridor-continuity-uncertainty`: intermittent degradation and restoration rewarding corridor continuity.
 - `concurrent-mixed`: multiple active objectives testing mixed-workload behavior.
 
@@ -550,7 +550,7 @@ Bad-route persistence after delayed or asymmetric observations. Shorter bars are
 
 Routing calibration and diffusion calibration are distinct objectives. Routing optimizes for activation, route presence, and recovery. Diffusion optimizes for eventual delivery, boundedness, latency, energy, and leakage.
 
-For `field`, diffusion calibration also uses regime-specific success criteria: continuity families reward protected bridge-budget preservation and corridor persistence, scarcity families reward early conservative transition plus lower generic spread and expensive transport use, congestion families reward timely transition from cluster seeding into duplicate suppression without starving first-arrival cluster coverage, and privacy families reward lower observer leakage.
+Diffusion calibration uses integer delivery, coverage, boundedness, latency, resource, and leakage metrics. Field-specific diffusion posture tables are legacy report surfaces and are not emitted by the active routing-analysis report.
 
 The maintained diffusion families are:
 
@@ -579,7 +579,7 @@ Here, `collapse` means the engine falls below the basic viability floor for deli
 
 Where each engine set stays viable and where it first collapses or becomes explosive. Column guide: Viable Families, First Collapse, First Explosive.
 
-### Field Diffusion Regime Calibration
+### Legacy Field Diffusion Regime Calibration
 
 @table field-diffusion-regime-calibration
 
@@ -615,7 +615,7 @@ The generic family-by-family winner table is a representative weighted surface, 
 
 ### Diffusion Calibration Detail Note
 
-Detailed diffusion calibration, field-calibration, and boundary tables are collected in Appendix C so the main comparison can stay focused on regime winners and the figure-level differences.
+Detailed diffusion calibration and boundary tables are collected in Appendix C so the main comparison can stay focused on regime winners and the figure-level differences.
 
 ### Diffusion Regime Comparison
 
@@ -623,7 +623,7 @@ Detailed diffusion calibration, field-calibration, and boundary tables are colle
 
 Best-performing engine set per diffusion regime. Column guide: Regime, Engine Set, Delivery, Coverage, Cluster Cov. (target-cluster coverage), Tx, State, Score.
 
-### Field Vs Best Alternative
+### Legacy Field Vs Best Alternative
 
 @table field-vs-best-diffusion-alternative
 
@@ -663,7 +663,7 @@ Appendix C contains the full diffusion family matrix and the field-versus-best-a
 - One under-represented point is that the balanced regime currently prefers `{balanced_winner}`, which suggests the maintained corpus is rewarding bounded suppression-heavy behavior outside the explicit privacy regime.
 - The harsher families are boundary finders: `bridge-drought` tests rare-opportunity carry, `energy-starved-relay` tests efficiency under scarcity, and `congestion-cascade` tests whether broad forwarding remains bounded without starving first-arrival cluster coverage.
 
-### Field Diffusion Posture
+### Legacy Field Diffusion Posture
 
 The artifact set exposes posture-aware `field` diffusion behavior:
 
@@ -713,11 +713,11 @@ Babel separates in the asymmetry-cost-penalty family and the partition-feasibili
 
 Pathway query budget 1 fails immediately. Higher budgets plateau quickly.
 
-#### Pressure Findings Field Plateau
+#### Legacy Pressure Findings Field Plateau
 
 Field shows a broad viable plateau: route presence={route_present} permille, bootstrap activation={bootstrap_activation} permille, bootstrap upgrade={bootstrap_upgrade} permille at the low-budget point. Separation between configurations comes from lifecycle shape rather than raw route presence.
 
-#### Engine Section Empty Field
+#### Legacy Engine Section Empty Field
 
 No measured Field recommendation is available for this artifact set. The simulator extracts Field replay, search, reconfiguration, and bootstrap signals, but those signals do not close the boundary to a stable route-visible default.
 
@@ -793,31 +793,31 @@ Scatter separates most clearly in `{family_id}`, where the owner-side runtime su
 
 The key Scatter contrast is architectural rather than path-optimal: it is the opaque, partition-tolerant baseline that keeps payload custody local and bounded instead of searching a full path or publishing a corridor envelope.
 
-#### Engine Section Field Best
+#### Legacy Engine Section Field Best
 
 Field separates where corridor continuity and reconfiguration cost both matter. `{config_id}` keeps route presence at {route_presence} permille while holding continuation shifts to {continuation_shifts}.
 
-#### Engine Section Field Bootstrap
+#### Legacy Engine Section Field Bootstrap
 
 Corridor-continuity profile: bootstrap activation {activation} permille, hold {hold} permille, narrow {narrow} permille, upgrade {upgrade} permille, withdrawal {withdrawal} permille, degraded-steady occupancy {degraded} permille, service carry-forward {service} permille, asymmetric shift success {shift} permille. Dominant commitment resolution `{commitment}`, last recovery outcome `{outcome}`, continuity band `{band}`, continuity transition `{transition}`, last decision `{decision}`, blocker `{blocker}`.
 
-#### Engine Section Field Tied
+#### Legacy Engine Section Field Tied
 
 Route presence is close across the tested range. The service-oriented knobs separate configs in continuation-shift count, service carry-forward, and narrowing behavior.
 
-#### Engine Section Field Replay
+#### Legacy Engine Section Field Replay
 
 The maintained families produce router-visible activation and route presence, with the bootstrap phase directly visible in replay and recovery surfaces.
 
-#### Engine Section Field Families
+#### Legacy Engine Section Field Families
 
 The asymmetric-envelope and bridge anti-entropy families test corridor continuity under realization movement. The partial-observability and bootstrap-upgrade families test bootstrap promotion and withdrawal. The service-overlap, freshness-inversion, and publication-pressure families test service-corridor continuity under broader publication, stronger freshness weighting, or earlier narrowing.
 
-#### Engine Section Field Diagnosis
+#### Legacy Engine Section Field Diagnosis
 
 The service-corridor publication and materialization path is the key enabler for Field's route-visible behavior. The tuning question is which continuity style is preferable: narrower lower-churn publication or broader reselection with more carried-forward optionality.
 
-#### Recommendation Rationale Empty Field
+#### Legacy Recommendation Rationale Empty Field
 
 No Field recommendation rationale is published because the corpus does not produce a stable route-visible Field default. The analysis stack is present and informative, but Field tuning should be read as diagnostic instrumentation rather than default selection.
 
@@ -889,19 +889,19 @@ The Scatter recommendation is now driven by maintained runtime behavior as well 
 
 The Scatter corpus is still mostly route-flat, so the useful differentiators are custody and regime signals rather than path-optimality. Retained-message peak {retained}, delivered-message peak {delivered}.
 
-#### Recommendation Rationale Field 1
+#### Legacy Recommendation Rationale Field 1
 
 The Field recommendation is driven by corridor continuity, bootstrap upgrade behavior, and reconfiguration cost together. When route presence is effectively tied, the default choice should favor lower-churn corridor management rather than broader reselection.
 
-#### Recommendation Rationale Field 2
+#### Legacy Recommendation Rationale Field 2
 
 Measured continuity profile for `{config_id}`: bootstrap activation {activation} permille, hold {hold} permille, narrow {narrow} permille, upgrade {upgrade} permille, withdrawal {withdrawal} permille, degraded-steady occupancy {degraded} permille, service carry-forward {service} permille, asymmetric shift success {shift} permille. Dominant commitment resolution `{commitment}`, last recovery outcome `{outcome}`, continuity band `{band}`, continuity transition `{transition}`, last decision `{decision}`, blocker `{blocker}`.
 
-#### Recommendation Rationale Field 3
+#### Legacy Recommendation Rationale Field 3
 
 The Field configurations are close in top-line route presence. The continuity profile table is the better place to choose between lower-churn and broader-reselection behavior, and low-churn continuity should remain the default surface unless a regime explicitly needs broader reselection.
 
-#### Recommendation Rationale Field 4
+#### Legacy Recommendation Rationale Field 4
 
 The corpus includes steady route-visible service continuity and bootstrap-aware corridor behavior. The service regimes make the Field knobs visible in lifecycle metrics even when route presence clusters closely.
 

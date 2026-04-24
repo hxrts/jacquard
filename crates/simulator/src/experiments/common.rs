@@ -72,7 +72,9 @@ pub(super) fn comparison_topology_node(
         ComparisonEngineSet::PathwayAndBatmanBellman => topology::node(node_byte)
             .pathway_and_batman_bellman()
             .build(),
-        ComparisonEngineSet::AllEngines => topology::node(node_byte).all_engines().build(),
+        ComparisonEngineSet::AllEngines => {
+            topology::node(node_byte).route_visible_engines().build()
+        }
     }
 }
 
@@ -92,7 +94,7 @@ pub(super) fn comparison_host_spec(
         ComparisonEngineSet::PathwayAndBatmanBellman => {
             HostSpec::pathway_and_batman_bellman(local_node_id)
         }
-        ComparisonEngineSet::AllEngines => HostSpec::all_engines(local_node_id),
+        ComparisonEngineSet::AllEngines => HostSpec::route_visible_engines(local_node_id),
     }
 }
 

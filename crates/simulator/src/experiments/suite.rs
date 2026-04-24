@@ -74,7 +74,6 @@ pub fn local_stage_suite_with_seeds_and_config(
             "local-scatter" => build_scatter_runs(suite_id, seeds, comparative_scale),
             "local-mercator" => build_mercator_runs(suite_id, seeds, comparative_scale),
             "local-pathway" => build_pathway_runs(suite_id, seeds, false),
-            "local-field" => build_field_runs(suite_id, seeds, false),
             "local-comparison" => build_comparison_runs(suite_id, seeds, comparative_scale),
             "local-head-to-head" => build_head_to_head_runs(suite_id, seeds, comparative_scale),
             "local-comparison-stage-1" => build_comparison_runs_for_families(
@@ -493,8 +492,9 @@ fn build_pathway_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experim
     expand_runs(suite_id, "pathway", seeds, &parameter_sets, &families)
 }
 
-// long-block-exception: the Field family catalog is kept in one function so the
-// corridor-specific tuning sweep remains auditable in one place.
+// long-block-exception: the legacy Field family catalog is kept in one function
+// so historical corridor-specific tuning artifacts remain auditable in one place.
+#[allow(dead_code)]
 fn build_field_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
     let coarse = vec![
         ExperimentParameterSet::field_tuned(4, FieldSearchHeuristicMode::Zero, 1, 140, 180),
@@ -708,7 +708,6 @@ fn head_to_head_configs() -> Vec<ExperimentParameterSet> {
             Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
             None,
         ),
-        ExperimentParameterSet::head_to_head_field_low_churn(),
         ExperimentParameterSet::head_to_head(
             ComparisonEngineSet::PathwayAndBatmanBellman,
             Some((6, 3)),
@@ -833,7 +832,6 @@ fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
     runs.extend(build_scatter_runs(suite_id, seeds, comparative_scale));
     runs.extend(build_mercator_runs(suite_id, seeds, comparative_scale));
     runs.extend(build_pathway_runs(suite_id, seeds, smoke));
-    runs.extend(build_field_runs(suite_id, seeds, smoke));
     runs.extend(build_comparison_runs(suite_id, seeds, comparative_scale));
     runs.extend(build_head_to_head_runs(suite_id, seeds, comparative_scale));
     ExperimentSuite {
@@ -1835,6 +1833,28 @@ mod tests {
                 "{family_id} missing from head-to-head mercator matrix"
             );
         }
+    }
+
+    #[test]
+    fn local_route_visible_matrix_excludes_field_comparison_rows() {
+        let suite = local_suite();
+        assert!(
+            suite.runs.iter().all(|run| run.engine_family != "field"
+                && run.parameters.comparison_engine_set_label() != Some("field")
+                && !run.parameters.config_id.starts_with("head-to-head-field")),
+            "future route-visible matrices should not emit active Field routing comparison rows"
+        );
+
+        let grouped_head_to_head =
+            local_stage_suite("local-head-to-head").expect("head-to-head local stage should exist");
+        assert!(
+            grouped_head_to_head.runs.iter().all(|run| run
+                .parameters
+                .comparison_engine_set_label()
+                != Some("field")
+                && !run.parameters.config_id.starts_with("head-to-head-field")),
+            "staged head-to-head route-visible runs should exclude Field"
+        );
     }
 
     #[test]

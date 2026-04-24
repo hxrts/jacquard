@@ -201,7 +201,6 @@ const LOCAL_TUNING_STAGE_IDS: &[&str] = &[
     "local-scatter",
     "local-mercator",
     "local-pathway",
-    "local-field",
     "local-comparison-stage-1",
     "local-comparison-stage-2",
     "local-comparison-multi-flow-shared-corridor",
@@ -240,7 +239,6 @@ const LOCAL_HEAD_TO_HEAD_CONFIG_IDS: &[&str] = &[
     "head-to-head-scatter",
     "head-to-head-mercator",
     "head-to-head-pathway-6-hop-lower-bound",
-    "head-to-head-field-6-zero-p1-f140-n180",
     "head-to-head-pathway-batman-b6-3-p6-hop-lower-bound",
 ];
 

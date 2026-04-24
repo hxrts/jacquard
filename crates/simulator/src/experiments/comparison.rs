@@ -46,10 +46,22 @@ fn mixed_connected_high_loss_topology() -> Observation<Configuration> {
             (NODE_C, topology::node(3).pathway().build()),
             (NODE_D, topology::node(4).pathway().build()),
             (NODE_E, topology::node(5).pathway().build()),
-            (node_id(10), topology::node(10).all_engines().build()),
-            (node_id(11), topology::node(11).all_engines().build()),
-            (node_id(12), topology::node(12).all_engines().build()),
-            (node_id(13), topology::node(13).all_engines().build()),
+            (
+                node_id(10),
+                topology::node(10).route_visible_engines().build(),
+            ),
+            (
+                node_id(11),
+                topology::node(11).route_visible_engines().build(),
+            ),
+            (
+                node_id(12),
+                topology::node(12).route_visible_engines().build(),
+            ),
+            (
+                node_id(13),
+                topology::node(13).route_visible_engines().build(),
+            ),
         ]),
         links: BTreeMap::from([
             ((NODE_A, NODE_E), topology::link(5).build()),
@@ -266,10 +278,22 @@ fn mixed_partial_observability_topology() -> Observation<Configuration> {
             (NODE_C, topology::node(3).pathway().build()),
             (NODE_D, topology::node(4).pathway().build()),
             (NODE_E, topology::node(5).pathway().build()),
-            (node_id(10), topology::node(10).all_engines().build()),
-            (node_id(11), topology::node(11).all_engines().build()),
-            (node_id(12), topology::node(12).all_engines().build()),
-            (node_id(13), topology::node(13).all_engines().build()),
+            (
+                node_id(10),
+                topology::node(10).route_visible_engines().build(),
+            ),
+            (
+                node_id(11),
+                topology::node(11).route_visible_engines().build(),
+            ),
+            (
+                node_id(12),
+                topology::node(12).route_visible_engines().build(),
+            ),
+            (
+                node_id(13),
+                topology::node(13).route_visible_engines().build(),
+            ),
         ]),
         links: BTreeMap::from([
             ((NODE_A, NODE_E), topology::link(5).build()),
@@ -1695,14 +1719,38 @@ fn mixed_multi_flow_shared_corridor_topology() -> Observation<Configuration> {
             (node_id(3), topology::node(3).pathway().build()),
             (node_id(4), topology::node(4).pathway().build()),
             (node_id(5), topology::node(5).pathway().build()),
-            (node_id(10), topology::node(10).all_engines().build()),
-            (node_id(11), topology::node(11).all_engines().build()),
-            (node_id(12), topology::node(12).all_engines().build()),
-            (node_id(13), topology::node(13).all_engines().build()),
-            (node_id(14), topology::node(14).all_engines().build()),
-            (node_id(15), topology::node(15).all_engines().build()),
-            (node_id(16), topology::node(16).all_engines().build()),
-            (node_id(17), topology::node(17).all_engines().build()),
+            (
+                node_id(10),
+                topology::node(10).route_visible_engines().build(),
+            ),
+            (
+                node_id(11),
+                topology::node(11).route_visible_engines().build(),
+            ),
+            (
+                node_id(12),
+                topology::node(12).route_visible_engines().build(),
+            ),
+            (
+                node_id(13),
+                topology::node(13).route_visible_engines().build(),
+            ),
+            (
+                node_id(14),
+                topology::node(14).route_visible_engines().build(),
+            ),
+            (
+                node_id(15),
+                topology::node(15).route_visible_engines().build(),
+            ),
+            (
+                node_id(16),
+                topology::node(16).route_visible_engines().build(),
+            ),
+            (
+                node_id(17),
+                topology::node(17).route_visible_engines().build(),
+            ),
         ]),
         links: BTreeMap::from([
             ((node_id(1), node_id(5)), topology::link(5).build()),

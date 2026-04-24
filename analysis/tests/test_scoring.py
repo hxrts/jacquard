@@ -704,13 +704,10 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
 
     def test_mercator_is_in_route_visible_engine_order(self) -> None:
         self.assertIn("mercator", ROUTE_VISIBLE_ENGINE_SET_ORDER)
+        self.assertNotIn("field", ROUTE_VISIBLE_ENGINE_SET_ORDER)
         self.assertLess(
             ROUTE_VISIBLE_ENGINE_SET_ORDER.index("scatter"),
             ROUTE_VISIBLE_ENGINE_SET_ORDER.index("mercator"),
-        )
-        self.assertLess(
-            ROUTE_VISIBLE_ENGINE_SET_ORDER.index("mercator"),
-            ROUTE_VISIBLE_ENGINE_SET_ORDER.index("field"),
         )
 
     def test_recommended_engine_robustness_renders_mercator(self) -> None:
