@@ -120,6 +120,35 @@ Placement is:
 
 The policy surface must remain integer-only and deterministic. It must not publish routes, construct corridor plans, own transport, assign host time, use floating-point state, depend on host iteration order, or use ambient randomness. Any random-forwarding ablation must use explicit seeded or stable deterministic ordering and must carry the same budget metadata as the full policy.
 
+The simulator local policy state records:
+
+- per-peer contact-rate estimates in permille,
+- per-peer bridge score in permille derived from bridge contacts and contact diversity,
+- storage pressure in bounded byte units,
+- recent duplicate rate over a bounded deterministic window,
+- recent innovative-forward success rate over a bounded deterministic window,
+- measured local reproduction estimate R_est,
+- optional receiver-likelihood, destination-region belief, or anomaly-region belief only when a scenario explicitly supplies those inputs.
+
+The policy score is serialized as named integer terms:
+
+```text
+total_score =
+  expected_innovation_gain
+  + bridge_value
+  + landscape_value
+  - duplicate_risk
+  - byte_cost
+  - storage_pressure_cost
+  - reproduction_pressure_penalty
+```
+
+Reducer artifacts rank deterministic `(peer, fragment)` candidates by this score, break equal scores by lower duplicate risk, lower byte cost, lower peer id, then lower fragment id, and emit selected or rejected decision rows. Each row carries `policy_id`, peer id, fragment id, selected/rejected status, optional budget rejection reason, total score, and every named score term. Rejections cover payload-byte budget, storage budget, reproduction budget, and forwarding-decision limit.
+
+Phase 4 ablation artifacts use the same trace inputs and budget surface as the full policy. The required variants are `local-evidence-policy-no-bridge`, `local-evidence-policy-no-duplicate-risk`, `local-evidence-policy-no-landscape`, `local-evidence-policy-no-reproduction-control`, and `deterministic-random-forwarding`. Disabled terms are listed in each ablation row. The random-forwarding baseline uses an explicit seed and stable pseudo-random ordering; it never uses ambient randomness.
+
+The Phase 4 scenario matrix contains sparse reproduction-pressure, clustered duplicate-heavy, and bridge-heavy fixtures. These fixtures exist to prove that bridge value, duplicate risk, landscape value, and reproduction control change behavior in visible, replayable ways before Phase 5 report generation.
+
 ## Legacy Field Baseline
 
 `docs/406_field_routing.md` is legacy context. It documents the old corridor-envelope Field engine that still exists as a runnable baseline.
@@ -152,7 +181,7 @@ Some compatibility re-exports remain at the crate root while downstream simulato
 
 Implementation work lives initially in `jacquard-field` because it already has deterministic runtime, observer, control, replay, retention, and private protocol scaffolding.
 
-Proof scaffolding lives under `verification/Field`. The active coded-diffusion proof entry point is `Field/CodedDiffusion.lean`; reusable support remains in Information, Model, Retention, Async, and Protocol modules after their statements are converted to fragment/reconstruction semantics.
+Proof scaffolding lives under `verification/Field`. The active coded-diffusion proof entry point is `verification/Field/CodedDiffusion.lean`; reusable support remains in Information, Model, Retention, Async, and Protocol modules after their statements are converted to fragment/reconstruction semantics.
 
 Experimental evaluation lives in `jacquard-simulator` and the analysis pipeline. Field's old corridor baseline remains useful as a comparator, but the experimental metrics for the research path should report fragment spread, reconstruction progress, duplicate pressure, storage pressure, and diffusion-potential behavior.
 

@@ -62,6 +62,14 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
     assert!(coded_diffusion.contains("4096"));
     assert!(coded_diffusion.contains("direct delivery"));
     assert!(coded_diffusion.contains("PRoPHET/contact-frequency forwarding"));
+    assert!(coded_diffusion.contains("R_est"));
+    assert!(coded_diffusion.contains("expected_innovation_gain"));
+    assert!(coded_diffusion.contains("bridge_value"));
+    assert!(coded_diffusion.contains("landscape_value"));
+    assert!(coded_diffusion.contains("duplicate_risk"));
+    assert!(coded_diffusion.contains("reproduction_pressure_penalty"));
+    assert!(coded_diffusion.contains("deterministic-random-forwarding"));
+    assert!(coded_diffusion.contains("local-evidence-policy-no-reproduction-control"));
     assert!(adequacy.contains("FieldReplaySnapshot"));
     assert!(adequacy.contains("reduced_protocol_replay()"));
     assert!(parity.contains("field is a single private-selector engine"));
