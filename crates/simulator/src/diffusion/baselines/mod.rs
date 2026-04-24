@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use super::model::CodedInferenceReadinessScenario;
 
+mod uncoded;
+
 pub(crate) const BASELINE_ARTIFACT_NAMESPACE: &str = "artifacts/coded-inference/baselines";
 pub(crate) const EQUAL_PAYLOAD_BYTES_LABEL: &str = "equal-payload-bytes";
 
@@ -49,6 +51,7 @@ pub(crate) enum BaselineContractError {
     MalformedBudgetMetadata,
     EmptyContributionLedger,
     MissingMetric(BaselineMetricField),
+    PolicyClassMismatch,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
