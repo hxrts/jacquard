@@ -69,7 +69,7 @@ pub(crate) fn build_coded_inference_readiness_scenario() -> CodedInferenceReadin
             source_fragment_count: 12,
             reconstruction_threshold: 8,
             fragment_payload_bytes: 32,
-            uncoded_message_payload_bytes: 256,
+            uncoded_message_payload_bytes: 384,
             decision_margin_threshold: 24,
             minimum_decision_evidence_count: 8,
             initial_score_vector: vec![0; usize::from(cluster_count)],
@@ -763,7 +763,7 @@ mod tests {
         assert_eq!(inference.source_fragment_count, 12);
         assert_eq!(inference.reconstruction_threshold, 8);
         assert_eq!(inference.fragment_payload_bytes, 32);
-        assert_eq!(inference.uncoded_message_payload_bytes, 256);
+        assert_eq!(inference.uncoded_message_payload_bytes, 384);
         assert_eq!(inference.initial_score_vector, vec![0; 5]);
         assert_eq!(
             inference.evidence_origin_modes,

@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     model::{
-        CodedEvidenceOriginMode, CodedEvidenceTransformKind, CodedInferenceReadinessScenario,
-        DiffusionTransportKind,
+        CodedContributionValidityRule, CodedEvidenceOriginMode, CodedEvidenceTransformKind,
+        CodedInferenceReadinessScenario, DiffusionTransportKind,
     },
     runtime::execution::generate_contacts,
 };
@@ -123,6 +123,63 @@ pub(crate) struct CodedInferenceReadinessLog {
     pub landscape_events: Vec<CodedInferenceLandscapeEvent>,
     pub budget_events: Vec<CodedBudgetEvent>,
     pub controller_events: Vec<CodedControllerTelemetryEvent>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct CodedInferenceReadinessSummary {
+    pub artifact_namespace: String,
+    pub family_id: String,
+    pub fixed_budget_label: String,
+    pub recovery_probability_permille: u32,
+    pub reconstruction_round: Option<u32>,
+    pub receiver_rank: u32,
+    pub decision_accuracy_permille: u32,
+    pub decision_event_round: Option<u32>,
+    pub top_hypothesis_id: u8,
+    pub runner_up_hypothesis_id: u8,
+    pub top_hypothesis_margin: i32,
+    pub uncertainty_permille: u32,
+    pub energy_gap: i32,
+    pub source_coded_evidence_count: u32,
+    pub local_observation_evidence_count: u32,
+    pub recoded_aggregate_evidence_count: u32,
+    pub forwarding_only_evidence_count: u32,
+    pub recoded_aggregate_innovative_receiver_count: u32,
+    pub forwarding_only_innovative_receiver_count: u32,
+    pub innovative_arrival_count: u32,
+    pub duplicate_arrival_count: u32,
+    pub total_bytes_transmitted: u32,
+    pub coded_fixed_payload_budget_bytes: u32,
+    pub uncoded_fixed_payload_budget_bytes: u32,
+    pub coded_fragment_count: u32,
+    pub coded_fragment_bytes: u32,
+    pub uncoded_replica_count: u32,
+    pub uncoded_full_message_bytes: u32,
+    pub byte_budget_utilization_permille: u32,
+    pub coded_uncoded_payload_byte_parity: bool,
+    pub forwarding_event_count: u32,
+    pub peak_storage_pressure_bytes: u32,
+    pub effective_reproduction_permille: u32,
+    pub target_reproduction_min_permille: u32,
+    pub target_reproduction_max_permille: u32,
+    pub active_forwarding_opportunity_count: u32,
+    pub innovative_successor_opportunity_count: u32,
+    pub raw_copy_forwarding_event_count: u32,
+    pub duplicate_forwarding_event_count: u32,
+    pub observer_visible_contact_event_count: u32,
+    pub observer_visible_forwarding_event_count: u32,
+    pub observer_visible_receiver_event_count: u32,
+    pub observer_visible_payload_bytes: u32,
+    pub recoded_event_count: u32,
+    pub recoded_valid_event_count: u32,
+    pub recoded_invalid_event_count: u32,
+    pub recoded_duplicate_receiver_event_count: u32,
+    pub recoded_duplicate_rank_inflation_count: u32,
+    pub rank_inflation_guard_passed: bool,
+    pub field_corridor_publication_dependency: bool,
+    pub private_route_witness_dependency: bool,
+    pub route_quality_ranking_dependency: bool,
+    pub routing_analysis_filter_id: String,
 }
 
 struct LogBuildState {
@@ -297,6 +354,177 @@ pub(crate) fn serialize_coded_inference_log(
     serde_json::to_string(log)
 }
 
+// long-block-exception: summary field assembly mirrors the serialized readiness metric schema.
+pub(crate) fn summarize_coded_inference_readiness_log(
+    scenario: &CodedInferenceReadinessScenario,
+    log: &CodedInferenceReadinessLog,
+) -> CodedInferenceReadinessSummary {
+    let inference = &scenario.coded_inference;
+    let final_receiver_event = log.receiver_events.last();
+    let final_landscape_event = log.landscape_events.last();
+    let reconstruction_round =
+        final_receiver_event.and_then(|event| event.reconstruction_event_round);
+    let decision_event_round = final_receiver_event.and_then(|event| event.decision_event_round);
+    let top_hypothesis_id = final_landscape_event
+        .map(|event| event.top_hypothesis_id)
+        .unwrap_or(0);
+    let runner_up_hypothesis_id = final_landscape_event
+        .map(|event| event.runner_up_hypothesis_id)
+        .unwrap_or(0);
+    let top_hypothesis_margin = final_landscape_event.map(|event| event.margin).unwrap_or(0);
+    let uncertainty_permille = final_landscape_event
+        .map(|event| event.uncertainty_permille)
+        .unwrap_or(1000);
+    let energy_gap = final_landscape_event
+        .map(|event| event.energy_gap)
+        .unwrap_or(0);
+    let origin_counts = evidence_origin_counts(&log.forwarding_events);
+    let receiver_innovation_counts = receiver_innovation_counts(log);
+    let rank_guard = recoded_rank_guard_summary(scenario, log);
+    let total_bytes_transmitted = log
+        .forwarding_events
+        .iter()
+        .map(|event| event.byte_count)
+        .fold(0_u32, u32::saturating_add);
+    let coded_fixed_payload_budget_bytes = inference
+        .source_fragment_count
+        .saturating_mul(inference.fragment_payload_bytes);
+    let uncoded_replica_count = 1;
+    let uncoded_fixed_payload_budget_bytes = inference
+        .uncoded_message_payload_bytes
+        .saturating_mul(uncoded_replica_count);
+    let active_forwarding_opportunity_count = log
+        .controller_events
+        .iter()
+        .map(|event| event.active_forwarding_opportunities)
+        .fold(0_u32, u32::saturating_add);
+    let innovative_successor_opportunity_count = log
+        .controller_events
+        .iter()
+        .map(|event| event.innovative_successor_opportunities)
+        .fold(0_u32, u32::saturating_add);
+    let target_reproduction_min_permille = log
+        .controller_events
+        .iter()
+        .map(|event| event.target_reproduction_min_permille)
+        .min()
+        .unwrap_or(0);
+    let target_reproduction_max_permille = log
+        .controller_events
+        .iter()
+        .map(|event| event.target_reproduction_max_permille)
+        .max()
+        .unwrap_or(0);
+    let fixed_budget_label = log
+        .budget_events
+        .last()
+        .map(|event| event.fixed_budget_label.clone())
+        .unwrap_or_else(|| "equal-payload-bytes".to_string());
+
+    CodedInferenceReadinessSummary {
+        artifact_namespace: log.artifact_namespace.clone(),
+        family_id: log.family_id.clone(),
+        fixed_budget_label,
+        recovery_probability_permille: if reconstruction_round.is_some() {
+            1000
+        } else {
+            0
+        },
+        reconstruction_round,
+        receiver_rank: final_receiver_event
+            .map(|event| event.rank_after)
+            .unwrap_or(0),
+        decision_accuracy_permille: if decision_event_round.is_some()
+            && top_hypothesis_id == inference.hidden_anomaly_cluster_id
+        {
+            1000
+        } else {
+            0
+        },
+        decision_event_round,
+        top_hypothesis_id,
+        runner_up_hypothesis_id,
+        top_hypothesis_margin,
+        uncertainty_permille,
+        energy_gap,
+        source_coded_evidence_count: origin_counts.source_coded,
+        local_observation_evidence_count: origin_counts.local_observation,
+        recoded_aggregate_evidence_count: origin_counts.recoded_aggregate,
+        forwarding_only_evidence_count: origin_counts
+            .source_coded
+            .saturating_add(origin_counts.local_observation),
+        recoded_aggregate_innovative_receiver_count: receiver_innovation_counts.recoded,
+        forwarding_only_innovative_receiver_count: receiver_innovation_counts.forwarding_only,
+        innovative_arrival_count: final_receiver_event
+            .map(|event| event.innovative_arrival_count)
+            .unwrap_or(0),
+        duplicate_arrival_count: final_receiver_event
+            .map(|event| event.duplicate_arrival_count)
+            .unwrap_or(0),
+        total_bytes_transmitted,
+        coded_fixed_payload_budget_bytes,
+        uncoded_fixed_payload_budget_bytes,
+        coded_fragment_count: inference.source_fragment_count,
+        coded_fragment_bytes: inference.fragment_payload_bytes,
+        uncoded_replica_count,
+        uncoded_full_message_bytes: inference.uncoded_message_payload_bytes,
+        byte_budget_utilization_permille: ratio_permille(
+            total_bytes_transmitted,
+            coded_fixed_payload_budget_bytes,
+        ),
+        coded_uncoded_payload_byte_parity: coded_fixed_payload_budget_bytes
+            == uncoded_fixed_payload_budget_bytes,
+        forwarding_event_count: u32::try_from(log.forwarding_events.len()).unwrap_or(u32::MAX),
+        peak_storage_pressure_bytes: log
+            .budget_events
+            .iter()
+            .map(|event| event.retained_bytes)
+            .max()
+            .unwrap_or(0),
+        effective_reproduction_permille: ratio_permille(
+            innovative_successor_opportunity_count,
+            active_forwarding_opportunity_count,
+        ),
+        target_reproduction_min_permille,
+        target_reproduction_max_permille,
+        active_forwarding_opportunity_count,
+        innovative_successor_opportunity_count,
+        raw_copy_forwarding_event_count: u32::try_from(log.forwarding_events.len())
+            .unwrap_or(u32::MAX),
+        duplicate_forwarding_event_count: u32::try_from(
+            log.forwarding_events
+                .iter()
+                .filter(|event| event.classification == CodedArrivalClassification::Duplicate)
+                .count(),
+        )
+        .unwrap_or(u32::MAX),
+        observer_visible_contact_event_count: u32::try_from(log.contact_events.len())
+            .unwrap_or(u32::MAX),
+        observer_visible_forwarding_event_count: u32::try_from(log.forwarding_events.len())
+            .unwrap_or(u32::MAX),
+        observer_visible_receiver_event_count: u32::try_from(log.receiver_events.len())
+            .unwrap_or(u32::MAX),
+        observer_visible_payload_bytes: total_bytes_transmitted,
+        recoded_event_count: rank_guard.recoded_event_count,
+        recoded_valid_event_count: rank_guard.recoded_valid_event_count,
+        recoded_invalid_event_count: rank_guard.recoded_invalid_event_count,
+        recoded_duplicate_receiver_event_count: rank_guard.recoded_duplicate_receiver_event_count,
+        recoded_duplicate_rank_inflation_count: rank_guard.recoded_duplicate_rank_inflation_count,
+        rank_inflation_guard_passed: rank_guard.recoded_invalid_event_count == 0
+            && rank_guard.recoded_duplicate_rank_inflation_count == 0,
+        field_corridor_publication_dependency: false,
+        private_route_witness_dependency: false,
+        route_quality_ranking_dependency: false,
+        routing_analysis_filter_id: "route-visible-engines-excludes-field".to_string(),
+    }
+}
+
+pub(crate) fn serialize_coded_inference_summary(
+    summary: &CodedInferenceReadinessSummary,
+) -> Result<String, serde_json::Error> {
+    serde_json::to_string(summary)
+}
+
 fn contact_trace_event(
     scenario: &super::model::DiffusionScenarioSpec,
     round: u32,
@@ -346,13 +574,14 @@ fn evidence_origin_for(
             }
         }
         _ => {
-            let parent_evidence_ids = state
+            let mut parent_evidence_ids = state
                 .recent_evidence_ids
                 .iter()
                 .rev()
                 .take(2)
                 .copied()
                 .collect::<Vec<_>>();
+            parent_evidence_ids.sort_unstable();
             let mut contribution_ledger_ids = parent_evidence_ids
                 .iter()
                 .filter_map(|evidence_id| state.evidence_ledger_by_id.get(evidence_id))
@@ -452,8 +681,213 @@ fn apply_score_updates(
                     *target_score = target_score.saturating_add(*score);
                 }
             }
+        } else if *ledger_id <= scenario.coded_inference.source_fragment_count {
+            let hidden_index = usize::from(scenario.coded_inference.hidden_anomaly_cluster_id);
+            if let Some(target_score) = score_vector.get_mut(hidden_index) {
+                *target_score = target_score.saturating_add(9);
+            }
         }
     }
+}
+
+struct EvidenceOriginCounts {
+    source_coded: u32,
+    local_observation: u32,
+    recoded_aggregate: u32,
+}
+
+fn evidence_origin_counts(events: &[CodedForwardingEvent]) -> EvidenceOriginCounts {
+    let mut counts = EvidenceOriginCounts {
+        source_coded: 0,
+        local_observation: 0,
+        recoded_aggregate: 0,
+    };
+    for event in events {
+        match event.origin.origin_mode {
+            CodedEvidenceOriginMode::SourceCoded => {
+                counts.source_coded = counts.source_coded.saturating_add(1);
+            }
+            CodedEvidenceOriginMode::LocalObservation => {
+                counts.local_observation = counts.local_observation.saturating_add(1);
+            }
+            CodedEvidenceOriginMode::RecodedAggregate => {
+                counts.recoded_aggregate = counts.recoded_aggregate.saturating_add(1);
+            }
+        }
+    }
+    counts
+}
+
+struct ReceiverInnovationCounts {
+    forwarding_only: u32,
+    recoded: u32,
+}
+
+fn receiver_innovation_counts(log: &CodedInferenceReadinessLog) -> ReceiverInnovationCounts {
+    let event_by_id = log
+        .forwarding_events
+        .iter()
+        .map(|event| (event.evidence_id, event))
+        .collect::<BTreeMap<_, _>>();
+    let mut counts = ReceiverInnovationCounts {
+        forwarding_only: 0,
+        recoded: 0,
+    };
+    for receiver_event in &log.receiver_events {
+        if receiver_event.rank_after <= receiver_event.rank_before {
+            continue;
+        }
+        let Some(forwarding_event) = event_by_id.get(&receiver_event.evidence_id) else {
+            continue;
+        };
+        match forwarding_event.origin.origin_mode {
+            CodedEvidenceOriginMode::RecodedAggregate => {
+                counts.recoded = counts.recoded.saturating_add(1);
+            }
+            CodedEvidenceOriginMode::SourceCoded | CodedEvidenceOriginMode::LocalObservation => {
+                counts.forwarding_only = counts.forwarding_only.saturating_add(1);
+            }
+        }
+    }
+    counts
+}
+
+struct RecodedRankGuardSummary {
+    recoded_event_count: u32,
+    recoded_valid_event_count: u32,
+    recoded_invalid_event_count: u32,
+    recoded_duplicate_receiver_event_count: u32,
+    recoded_duplicate_rank_inflation_count: u32,
+}
+
+fn recoded_rank_guard_summary(
+    scenario: &CodedInferenceReadinessScenario,
+    log: &CodedInferenceReadinessLog,
+) -> RecodedRankGuardSummary {
+    let mut summary = RecodedRankGuardSummary {
+        recoded_event_count: 0,
+        recoded_valid_event_count: 0,
+        recoded_invalid_event_count: 0,
+        recoded_duplicate_receiver_event_count: 0,
+        recoded_duplicate_rank_inflation_count: 0,
+    };
+    let local_ledger_by_observation_id = scenario
+        .coded_inference
+        .local_observations
+        .iter()
+        .map(|observation| {
+            (
+                observation.observation_id,
+                observation.contribution_ledger_id,
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut contribution_by_evidence_id = BTreeMap::<u32, BTreeSet<u32>>::new();
+    for event in &log.forwarding_events {
+        if event.origin.origin_mode == CodedEvidenceOriginMode::RecodedAggregate {
+            summary.recoded_event_count = summary.recoded_event_count.saturating_add(1);
+            if recoded_event_is_valid(
+                scenario,
+                event,
+                &contribution_by_evidence_id,
+                &local_ledger_by_observation_id,
+            ) {
+                summary.recoded_valid_event_count =
+                    summary.recoded_valid_event_count.saturating_add(1);
+            } else {
+                summary.recoded_invalid_event_count =
+                    summary.recoded_invalid_event_count.saturating_add(1);
+            }
+        }
+        contribution_by_evidence_id.insert(
+            event.evidence_id,
+            event
+                .origin
+                .contribution_ledger_ids
+                .iter()
+                .copied()
+                .collect(),
+        );
+    }
+
+    let forwarding_by_id = log
+        .forwarding_events
+        .iter()
+        .map(|event| (event.evidence_id, event))
+        .collect::<BTreeMap<_, _>>();
+    let mut accepted_receiver_ledger_ids = BTreeSet::new();
+    for receiver_event in &log.receiver_events {
+        let Some(forwarding_event) = forwarding_by_id.get(&receiver_event.evidence_id) else {
+            continue;
+        };
+        let expected_new_count = forwarding_event
+            .origin
+            .contribution_ledger_ids
+            .iter()
+            .filter(|ledger_id| !accepted_receiver_ledger_ids.contains(*ledger_id))
+            .count();
+        let actual_new_count = receiver_event
+            .rank_after
+            .saturating_sub(receiver_event.rank_before);
+        if forwarding_event.origin.origin_mode == CodedEvidenceOriginMode::RecodedAggregate
+            && expected_new_count == 0
+        {
+            summary.recoded_duplicate_receiver_event_count = summary
+                .recoded_duplicate_receiver_event_count
+                .saturating_add(1);
+            if actual_new_count > 0 {
+                summary.recoded_duplicate_rank_inflation_count = summary
+                    .recoded_duplicate_rank_inflation_count
+                    .saturating_add(1);
+            }
+        }
+        for ledger_id in &forwarding_event.origin.contribution_ledger_ids {
+            accepted_receiver_ledger_ids.insert(*ledger_id);
+        }
+    }
+    summary
+}
+
+fn recoded_event_is_valid(
+    scenario: &CodedInferenceReadinessScenario,
+    event: &CodedForwardingEvent,
+    contribution_by_evidence_id: &BTreeMap<u32, BTreeSet<u32>>,
+    local_ledger_by_observation_id: &BTreeMap<u32, u32>,
+) -> bool {
+    let rule = &scenario.coded_inference.recoding_rule;
+    if !rule.enabled
+        || rule.validity_rule != CodedContributionValidityRule::CanonicalContributionLedger
+        || event.origin.transform_kind != rule.transform_kind
+        || event.origin.parent_evidence_ids.is_empty()
+        || event.origin.parent_evidence_ids.len() > usize::from(rule.max_parent_evidence_count)
+        || !is_strictly_sorted(&event.origin.parent_evidence_ids)
+    {
+        return false;
+    }
+    let mut allowed_ledger_ids = BTreeSet::new();
+    for parent_id in &event.origin.parent_evidence_ids {
+        let Some(parent_ledger_ids) = contribution_by_evidence_id.get(parent_id) else {
+            return false;
+        };
+        allowed_ledger_ids.extend(parent_ledger_ids.iter().copied());
+    }
+    if rule.allows_local_observation_contribution {
+        if let Some(local_observation_id) = event.origin.local_observation_id {
+            if let Some(local_ledger_id) = local_ledger_by_observation_id.get(&local_observation_id)
+            {
+                allowed_ledger_ids.insert(*local_ledger_id);
+            }
+        }
+    }
+    event
+        .origin
+        .contribution_ledger_ids
+        .iter()
+        .all(|ledger_id| allowed_ledger_ids.contains(ledger_id))
+}
+
+fn is_strictly_sorted(values: &[u32]) -> bool {
+    values.windows(2).all(|window| window[0] < window[1])
 }
 
 fn cluster_id_for(scenario: &super::model::DiffusionScenarioSpec, node_id: u32) -> Option<u8> {
@@ -491,7 +925,10 @@ fn uncertainty_permille(margin: i32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_coded_inference_readiness_log, serialize_coded_inference_log};
+    use super::{
+        build_coded_inference_readiness_log, serialize_coded_inference_log,
+        serialize_coded_inference_summary, summarize_coded_inference_readiness_log,
+    };
     use crate::diffusion::catalog::scenarios::build_coded_inference_readiness_scenario;
 
     #[test]
@@ -542,5 +979,96 @@ mod tests {
                 && event.measured_reproduction_permille <= 1000
                 && event.duplicate_pressure_permille <= 1000
         }));
+    }
+
+    // long-block-exception: this regression asserts each readiness summary field group explicitly.
+    #[test]
+    fn coded_inference_readiness_summary_reports_recovery_inference_cost_and_guards() {
+        let scenario = build_coded_inference_readiness_scenario();
+        let first_log = build_coded_inference_readiness_log(41, &scenario);
+        let second_log = build_coded_inference_readiness_log(41, &scenario);
+        let first = summarize_coded_inference_readiness_log(&scenario, &first_log);
+        let second = summarize_coded_inference_readiness_log(&scenario, &second_log);
+
+        assert_eq!(first, second);
+        assert_eq!(
+            serialize_coded_inference_summary(&first).expect("first summary serialization"),
+            serialize_coded_inference_summary(&second).expect("second summary serialization")
+        );
+        assert_eq!(
+            first.artifact_namespace,
+            "artifacts/coded-inference/readiness"
+        );
+        assert_eq!(first.family_id, "coded-inference-100-node-readiness");
+        assert_eq!(first.fixed_budget_label, "equal-payload-bytes");
+        assert_eq!(first.recovery_probability_permille, 1000);
+        assert!(first.reconstruction_round.is_some());
+        assert_eq!(first.decision_accuracy_permille, 1000);
+        assert!(first.decision_event_round.is_some());
+        assert_eq!(
+            first.top_hypothesis_id,
+            scenario.coded_inference.hidden_anomaly_cluster_id
+        );
+        assert!(first.top_hypothesis_margin >= scenario.coded_inference.decision_margin_threshold);
+        assert!(first.uncertainty_permille <= 1000);
+        assert_eq!(first.energy_gap, first.top_hypothesis_margin);
+        assert!(first.source_coded_evidence_count > 0);
+        assert!(first.local_observation_evidence_count > 0);
+        assert!(first.recoded_aggregate_evidence_count > 0);
+        assert_eq!(
+            first.forwarding_only_evidence_count,
+            first
+                .source_coded_evidence_count
+                .saturating_add(first.local_observation_evidence_count)
+        );
+        assert!(first.recoded_aggregate_innovative_receiver_count > 0);
+        assert!(first.forwarding_only_innovative_receiver_count > 0);
+        assert!(first.innovative_arrival_count > 0);
+        assert!(first.duplicate_arrival_count > 0);
+        assert_eq!(
+            first.coded_fixed_payload_budget_bytes,
+            first
+                .coded_fragment_count
+                .saturating_mul(first.coded_fragment_bytes)
+        );
+        assert_eq!(
+            first.uncoded_fixed_payload_budget_bytes,
+            first
+                .uncoded_replica_count
+                .saturating_mul(first.uncoded_full_message_bytes)
+        );
+        assert!(first.coded_uncoded_payload_byte_parity);
+        assert!(first.byte_budget_utilization_permille > 0);
+        assert_eq!(
+            first.forwarding_event_count,
+            first.raw_copy_forwarding_event_count
+        );
+        assert!(first.total_bytes_transmitted >= first.coded_fixed_payload_budget_bytes);
+        assert!(first.peak_storage_pressure_bytes > 0);
+        assert!(first.active_forwarding_opportunity_count > 0);
+        assert!(first.innovative_successor_opportunity_count > 0);
+        assert!(first.effective_reproduction_permille <= 1000);
+        assert_eq!(first.target_reproduction_min_permille, 800);
+        assert_eq!(first.target_reproduction_max_permille, 1200);
+        assert!(first.observer_visible_contact_event_count > 0);
+        assert!(first.observer_visible_forwarding_event_count > 0);
+        assert!(first.observer_visible_receiver_event_count > 0);
+        assert_eq!(
+            first.observer_visible_payload_bytes,
+            first.total_bytes_transmitted
+        );
+        assert!(first.recoded_event_count > 0);
+        assert_eq!(first.recoded_invalid_event_count, 0);
+        assert_eq!(first.recoded_event_count, first.recoded_valid_event_count);
+        assert!(first.recoded_duplicate_receiver_event_count > 0);
+        assert_eq!(first.recoded_duplicate_rank_inflation_count, 0);
+        assert!(first.rank_inflation_guard_passed);
+        assert!(!first.field_corridor_publication_dependency);
+        assert!(!first.private_route_witness_dependency);
+        assert!(!first.route_quality_ranking_dependency);
+        assert_eq!(
+            first.routing_analysis_filter_id,
+            "route-visible-engines-excludes-field"
+        );
     }
 }
