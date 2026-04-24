@@ -10,12 +10,12 @@ This map describes the current organization of `verification/Field`.
   - strong coded-diffusion theorem path for finite-horizon probability assumptions, receiver-arrival bounds, useful-inference arrival bounds, anomaly-margin bounds, guarded false-commitment bounds, and inference-potential drift
 - `Field/ActiveBelief.lean`
   - active belief diffusion theorem path for Phase 8 receiver-indexed belief state, first-class bounded demand messages, evidence messages, demand soundness, duplicate non-inflation under demand-driven forwarding, commitment lead-time accounting, stale-demand safety, multi-receiver compatibility, and propagated host/bridge demand soundness
-  - current expansion target:
-    - guarded commitment correctness over mergeable statistics,
-    - multi-receiver compatibility from non-identical partial histories,
-    - demand-guided non-interference on the merged statistic,
-    - positive commitment lead time under explicit useful-inference assumptions,
-    - receiver-quality monotonicity under innovative valid evidence
+- `Field/ActiveBeliefStrong.lean`
+  - strong active belief theorem path for mergeable-statistic decoding,
+    guarded commitment correctness, compatibility from non-identical partial
+    histories, demand-guided non-interference on the merged statistic,
+    positive commitment lead time under explicit useful-inference assumptions,
+    and innovative-quality monotonicity
 - `Field/Architecture.lean`
   - shared enum vocabulary for projection kinds, refinement-ladder stages, lineage stages, and semantic-versus-proof-artifact roles
 - `Field/CostAPI.lean`
@@ -48,7 +48,11 @@ This map describes the current organization of `verification/Field`.
 - `Field/Assumptions.lean`
   - imports the proof-contract vocabulary and theorem-packaging surface used across the field stack
 - `Field/Field.lean`
-  - umbrella import for the current field verification stack; imports `Field/CodedDiffusion.lean`, `Field/CodedDiffusionStrong.lean`, and `Field/ActiveBelief.lean` as the active research theorem path and keeps older route/corridor packs as legacy baseline context
+  - umbrella import for the current field verification stack; imports
+    `Field/CodedDiffusion.lean`, `Field/CodedDiffusionStrong.lean`,
+    `Field/ActiveBelief.lean`, and `Field/ActiveBeliefStrong.lean` as the
+    active research theorem path and keeps older route/corridor packs as
+    legacy baseline context
 
 ## Active Coded-Diffusion Path
 
@@ -153,14 +157,6 @@ This map describes the current organization of `verification/Field`.
     - `demandPriorityScore` for proof-facing priority metadata that does not affect evidence acceptance
     - `ActiveDemandExecutionSurface` and `PropagatedDemandRecord` for
       host/bridge replay-visible active demand
-  - planned expansion vocabulary:
-    - `AdditiveScoreStatistic` as the proof-facing merged statistic for the
-      additive score-vector task
-    - `PartialHistoryWitness` and partial-history compatibility predicates for
-      multi-receiver results without identical evidence histories
-    - `ReceiverQualityOrder` and innovative-quality-step predicates for
-      monotonicity statements
-    - theorem-facing guarded commitment construction from a merged statistic
   - completed theorem names:
     - `demand_bounded_by_entry_cap`
     - `demand_bounded_by_byte_cap`
@@ -180,19 +176,9 @@ This map describes the current organization of `verification/Field`.
     - `propagated_demand_carries_no_contribution`
     - `propagated_demand_cannot_validate_invalid_evidence`
     - `propagated_demand_duplicate_non_inflation`
-  - expansion theorem targets:
-    - `guarded_commitment_decodes_statistic_decision`
-    - `guarded_commitment_from_mergeable_statistic_correct`
-    - `compatible_partial_histories_yield_compatible_commitments`
-    - `demand_guided_statistic_acceptance_matches_plain_acceptance`
-    - `propagated_demand_guided_statistic_acceptance_matches_plain_acceptance`
-    - `useful_inference_can_support_positive_commitment_lead_time`
-    - `right_censored_timeline_has_no_commitment_lead_time`
-    - `innovative_valid_evidence_quality_monotone`
   - non-claims:
     - demand is first-class replay-visible communication data, but it is not evidence
     - receiver compatibility is agreement on a guarded local decision, not consensus, common knowledge, or globally identical beliefs
-    - commitment lead time is a replay metric over logged events, not a correctness theorem
     - active demand is not claimed optimal under arbitrary mobility or adversarial traces
     - propagated host/bridge demand remains non-evidential; bridge custody and
       replay metadata do not change contribution identity or evidence validity
@@ -206,6 +192,56 @@ This map describes the current organization of `verification/Field`.
       `ReceiverBeliefCompatibilitySummary` are the Rust mirrors for the planned
       merged-statistic, guarded-commitment, quality-order, and compatibility
       theorem surfaces.
+
+- `Field/ActiveBeliefStrong.lean`
+  - owns the strong active belief proof vocabulary:
+    - `AdditiveScoreStatistic` as the proof-facing merged statistic for the
+      additive score-vector task
+    - `guardPassesOnStatistic` and `guardedCommitmentFromStatistic` for
+      guarded decision construction directly from the merged statistic
+    - `ReceiverQualityOrder` and `innovativeQualityStep` for theorem-facing
+      sharpening claims
+    - `PartialHistoryWitness`, `validPartialHistoryWitness`,
+      `nonIdenticalPartialHistories`, and `compatiblePartialHistories` for
+      multi-receiver compatibility without identical evidence histories
+    - `AcceptedStatisticContribution`, `plainStatisticAccept`, and
+      `demandGuidedStatisticAccept` for theorem-facing statistic semantics under
+      active control
+    - `LeadTimeWitness` for positive lead-time existence over explicit useful
+      inference and guard assumptions
+  - completed theorem names:
+    - `guarded_commitment_decodes_statistic_decision`
+    - `guarded_commitment_guard_passes_when_guard_holds`
+    - `guarded_commitment_from_mergeable_statistic_correct`
+    - `compatible_partial_histories_share_decision`
+    - `compatible_partial_histories_are_nonidentical`
+    - `compatible_partial_histories_yield_compatible_commitments`
+    - `demand_guided_statistic_acceptance_matches_plain_acceptance`
+    - `demand_guided_duplicate_preserves_statistic`
+    - `propagated_demand_guided_statistic_acceptance_matches_plain_acceptance`
+    - `useful_inference_can_support_positive_commitment_lead_time`
+    - `right_censored_timeline_has_no_commitment_lead_time`
+    - `innovative_valid_evidence_quality_monotone`
+  - theorem boundary:
+    - guarded commitment correctness, partial-history compatibility,
+      propagated-demand non-interference, right-censoring, and innovative
+      monotonicity are deterministic theorem-backed statements
+    - positive commitment lead time is theorem-backed only under the explicit
+      useful-inference, bounded-score, and guarded false-commitment assumption
+      records reused from `Field/CodedDiffusionStrong.lean`
+    - none of these theorems imply consensus, globally identical beliefs,
+      arbitrary mobility optimality, or demand-created evidence
+  - Rust alignment:
+    - `crates/field/src/research.rs`
+      - `AdditiveScoreStatistic`, `PartialHistoryWitness`,
+        `commitment_lead_time_rounds`, and
+        `ReceiverBeliefCompatibilitySummary::has_compatible_guarded_commitments`
+        mirror the strong active belief theorem surface
+    - `crates/simulator/src/diffusion/core_experiment.rs`
+      - theorem-assumption rows now include both the finite-horizon bound
+        theorems and the deterministic strong active belief theorems, along
+        with theorem-profile and bound-summary labels used by the report
+        generator
 
 ### Phase 11 Rust Correspondence Freeze
 
@@ -228,6 +264,14 @@ following non-optimality, non-consensus claims:
   `commitment_lead_time_soundness`,
   `same_guarded_basin_compatible`,
   `compatible_commitments_have_same_hypothesis`
+- mergeable-statistic decoding and strong active belief:
+  `guarded_commitment_from_mergeable_statistic_correct`,
+  `compatible_partial_histories_yield_compatible_commitments`,
+  `demand_guided_statistic_acceptance_matches_plain_acceptance`,
+  `propagated_demand_guided_statistic_acceptance_matches_plain_acceptance`,
+  `useful_inference_can_support_positive_commitment_lead_time`,
+  `right_censored_timeline_has_no_commitment_lead_time`,
+  `innovative_valid_evidence_quality_monotone`
 
 Rust/replay correspondence:
 
@@ -244,6 +288,10 @@ Rust/replay correspondence:
   - `ReceiverIndexedBeliefState` and `ReceiverInferenceQualitySummary` mirror
     `ReceiverBeliefState` and `QualitySummary` for replay-visible
     receiver-indexed statistics.
+  - `AdditiveScoreStatistic`, `PartialHistoryWitness`, and
+    `commitment_lead_time_rounds` mirror the strong active belief theorem
+    vocabulary over merged statistics, partial histories, and right-censored
+    lead time.
   - `generate_active_demand_summary` mirrors demand generation from
     uncertainty, margin, missing contribution ids, and coverage gap. It only
     builds demand summaries; it does not mutate rank or evidence validity.
@@ -289,6 +337,11 @@ diffusion result is stated over the reduced proof-facing objects above.
 | Demand-driven duplicates do not inflate rank | `demand_duplicate_non_inflation` | `acceptContribution`, `ReceiverRank` | duplicate arrival rows and receiver-rank stability checks |
 | Stale demand cannot justify invalid evidence | `expired_demand_does_not_accept_invalid_evidence` | `expiredDemandSummary`, `demandAwareAccept` | stale-demand ignored/rejected replay rows |
 | Commitment lead time is a replay metric | `commitment_lead_time_soundness` | `CommitmentTimeline` | commitment and full-recovery event rows |
+| Positive lead time under explicit useful-inference assumptions | `useful_inference_can_support_positive_commitment_lead_time` | `LeadTimeWitness` + strong assumption rows | theorem-profile rows + commitment lead-time summaries |
+| Guarded commitment decodes the merged statistic | `guarded_commitment_from_mergeable_statistic_correct` | `AdditiveScoreStatistic` | theorem-profile rows + guarded commitment summaries |
+| Compatible commitments do not require identical histories | `compatible_partial_histories_yield_compatible_commitments` | `PartialHistoryWitness` | receiver compatibility summaries |
+| Demand changes control, not merged-statistic semantics | `demand_guided_statistic_acceptance_matches_plain_acceptance` | `AcceptedStatisticContribution` | host/bridge demand replay rows |
+| Innovative evidence sharpens the theorem-facing quality order | `innovative_valid_evidence_quality_monotone` | `ReceiverQualityOrder` | receiver quality summaries |
 | Compatible decisions are guarded local decisions | `same_guarded_basin_compatible`, `compatible_commitments_have_same_hypothesis` | `GuardedCommitment` | receiver agreement rows over committed hypotheses |
 | Receiver-arrival probability is measured, not proved | `receiver_arrival_stochastic_bound_is_narrowed` | `TheoremTargetStatus` | multi-seed validation rows |
 | Margin concentration is measured, not proved | `anomaly_margin_concentration_is_narrowed` | `TheoremTargetStatus` | anomaly-localization artifact rows |

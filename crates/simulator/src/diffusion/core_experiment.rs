@@ -350,6 +350,7 @@ pub(crate) enum TheoremAssumptionStatus {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct ActiveTheoremAssumptionRow {
     pub theorem_name: String,
+    pub theorem_profile: String,
     pub scenario_regime: ActiveScenarioRegime,
     pub trace_family: String,
     pub finite_horizon_model_valid: bool,
@@ -358,6 +359,7 @@ pub(crate) struct ActiveTheoremAssumptionRow {
     pub receiver_arrival_bound_permille: u32,
     pub lower_tail_failure_permille: u32,
     pub false_commitment_bound_permille: u32,
+    pub bound_summary: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1460,12 +1462,67 @@ fn active_scaling_boundary_rows(
 }
 
 fn active_theorem_assumption_rows(seed: u64) -> Vec<ActiveTheoremAssumptionRow> {
-    let theorem_names = [
-        "receiver_arrival_reconstruction_bound",
-        "useful_inference_arrival_bound",
-        "anomaly_margin_lower_tail_bound",
-        "guarded_commitment_false_probability_bounded",
-        "inference_potential_drift_progress",
+    let theorem_entries = [
+        (
+            "receiver_arrival_reconstruction_bound",
+            "finite-horizon arrival",
+            true,
+        ),
+        (
+            "useful_inference_arrival_bound",
+            "finite-horizon useful inference",
+            true,
+        ),
+        (
+            "anomaly_margin_lower_tail_bound",
+            "finite-horizon score margin",
+            true,
+        ),
+        (
+            "guarded_commitment_false_probability_bounded",
+            "finite-horizon guarded commitment",
+            true,
+        ),
+        (
+            "inference_potential_drift_progress",
+            "finite-horizon drift",
+            true,
+        ),
+        (
+            "guarded_commitment_from_mergeable_statistic_correct",
+            "deterministic mergeable statistic",
+            false,
+        ),
+        (
+            "compatible_partial_histories_yield_compatible_commitments",
+            "deterministic partial-history compatibility",
+            false,
+        ),
+        (
+            "demand_guided_statistic_acceptance_matches_plain_acceptance",
+            "deterministic demand non-interference",
+            false,
+        ),
+        (
+            "propagated_demand_guided_statistic_acceptance_matches_plain_acceptance",
+            "deterministic propagated-demand non-interference",
+            false,
+        ),
+        (
+            "useful_inference_can_support_positive_commitment_lead_time",
+            "explicit useful-inference lead time",
+            true,
+        ),
+        (
+            "right_censored_timeline_has_no_commitment_lead_time",
+            "deterministic replay lead-time boundary",
+            false,
+        ),
+        (
+            "innovative_valid_evidence_quality_monotone",
+            "deterministic innovative-quality monotonicity",
+            false,
+        ),
     ];
     let mut rows = Vec::new();
     for scenario_regime in [
@@ -1473,21 +1530,26 @@ fn active_theorem_assumption_rows(seed: u64) -> Vec<ActiveTheoremAssumptionRow> 
         ActiveScenarioRegime::ClusteredDuplicateHeavy,
         ActiveScenarioRegime::SemiRealisticMobility,
     ] {
-        for theorem_name in theorem_names {
+        for (theorem_name, theorem_profile, uses_regime_bounds) in theorem_entries {
             rows.push(ActiveTheoremAssumptionRow {
                 theorem_name: theorem_name.to_string(),
+                theorem_profile: theorem_profile.to_string(),
                 scenario_regime,
                 trace_family: trace_family_for_regime(scenario_regime).to_string(),
                 finite_horizon_model_valid: true,
                 contact_dependence_assumption: contact_assumption_for_regime(scenario_regime)
                     .to_string(),
-                assumption_status: theorem_assumption_status(scenario_regime),
+                assumption_status: theorem_assumption_status_for_entry(
+                    scenario_regime,
+                    uses_regime_bounds,
+                ),
                 receiver_arrival_bound_permille: receiver_arrival_bound_permille(
                     seed,
                     scenario_regime,
                 ),
                 lower_tail_failure_permille: lower_tail_failure_permille(scenario_regime),
                 false_commitment_bound_permille: false_commitment_bound_permille(scenario_regime),
+                bound_summary: theorem_bound_summary(seed, scenario_regime, uses_regime_bounds),
             });
         }
     }
@@ -1504,6 +1566,32 @@ fn active_theorem_assumption_rows(seed: u64) -> Vec<ActiveTheoremAssumptionRow> 
             ))
     });
     rows
+}
+
+fn theorem_assumption_status_for_entry(
+    scenario_regime: ActiveScenarioRegime,
+    uses_regime_bounds: bool,
+) -> TheoremAssumptionStatus {
+    if uses_regime_bounds {
+        return theorem_assumption_status(scenario_regime);
+    }
+    TheoremAssumptionStatus::Holds
+}
+
+fn theorem_bound_summary(
+    seed: u64,
+    scenario_regime: ActiveScenarioRegime,
+    uses_regime_bounds: bool,
+) -> String {
+    if !uses_regime_bounds {
+        return "deterministic theorem; no regime-specific probability bound".to_string();
+    }
+    format!(
+        "arrival >= {}; tail <= {}; false <= {}",
+        receiver_arrival_bound_permille(seed, scenario_regime),
+        lower_tail_failure_permille(scenario_regime),
+        false_commitment_bound_permille(scenario_regime)
+    )
 }
 
 fn active_large_regime_rows(seed: u64) -> Vec<ActiveLargeRegimeRow> {
@@ -3839,7 +3927,7 @@ mod tests {
         assert_eq!(artifacts.second_task_rows.len(), 18);
         assert_eq!(artifacts.recoding_frontier_rows.len(), 3);
         assert_eq!(artifacts.robustness_rows.len(), 10);
-        assert_eq!(artifacts.theorem_assumption_rows.len(), 15);
+        assert_eq!(artifacts.theorem_assumption_rows.len(), 36);
         assert_eq!(artifacts.large_regime_rows.len(), 9);
         assert_eq!(artifacts.trace_validation_rows.len(), 3);
         assert_eq!(artifacts.strong_baseline_rows.len(), 2);
@@ -4085,13 +4173,17 @@ mod tests {
 
         assert!(theorem_names.contains("receiver_arrival_reconstruction_bound"));
         assert!(theorem_names.contains("anomaly_margin_lower_tail_bound"));
+        assert!(theorem_names.contains("guarded_commitment_from_mergeable_statistic_correct"));
+        assert!(theorem_names.contains("innovative_valid_evidence_quality_monotone"));
         assert!(artifacts
             .theorem_assumption_rows
             .iter()
             .all(|row| row.finite_horizon_model_valid
                 && row.receiver_arrival_bound_permille <= 1000
                 && row.lower_tail_failure_permille <= 1000
-                && row.false_commitment_bound_permille <= 1000));
+                && row.false_commitment_bound_permille <= 1000
+                && !row.theorem_profile.is_empty()
+                && !row.bound_summary.is_empty()));
         assert_eq!(large_regimes.len(), 3);
         assert!(artifacts.large_regime_rows.iter().all(|row| {
             row.requested_node_count == 500

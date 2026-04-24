@@ -118,10 +118,11 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
         "route_truth_published", "duplicate_rank_inflation",
     ),
     "active_belief_theorem_assumptions.csv": (
-        "theorem_name", "scenario_regime", "trace_family",
+        "theorem_name", "theorem_profile", "scenario_regime", "trace_family",
         "finite_horizon_model_valid", "contact_dependence_assumption",
         "assumption_status", "receiver_arrival_bound_permille",
         "lower_tail_failure_permille", "false_commitment_bound_permille",
+        "bound_summary",
     ),
     "active_belief_large_regime.csv": (
         "seed", "scenario_regime", "requested_node_count", "executed_node_count",
@@ -151,13 +152,19 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
         "requested_node_count", "executed_node_count", "documented_boundary",
         "boundary_reason",
     ),
+    "active_belief_headline_statistics.csv": (
+        "comparison", "metric", "unit", "baseline", "treatment",
+        "treatment_median", "baseline_median", "paired_delta_median",
+        "paired_delta_p25", "paired_delta_p75", "row_count",
+        "aggregation_unit",
+    ),
     "active_belief_figure_artifacts.csv": (
         "figure_index", "figure_name", "source_artifact", "artifact_row_count",
         "claim_category", "fixed_budget_label", "sanity_passed",
     ),
 }
 
-REQUIRED_FIGURES = tuple(f"figure_{index:02d}" for index in range(1, 17))
+REQUIRED_FIGURES = tuple(f"figure_{index:02d}" for index in range(1, 18))
 
 
 @dataclass(frozen=True)
@@ -219,9 +226,12 @@ def validate_report_artifacts(path: Path) -> list[ReportSanityIssue]:
             continue
         stem = matches[0]
         svg_path = report_dir / f"{stem}.svg"
+        png_path = report_dir / f"{stem}.png"
         pdf_figure_path = report_dir / f"{stem}.pdf"
         if svg_path.stat().st_size < 1000:
             issues.append(ReportSanityIssue(svg_path.name, "figure SVG is too small"))
+        if not png_path.exists() or png_path.stat().st_size < 1000:
+            issues.append(ReportSanityIssue(png_path.name, "figure PNG is missing or too small"))
         if not pdf_figure_path.exists() or pdf_figure_path.stat().st_size < 1000:
             issues.append(ReportSanityIssue(pdf_figure_path.name, "figure PDF is missing or too small"))
     return issues

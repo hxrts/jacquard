@@ -1,101 +1,146 @@
 # Active Belief Diffusion With Coded Evidence
 
-This file is the manuscript-facing paper text for the active-belief report. It
-is extracted from `work/research_proposal.md` into `analysis_2` so the paper
-package can stand apart from Jacquard routing documentation.
-
 ## Abstract
 
-Active belief diffusion is a resource-bounded diffusion-coded inference
-primitive for decentralized computation in temporal networks. Agents represent
-payloads, local observations, or sufficient statistics as coded evidence.
-Evidence fragments diffuse opportunistically under explicit byte, lifetime, and
-storage caps. Receivers maintain local belief landscapes and exchange two
-first-class bounded objects:
+Agents can form useful beliefs without stable paths, central aggregation, or
+full raw-data recovery. We show this for temporal networks where each node sees
+only part of the world and the decision window may close before any node could
+collect everything.
 
-- mergeable coded evidence describing what an agent has learned,
-- demand summaries describing what would most reduce uncertainty.
+Active belief diffusion lets agents exchange two compact messages. Coded
+evidence carries audited pieces of what an agent has learned. Demand summaries
+carry what would most reduce uncertainty, but never count as evidence. Across
+replayed path-free traces, receivers sharpen beliefs and reach guarded
+commitments before full information transit. Propagated demand improves quality
+per byte over passive controlled coding and uncoded replication, with earlier
+commitment, lower uncertainty, and better receiver compatibility.
 
-The objects are symmetric in communication status and asymmetric in semantics.
-Both are bounded, replay-visible messages. Only coded evidence can validate a
-contribution, create contribution identity, merge into the sufficient statistic,
-or change the belief landscape. Demand can shape priority, custody, recoding,
-and allocation, but it remains non-evidential.
+The result applies to compact mergeable inference tasks. Local observations
+become deterministic statistic contributions, and the merged statistic yields a
+decision, margin, or uncertainty summary. Exact `k`-of-`n` recovery is the
+threshold case; additive score-vector anomaly localization is the main
+AI-facing case.
 
-The clean task class is mergeable inference: each local observation maps to a
-deterministic sufficient statistic, valid statistics merge under an auditable
-algebra, and the merged statistic directly yields a decision object, margin, or
-uncertainty summary. Exact k-of-n reconstruction is the threshold case; additive
-score-vector inference is the first AI-facing case.
+## 1. Introduction
 
-The core claim is that useful inference can be performed by controlled diffusion
-and reconstruction of mergeable coded evidence, even when no instantaneous
-static end-to-end path exists during the core window. In the inference setting,
-the full underlying information object need not transit. Enough independent
-task-relevant sufficient statistics must reach or be recoded toward a receiver
-to reduce uncertainty or cross a commitment threshold.
+Many AI and distributed-sensing systems are built around an assumption that
+eventually someone gets to see everything. Data can be centralized. The contact
+pattern can eventually permit complete aggregation. Or a coordinator can reduce
+the full observation set into a final answer. That assumption breaks in edge,
+swarm, disaster, battlefield, rural, and privacy-constrained settings. Contacts
+are intermittent. Links are capacity-constrained. The decision window may close
+before any node could have gathered the full raw information object.
 
-The active version strengthens the claim: multiple receivers can form compatible
-local beliefs from different temporal evidence histories by exchanging bounded
-evidence and bounded demand. Communication policy becomes part of inference:
-demand and evidence co-diffuse, demand shapes priority and recoding
-opportunities, and accepted evidence updates the belief statistic.
+The motivating question is whether useful collective belief can form before
+full information transit. Our answer is yes. The answer applies to a restricted
+and explicit class of inference problems. The key move is to exchange compact
+summaries of what agents have learned. Agents also exchange compact summaries
+of what would most reduce their remaining uncertainty. Inference does not have
+to wait until raw data arrives at one place.
 
-## Claim Boundary
+This matters for AI systems that cannot rely on central observation. Examples
+include swarms, edge sensing, disaster response, contested networks, rural
+sensing, privacy-constrained deployments, and intermittently connected
+autonomy. The AI object here is belief formation before aggregation from
+partial audited statistics. The claim is not general distributed learning,
+universal privacy, or consensus.
 
-The completed research claims active belief diffusion only for compact
-mergeable inference tasks under explicit finite-horizon contact, resource, and
-validity assumptions. Receiver-arrival reconstruction, useful-inference
-arrival, anomaly-margin, guarded false-commitment, demand-soundness, and
-potential-drift claims are theorem-backed only under the assumptions named in
-the Lean theorem table and theorem-assumption artifacts.
+The proposed primitive is active belief diffusion. Agents exchange two bounded,
+replay-visible objects. The first is coded evidence: audited contributions to a
+mergeable sufficient statistic. The second is a bounded demand summary:
+replay-visible information about what evidence would most improve current
+belief quality. The symmetry matters operationally because both objects diffuse
+through the network. The asymmetry matters semantically because only coded
+evidence can change the sufficient statistic. Demand can prioritize forwarding,
+retention, custody, and recoding. It cannot validate evidence. It cannot create
+contribution identity or alter merge semantics.
 
-The empirical claim is replay-based: active demand improves allocation and
-belief formation for implemented mergeable tasks under fixed payload-byte
-budgets and deterministic temporal traces. The work does not claim arbitrary ML
-inference, consensus, common knowledge, formal privacy, optimal active policy,
-production-network robustness, or robustness against arbitrary adaptive
-adversaries. Observer ambiguity is included only as a measured proxy frontier.
+The object of interest is a mergeable sufficient statistic that can be updated
+before raw recovery. Exact recovery is one threshold instance inside this
+broader task class. The paper focuses on compact deterministic merge algebras
+with auditable contribution identity. Demand summaries are part of the
+communication primitive, but they do not create evidence or change what counts
+as evidence.
 
-## Problem
+The paper makes three contributions:
 
-Many AI and distributed-sensing systems assume that data can eventually be
-centralized, synchronized, or routed over stable end-to-end paths. Those
-assumptions fail in edge, swarm, disaster, battlefield, rural, and
-privacy-sensitive settings. Contacts are intermittent, nodes have partial
-observations, links are capacity constrained, and centralized aggregation may be
-unavailable or undesirable.
+- It defines active belief diffusion as a two-object primitive for temporal
+  decentralized inference. Coded evidence carries audited statistic
+  contributions. Bounded demand summaries carry replay-visible summaries of
+  what would most improve current belief quality.
+- It identifies a mergeable-task interface that cleanly separates direct
+  statistic decoding from batch reduction after delivery. This lets the same
+  mechanism cover threshold reconstruction, additive anomaly localization, and a
+  small set of other compact tasks.
+- It presents a proof-scoped and replay-backed evaluation. The evaluation shows
+  path-free collective inference in the supported regime. It also shows that
+  propagated demand improves byte-normalized quality and commitment lead time.
+  Demand remains first-class in communication while staying non-evidential.
 
-Traditional routing asks how to deliver messages through such networks. This
-paper asks whether the network itself can participate in inference by
-co-diffusing coded evidence and bounded demand, so agents exchange both what
-they have learned and what they need to learn next.
+The scope is explicit. The paper does not claim arbitrary machine
+learning inference over intermittent networks. It claims that for compact
+mergeable tasks, useful collective belief can emerge before full information
+transit. This remains true in decision windows with no stable path and no
+central aggregator.
 
-The AI-facing problem is belief formation under intermittent contact. A useful
-system should improve decision quality per byte and support task-level
-commitment before the full observation set, raw payload, or global state has
-arrived at one place. The stronger problem is collective belief formation:
-many agents should reach compatible guarded decisions from different partial
-histories without consensus, a stable server, or a synchronized observation set.
+## 2. Related Work And Positioning
 
-## Why This Is Interesting
+The closest literature is not a single field. It is a stack of adjacent systems
+and AI literatures. Federated inference and collaborative DNN inference at the
+edge distribute model execution across devices or infrastructure. Active belief
+diffusion instead distributes recoverable evidence through an intermittent
+contact field.
 
-The research contribution combines decentralized inference under partial
-observability, erasure-coded or network-coded evidence accumulation, mergeable
-sufficient statistics, distributed evidence generation without a central
-encoder, active demand derived from local uncertainty, multi-receiver belief
-compatibility without consensus, auditable in-network recoding, adaptive
-diffusion pressure, temporal connectivity, deterministic replay, and
-theorem-backed coordination where protocol choreography is needed.
+Coded computation and coded inference use redundancy to tolerate stragglers or
+unavailable workers. Parity-model prediction serving is a representative
+example. Data-availability systems such as ZODA also show that sampled coded
+symbols can serve both checking and reconstruction. Active belief diffusion
+uses the analogous systems principle for temporal-network inference. Evidence
+movement, validity records, and receiver updates should improve reconstruction
+or decision quality, not merely report telemetry.
 
-The work should be evaluated as a decentralized-inference primitive, not as
-another mesh-routing protocol.
+Multi-agent reinforcement learning and active sensing study what agents should
+communicate or observe. Belief propagation and active inference provide useful
+vocabulary for local belief updates. These lines usually assume that a
+communication graph or coordination substrate is available enough to carry the
+messages. Here the contact field is part of the problem.
 
-## Primitive
+The positive distinction is bounded replay-visible inference over mergeable
+sufficient statistics. Coded evidence carries audited statistic contributions.
+Demand summaries are first-class messages about uncertainty, but they remain
+non-evidential. This combination is the paper's contribution.
 
-Active belief diffusion is defined over a mergeable task interface, three
-evidence-origin modes, and a symmetric exchange interface for evidence and
-demand.
+The privacy and traffic-analysis literatures are also relevant. Statistical
+disclosure attacks, Bayesian traffic analysis, and MANET anonymity work show
+that communication metadata can reveal relationships. This paper reports
+observer ambiguity only as a proxy. It does not prove privacy. The Triangle of
+Forgetting boundary is a useful guardrail: duplicate non-inflation and bounded
+retention are not the same as post-revocation forgetting or temporal secrecy.
+
+## 3. Running Example
+
+Consider clustered anomaly localization with multiple receivers. Each node sees
+only a local noisy signal about which cluster is anomalous. A receiver does not
+need every raw observation. It needs enough innovative statistic contribution to
+separate its top competing hypotheses and to satisfy a guarded commitment rule.
+
+Suppose one receiver currently has a narrow lead for cluster A over cluster B,
+while another is undecided between B and C. The first receiver emits a bounded
+demand summary asking for evidence that separates A from B. The second asks for
+evidence that separates B from C. Intermediate nodes do not learn global truth
+from those summaries. They use them only to prioritize which valid coded
+evidence to forward, retain, or recode under a fixed byte budget. When a
+receiver accepts innovative coded evidence, it merges that contribution into
+its local score vector. It updates its belief landscape. It may commit before
+the full observation set could ever have been reconstructed at that receiver.
+
+This example is the paper's central case. The same discipline reduces to exact
+`k`-of-`n` recovery when the sufficient statistic is set union and the decision
+rule is a threshold.
+
+## 4. Primitive
+
+Active belief diffusion is defined over a mergeable task interface:
 
 ```text
 local encode:      x_i -> a_i in A
@@ -106,24 +151,24 @@ decision:          d(A*) -> y
 quality:           q(A*) -> margin / uncertainty / score
 ```
 
-The merge must be associative, and it should be commutative unless the task has
-intentional order. Contribution identity prevents double counting.
-Recoding/aggregation is valid only when it preserves the contribution ledger
-and merge semantics. This class includes counts, votes, histograms, heavy
-hitters, sketches, additive score vectors, bounded log-likelihood
-accumulators, linear-model scores, random-feature embeddings, set union, and
-lattice-valued summaries.
+The merge must be associative and, unless the task intentionally depends on
+order, commutative. Contribution identity prevents double counting.
+Recoding or aggregation is valid only when it preserves the contribution ledger
+and merge semantics. The supported task class includes counts, votes,
+histograms, and heavy hitters. It also includes sketches, additive score
+vectors, bounded log-likelihood accumulators, linear-model scores,
+random-feature embeddings, set union, and lattice-valued summaries.
 
 The three evidence-origin modes are:
 
-1. Single-source reconstruction, where a source encodes a payload into
-   independent fragments and any valid quorum of size `k` reconstructs.
-2. Distributed evidence inference, where many agents hold local observations
-   and emit coded evidence about their own mergeable statistic contribution.
-3. In-network recoding and aggregation, where intermediate agents combine or
-   recode evidence while preserving validity and contribution identity.
+1. single-source reconstruction, where one source encodes a payload into
+   independent fragments and any valid quorum of size `k` reconstructs;
+2. distributed evidence inference, where many agents emit coded evidence about
+   their own local statistic contribution;
+3. in-network recoding and aggregation, where intermediate agents combine
+   evidence while preserving validity and contribution identity.
 
-The active exchange interface is narrow:
+The active extension adds local demand:
 
 ```text
 belief_r(t):       local statistic and quality summary at receiver r
@@ -132,9 +177,9 @@ value_r(e):        deterministic estimated value of evidence e for receiver r
 policy(u, v, e):   local forwarding or recoding score when u meets v
 ```
 
-Demand may encode missing contribution classes, competing hypotheses needing
-separation, desired cluster coverage, or anti-duplicate diversity. The active
-loop is:
+Demand may encode missing contribution classes, competing hypotheses that still
+need separation, desired cluster coverage, or anti-duplicate diversity. The
+active loop is:
 
 ```text
 belief landscape -> bounded demand
@@ -142,44 +187,50 @@ bounded demand + coded evidence -> priority / recoding / custody
 accepted coded evidence -> merge -> belief update
 ```
 
-This is the AI-facing mechanism: the population exchanges compact summaries of
-both learned information and remaining uncertainty, while preserving the rule
-that only audited evidence contributions change the statistic.
-
-## Research Questions
-
-The paper studies when coded diffusion reconstructs under temporal contact
-rather than static path connectivity; whether partial independent evidence can
-sharpen a hypothesis landscape and support commitment before full recovery;
-which mergeable sufficient-statistic tasks allow direct statistic decoding; how
-large the commitment lead time is; whether multiple receivers can reach
-compatible guarded decisions without consensus; whether first-class bounded
-demand improves uncertainty, agreement, lead time, and quality per byte; and
-when demand-driven forwarding can remain soundly separated from evidence
-validity.
-
-The negative research questions are equally important: when does the primitive
-stop helping because a task is not compactly mergeable, contribution identity
-is missing, observer ambiguity costs too much latency, or the contact/resource
-assumptions no longer match the theorem-backed boundary?
-
-## Theoretical Model
-
-Time is discrete:
+Algorithm 1 spells out the deterministic round loop.
 
 ```text
-t = 0, 1, 2, ...
+Algorithm 1: Active Belief Diffusion
+Input: temporal contacts, byte/storage/lifetime caps, mergeable task algebra
+State: local statistic A_r, contribution ledger L_r, bounded demand d_r
+
+for each deterministic round t:
+  observe local signal x_i, if any
+  encode x_i as an audited contribution a_i with contribution identity
+  update local belief summary from A_r
+  derive bounded demand d_r from uncertainty, margin, and missing classes
+  for each contact (u, v) in canonical order:
+    enumerate candidate evidence under byte and custody caps
+    score forwarding, retention, or recoding using demand and duplicate risk
+    demand may affect priority, custody, recoding, and allocation only
+    demand may not validate evidence or create contribution identity
+    demand may not alter merge semantics or the belief statistic
+    transmit selected bounded evidence and demand messages
+  for each received evidence object in canonical order:
+    validate evidence and parent contribution ledger without demand
+    if contribution identity is valid and innovative:
+      merge contribution into A_r
+      update L_r and belief summary
+  if evidence guard and margin guard hold:
+    emit guarded commitment
 ```
 
-There is a finite set of agents `V`. A temporal contact trace gives directed or
+The symmetry matters operationally and the asymmetry matters semantically.
+Evidence and demand are both bounded exchange objects. Only valid coded
+evidence, however, can change the merged sufficient statistic.
+
+## 5. Model And Formal Boundary
+
+Time is discrete and finite horizon. A temporal contact trace gives directed or
 undirected contact opportunities over time. A time-respecting journey is a
 sequence of contacts whose times are nondecreasing.
 
 Each evidence fragment has a target id, origin mode, fragment id, rank or
-contribution id, byte size, validity marker, and optional parent ids for
-recoded evidence. For exact reconstruction, a target has `k <= n` and receiver
-rank `D_t`, the number of valid independent contributions received by time `t`.
-Exact reconstruction occurs when `D_t >= k`; duplicates do not increase `D_t`.
+contribution id, byte size, and validity marker. Recoded evidence also carries
+optional parent ids. For exact reconstruction, a target has `k <= n`. The
+receiver rank `D_t` is the number of valid independent contributions received
+by time `t`.
+Exact reconstruction occurs when `D_t >= k`. Duplicates do not increase `D_t`.
 
 For aggregate inference, each valid contribution is an element of a
 deterministic merge algebra:
@@ -191,232 +242,301 @@ decision_t = d(A_t)
 quality_t  = q(A_t)
 ```
 
-For anomaly localization, `A` is a bounded integer score vector over candidate
-clusters, merge is vector addition, and `d(A_t)` is the top cluster when the
-margin and evidence guard pass. This is where inference enters the encoding
-semantics: fragments carry coded or recoded contributions to a task statistic,
-not only opaque bytes that a later reducer interprets after delivery.
+Diffusion cost is tracked with deterministic integer replay records. The
+controller records active innovative forwarding opportunities `Y_t`,
+finite-horizon cost `C_T`, and measured reproduction pressure `R_est`. Primary
+comparisons fix payload-byte budget. Recoded fragments carry parent
+contribution ids. The receiver counts canonical contribution ids rather than
+copies.
 
-Diffusion cost is measured with integer replay artifacts. The controller tracks
-active innovative forwarding opportunities `Y_t`, finite-horizon cost `C_T`,
-and measured reproduction pressure `R_est`. The primary comparison fixes
-payload-byte budget. Secondary comparisons may fix transmissions, forwarding
-opportunities, or storage caps, but every artifact states which budget is fixed.
+The formal contribution is intentionally scoped. The proof-backed rows apply
+to the synthetic sparse-bridge and clustered duplicate-heavy regimes. The
+semi-realistic mobility trace is empirical support only.
 
-Recoded fragments carry parent contribution ids. The receiver counts canonical
-contribution ids, not copies. Valid recoding cannot increase rank or useful
-contribution count beyond the parent/local contribution ledger.
+Theorem 1, receiver arrival. The Lean theorem
+`receiver_arrival_reconstruction_bound` states that a valid finite-horizon
+arrival floor that reaches the required rank supports exact reconstruction in
+the threshold case. In plain terms, distinct valid contributions matter.
+Duplicates do not increase receiver rank.
 
-## Theorem Targets
+Theorem 2, useful inference arrival. The Lean theorem
+`useful_inference_arrival_bound` states that enough task-relevant contribution
+mass can support a useful decision before full raw recovery. This is the formal
+bridge from reconstruction to inference over a sufficient statistic.
 
-The theory is compact and explicit about assumptions.
+Theorem 3, guarded anomaly commitment. The Lean theorems
+`anomaly_margin_lower_tail_bound` and
+`guarded_commitment_false_probability_bounded` state that a margin guard plus
+an evidence guard bounds false commitment under the modeled finite-horizon
+assumptions. This supports guarded commitment in the theorem-backed regimes.
 
-| Result | Lean theorem | Assumptions | Artifact rows |
-| --- | --- | --- | --- |
-| Finite-horizon diffusion control | `inference_potential_drift_progress` | controller progress credit, duplicate/storage/transmission pressure debit | `active_belief_theorem_assumptions.csv` |
-| k-of-n receiver arrival | `receiver_arrival_reconstruction_bound` | finite horizon, success floor, dependence mode, arrived rank at least `k` | `active_belief_theorem_assumptions.csv`, `active_belief_exact_seed_summary.csv` |
-| Useful inference arrival | `useful_inference_arrival_bound` | task-relevant contribution floor, quality threshold, finite horizon | `active_belief_theorem_assumptions.csv`, `active_belief_final_validation.csv` |
-| Anomaly margin | `anomaly_margin_lower_tail_bound` | bounded updates, correct-cluster advantage, lower-tail failure bound | `active_belief_theorem_assumptions.csv` |
-| Guarded false commitment | `guarded_commitment_false_probability_bounded` | margin threshold, evidence guard, false-commitment bound | `active_belief_exact_seed_summary.csv` |
-| Mergeable-statistic soundness | task algebra lemmas | valid merge, recoding, contribution ledger, duplicate non-inflation | `active_belief_second_tasks.csv` |
-| Host/bridge demand safety | `propagated_demand_cannot_validate_invalid_evidence`, `propagated_demand_duplicate_non_inflation` | replay-visible host/bridge demand record, valid bounded summary | `active_belief_host_bridge_demand.csv` |
+Theorem 4, non-evidential demand safety. The Lean theorems
+`propagated_demand_cannot_validate_invalid_evidence` and
+`propagated_demand_duplicate_non_inflation` state that propagated demand cannot
+validate invalid evidence or inflate receiver rank through duplicates. Demand
+can influence allocation. It cannot change evidence identity, validity, or
+merge semantics.
 
-Theorem-backed claims apply only when the finite-horizon contact,
-update-bound, guard, and controller assumptions are marked satisfied. Rows
-marked empirical-only are evidence for the implemented regime, not proof
-instances.
+Theorem 5, progress accounting. The Lean theorem
+`inference_potential_drift_progress` packages the controller-side accounting
+surface. It records useful progress against duplicate, storage, and
+transmission pressure. This is the proof-side companion to the operating-region
+plot.
 
-## Experimental Plan
+Table 13 summarizes that boundary.
 
-The central experiment is anomaly localization over clustered temporal
-contacts: 100 or 500 agents, five or more clusters, intermittent bridge
-contacts, no instantaneous static source-to-sink path during the core window,
-time-respecting evidence journeys, local noisy observations, multiple receivers
-with integer score landscapes, and bounded demand summaries derived from
-uncertainty, competitor margins, and missing contribution classes.
+{{EXHIBIT:figure_13_theorem_assumptions}}
 
-The central success condition is stronger than delivery. The receiver's
-landscape must sharpen, and preferably commit, before full observation recovery
-or raw payload transit. For the active version, multiple receivers should
-reduce uncertainty and converge toward compatible guarded decisions faster or
-with fewer bytes than passive controlled coded diffusion.
+## 6. Experimental Design
 
-The experiment suite progresses through:
+The central experiment is multi-receiver anomaly localization over clustered
+temporal contacts. The traces contain intermittent bridge contacts and no
+instantaneous static source-to-receiver path during the core window. Successful
+runs require time-respecting evidence journeys. Nodes produce local noisy
+observations. Receivers maintain integer score landscapes. Demand summaries are
+derived from uncertainty, competitor margins, and missing contribution classes.
 
-1. single-source k-of-n message reconstruction,
-2. distributed anomaly localization from mergeable local score contributions,
-3. in-network recoding or aggregation ablation.
+The protocol table makes the replay surface explicit.
 
-The distributed-evidence mode includes a no-central-encoder panel: no node owns
-the global input, each node emits only local evidence, and the receiver is
-compared against a later oracle reducer that sees the full observation set only
-for evaluation.
+| Item | Implemented setting |
+| --- | --- |
+| Seeds | 20 deterministic seeds, `41..60` |
+| Core regimes | synthetic sparse bridge, synthetic clustered duplicate-heavy, semi-realistic mobility-contact |
+| Theorem-backed regimes | synthetic sparse bridge and synthetic clustered duplicate-heavy |
+| Empirical-only regime | semi-realistic mobility-contact |
+| Receivers | three receiver identities per receiver-run artifact |
+| Core tasks | anomaly localization, majority threshold, bounded histogram, set-union threshold |
+| Evidence modes | uncoded replication, passive controlled coded, full active belief, recoded aggregate |
+| Payload budget | 4096 bytes for headline comparisons |
+| Phase-control surface | reproduction bands with `R_est`, forwarding budget, and `k/n` values `4/8` and `6/10` |
+| Demand accounting | replay-visible demand counts in host/bridge demand rows |
+| Commitment guard | evidence guard plus margin guard; reported as commitment lead time and false-commitment rate |
+| Stress surface | normal, duplicate pressure, mobility, malicious duplicate pressure, delayed demand |
+| Scale hygiene | 128-node sparse bridge, 256-node clustered, and 500-node mobility-contact replay rows |
 
-Core comparisons include uncoded full-message replication, epidemic forwarding,
-spray-and-wait, coded diffusion without reproduction control, passive
-controlled coded diffusion, and active belief diffusion with bounded demand.
-Core ablations remove demand propagation, duplicate-risk scoring, bridge-value
-scoring, landscape-value scoring, reproduction control, or replace forwarding
-with random selection under the same byte budget. Robustness stresses include
-duplicate spam, selective withholding, biased observations, bridge-node loss,
-and stale recoded evidence.
+The paper uses three primary metrics:
 
-## Metrics
+1. commitment lead time, the number of rounds by which a guarded commitment
+   precedes full recovery;
+2. quality per byte under a fixed payload budget;
+3. false-commitment rate under modeled stress.
 
-Primary metrics are recovery probability, decision accuracy, time to
-reconstruction or commitment, receiver rank, top-hypothesis margin, scaled
-uncertainty, quality per payload byte, commitment-before-full-recovery rate,
-commitment lead time, bytes at commitment, receiver agreement, belief
-divergence, collective uncertainty, demand satisfaction, demand-response lag,
-evidence overlap, bytes transmitted, duplicate and innovative arrivals, peak
-retained bytes, measured `R_est`, and potential value over time.
+Secondary metrics include receiver agreement, collective uncertainty, duplicate
+pressure, bytes at commitment, and reproduction pressure. The main budgeted
+comparison fixes payload transmission to 4096 bytes.
 
-Secondary observer metrics report linkage inference accuracy, cluster or
-source/receiver uncertainty, observer projection summaries, and cost at fixed
-observer advantage. All metrics are deterministic: integer counts, fixed
-denominators, canonical ordering, and typed Jacquard time/order values.
+The suite compares single-source `k`-of-`n` reconstruction, distributed anomaly
+localization from mergeable local score contributions, and in-network recoding
+or aggregation. The anomaly-localization suite includes a no-central-encoder
+setting. No node owns the global input. Each node emits only local evidence.
+The receiver is evaluated against a later oracle reducer that sees the full
+observation set only after the fact.
 
-## Figure Plan
+Core baselines are uncoded replication, epidemic forwarding, spray-and-wait,
+contact-frequency opportunism, passive controlled coded diffusion, and active
+belief diffusion with propagated demand. The key active ablations remove demand
+propagation, duplicate-risk scoring, bridge-value scoring, landscape-value
+scoring, or reproduction control while preserving byte accounting.
 
-The proposal called for eleven figures. The final paper package keeps those
-figures and adds five strong-validation figures for the host/bridge demand
-surface, theorem assumptions, large-regime replay, trace validation, and
-opportunistic baselines.
+Trace validation and large-regime replay hygiene are supporting checks rather
+than headline claims. They establish that the evaluation is deterministic,
+canonicalized, and reproducible before the substantive comparisons are read.
+The trace-validation table is included here so the artifact hygiene is visible
+before the substantive comparisons.
 
-| Figure | Name | Proposal role | Source artifact |
-| --- | --- | --- | --- |
-| 1 | Landscape coming into focus | Multi-seed belief quality, margin, and uncertainty over time | `active_belief_raw_rounds.csv` |
-| 2 | Path-free recovery | Recovery or decision with explicit no-static-path and time-respecting-journey validation | `active_belief_path_validation.csv` |
-| 3 | Three-mode comparison | Source-coded, distributed-evidence, and recoded/aggregated modes | `coded_inference_experiment_a2_evidence_modes.csv` |
-| 4 | Active belief grid | Receiver agreement, uncertainty, quality, and commitment lead time across active/passive/recoded modes | `active_belief_receiver_runs.csv` |
-| 5 | Task algebra table | Direct statistic decoding across exact, anomaly, majority, and histogram tasks | `active_belief_second_tasks.csv` |
-| 6 | Phase diagram | Quality, cost, duplicate pressure, and `R_est` across control regimes | `coded_inference_experiment_c_phase_diagram.csv` |
-| 7 | Active versus passive | Causal demand ablations under equal payload-byte budget | `active_belief_demand_ablation.csv` |
-| 8 | Coding versus replication | Quality-cost curves across payload-byte budgets | `coded_inference_experiment_d_coding_vs_replication.csv` |
-| 9 | Recoding frontier | Quality versus bytes at commitment for forwarding, active demand, and recoding | `active_belief_receiver_runs.csv` |
-| 10 | Robustness boundary | Stress regimes where the primitive holds or stops helping | `active_belief_exact_seed_summary.csv` |
-| 11 | Observer ambiguity frontier | Observer proxy frontier, not a privacy theorem | `coded_inference_experiment_e_observer_frontier.csv` |
-| 12 | Host/bridge demand safety | Demand is first-class but non-evidential across replay surfaces | `active_belief_host_bridge_demand.csv` |
-| 13 | Theorem assumptions by regime | Proof-to-experiment assumption map | `active_belief_theorem_assumptions.csv` |
-| 14 | Large-regime validation | Runtime, memory, replay agreement, quality, and failure-rate scale hygiene | `active_belief_scale_validation.csv` |
-| 15 | Trace validation | Canonical preprocessing and deterministic replay for traces | `active_belief_trace_validation.csv` |
-| 16 | Opportunistic baseline comparison | Multi-seed equal-budget deterministic forwarding baselines | `active_belief_strong_baselines.csv` |
+{{EXHIBIT:figure_15_trace_validation}}
 
-## Evaluation Structure
+## 7. Results
 
-The evaluation is claim-by-claim:
+The empirical story has four central claims. First, useful belief formation can
+occur in windows with no static end-to-end path. Second, the mechanism is not
+limited to threshold delivery. It operates on a larger mergeable-task surface.
+Third, propagated demand improves byte-normalized collective inference. Fourth,
+the gains persist under fair-cost comparisons and remain visible under explicit
+stress and baseline checks.
 
-1. Direct statistic decoding works for compact mergeable tasks.
-2. Demand improves allocation under equal payload-byte budget.
-3. Demand remains non-evidential on simulator-local and host/bridge replay
-   surfaces.
-4. Multi-receiver guarded commitments are compatible without consensus.
-5. Theorem assumptions are satisfied or explicitly labeled empirical.
-6. Large-regime rows replay deterministically.
-7. Semi-realistic mobility-contact traces are canonically preprocessed and
-   replay checked.
-8. Robustness boundaries show where the primitive stops helping.
+### 6.1 Belief Landscapes Sharpen In Path-Free Windows
 
-The generated report includes a figure claim map in
-`active_belief_figure_claim_map.csv`. Main-evidence figures are expected to use
-multi-seed replay rows or baseline distributions. Boundary/safety figures
-separate theorem assumptions and non-evidential demand semantics from
-performance. Appendix/supporting figures cover artifact hygiene or proxy
-measurements and are not used as standalone support for the main thesis.
+In the path-validation traces, every recorded run has no instantaneous static
+path in the core window and does have a time-respecting evidence journey. Under
+that condition, median path-free success is 885 permille for active belief
+diffusion, 805 for passive controlled coded diffusion, 908 for recoded
+aggregation, and 585 for uncoded replication. The point of Figure 2 is
+therefore not merely that delivery eventually happens. The point is that useful
+inference progresses through temporal contact history rather than through a
+hidden stable path.
 
-## Contributions
+{{EXHIBIT:figure_02_path_free_recovery}}
 
-The paper contributes:
+Figure 1 shows what that progress looks like at the receiver. As innovative
+evidence arrives, quality rises while margin and uncertainty move in the
+expected direction. The relevant phenomenon is the formation of a usable belief
+landscape before the receiver has the full raw information object.
 
-- active belief diffusion as a two-object evidence/demand primitive for
-  temporal decentralized inference,
-- a mergeable-task interface that separates direct statistic decoding from
-  routing plus post-processing,
-- a non-evidential demand safety boundary,
-- theorem-backed finite-horizon and merge-soundness claims with explicit
-  assumption artifacts,
-- deterministic replay experiments across reconstruction, anomaly
-  localization, compact second tasks, recoding, active demand, robustness,
-  observer proxies, and opportunistic baselines,
-- a reproducible paper package with CSV rows, figures, captions, and sanity
-  checks.
+{{EXHIBIT:figure_01_landscape_focus}}
 
-## Conclusion
+### 6.2 The Mechanism Is Larger Than Threshold Delivery
 
-Within compact mergeable inference tasks and the finite-horizon replay
-assumptions recorded in the theorem table, the evidence package supports the
-narrowed active-belief thesis: bounded coded evidence can carry audited
-sufficient-statistic contributions through temporal contacts, bounded demand
-can improve allocation under fixed payload-byte budgets, and demand can remain
-first-class in communication without becoming evidential. The supported claim
-is deterministic replay plus theorem-boundary support for the stated regimes.
-The paper does not conclude general AI inference, consensus, privacy, optimal
-control, or production-network robustness.
+Table 3 separates the three evidence-origin modes at the task-object level.
+The threshold case remains important because it is the cleanest sanity check,
+but it is not the distinctive case. The distinctive claim appears in the
+distributed-evidence and recoded-aggregation modes. There, fragments carry
+statistic contributions rather than opaque bytes for later centralized
+reduction.
 
-## Implementation Roles
+{{EXHIBIT:figure_03_three_mode_comparison}}
 
-Jacquard is the deterministic implementation substrate. It supplies typed time,
-explicit router ownership, host bridges, replayable simulator artifacts, and
-integer resource accounting.
+Figure 5 extends the same discipline to a small task family beyond anomaly
+localization. The contribution is not that every learning problem is mergeable.
+It is that several useful compact tasks share the same direct statistic-decoding
+surface and therefore admit the same transport and proof discipline.
 
-Field is the experimental incubator only after corridor-routing machinery is
-removed from the active research path. It is not the contribution name, and
-Field routing is not part of this analysis package.
+{{EXHIBIT:figure_05_task_algebra}}
 
-Telltale provides supporting proof vocabulary and choreographic protocol checks
-where protocol structure matters. The contribution is not an MPST result.
+### 6.3 Propagated Demand Improves Byte-Normalized Collective Inference
 
-## Non-Claims
+Under a fixed 4096-byte budget, active belief diffusion reaches median quality
+per byte 887 permille in the multi-receiver anomaly-localization setting. It
+also reaches receiver agreement 888 permille, collective uncertainty 109
+permille, commitment lead time 3 rounds, and bytes at commitment 1934. The
+corresponding passive controlled coded medians are 807, 862, 161, 1, and 2074.
+Uncoded replication reaches 587, 788, 381, 1, and 2508. Active demand improves
+byte-normalized quality by about 10 percent over passive controlled coding and
+about 51 percent over uncoded replication. It reduces median uncertainty by
+about 32 percent and 71 percent respectively.
 
-The paper does not claim arbitrary ML inference, general distributed cognition,
-consensus, common knowledge, privacy, optimal active policy, production
-deployment readiness, universal delay-tolerant routing superiority, or
-robustness against arbitrary adaptive adversaries. The observer-ambiguity
-figures are proxy measurements. The large-regime rows are scale hygiene and
-deterministic replay checks, not production deployment evidence.
+Figure 4 shows these gains as receiver-level distributions in direct units
+across the clustered, mobility, and sparse-bridge regimes rather than as
+normalized deltas from one baseline. That makes the collective-belief claim
+visible at the level of actual receiver outcomes. It also makes the
+commitment-lead-time story concrete. Active belief diffusion typically gives
+about two extra rounds of lead time over passive controlled coding and uncoded
+replication. It also reduces receiver-to-receiver divergence.
 
-## Positioning
+{{EXHIBIT:figure_04_active_belief_grid}}
 
-The target audience is AI systems, decentralized inference, networked sensing,
-and distributed systems researchers interested in how communication substrates
-can carry useful inference state rather than only completed messages.
+The causal ablation supports the same conclusion. Propagated demand reaches
+median quality per byte 621.5 permille with median uncertainty 328.5,
+innovative arrivals 15, duplicate count 10, and bytes at commitment 2154.
+No-demand drops to 517.5, 432.5, 10, 13, and 2570. Stale demand also degrades
+to 535.5 quality per byte and 414.5 uncertainty. The improvement therefore
+comes from current propagated uncertainty summaries changing allocation toward
+useful evidence. It does not come from any change in evidence semantics.
 
-The short positioning line is:
+{{EXHIBIT:figure_07_active_vs_passive}}
 
-> Agents in temporal networks can form useful beliefs by exchanging compact,
-> mergeable summaries of both evidence and uncertainty.
+### 6.4 Coding And Recoding Beat Replication Under Fair Cost Accounting
 
-The safety line is:
+At the 4096-byte comparison point, active coded diffusion reaches median
+quality 926 permille with duplicate count 8. Passive controlled coded reaches
+846 with duplicate count 11. Uncoded replication reaches 626 with duplicate
+count 24. Coded diffusion is therefore better both in decision quality and in
+duplicate pressure under the same payload budget.
 
-> Demand is first-class in communication, but non-evidential in semantics.
+Figure 8 shows the same result with interquartile spread bands over the budget
+axis, so the coding advantage reads as measured variation rather than as a
+single schematic curve.
 
-The technical line is:
+{{EXHIBIT:figure_08_coding_vs_replication}}
 
-> Direct statistic decoding, contribution identity, and deterministic replay
-> separate active belief diffusion from ordinary routing followed by offline
-> reduction.
+Recoding modestly improves the frontier further. In the receiver-run summaries,
+recoded aggregation reaches median quality per byte 910 permille, receiver
+agreement 896 permille, collective uncertainty 109 permille, commitment lead
+time 3 rounds, and bytes at commitment 1988. That slightly dominates passive
+controlled coding. It is also competitive with, or better than, active belief
+diffusion on the quality-byte frontier. It still respects the same
+contribution-ledger discipline. Figure 9 shows this frontier by regime with
+median points and interquartile spreads rather than with an overplotted cloud.
 
-## Submission Artifact Boundary
+{{EXHIBIT:figure_09_recoding_frontier}}
 
-The reproducible active-belief report PDF is generated by
-`just active-belief-report` under
-`artifacts/analysis_2/latest/active-belief-report.pdf`. Venue-specific
-typesetting, page limits, bibliography style, and camera-ready packaging are
-submission work, not remaining research validation.
+### 6.5 Control And Robustness Boundaries Remain Visible
 
-## Caption Audit Rules
+The coded mechanism is only useful if diffusion pressure stays bounded. Figure 6
+makes the operating region explicit. The near-critical runs are the ones that
+enter the target `R_est` band and obtain the best quality gains without paying
+the duplicate and byte costs seen in the supercritical runs. The relevant
+result is not one globally optimal setting. The controller exposes a visible
+operating region rather than hiding cost inside unbounded diffusion.
 
-Captions must name the fixed budget, seed set, regime set, trace family, and
-theorem-assumption status when those quantities support the plotted claim.
-Captions must not use privacy, consensus, optimal, general AI, adversarially
-robust, or deployment-ready language unless the plotted artifact and theorem
-table support that exact claim.
+{{EXHIBIT:figure_06_phase_diagram}}
 
-## Limitations
+Figure 10 then gives the stress boundary. Median commitment accuracy is 955
+permille at severity 1, 880 at severity 2, and 805 at severity 3. Median
+false-commitment rate rises from 14.5 to 22.5 to 30.5 permille. At severities
+4 and 5, false commitment reaches 38.5 and 46.5 permille. The quality gains
+also flatten. This is a useful robustness boundary. The method remains
+effective through moderate modeled stress. The degradation point is explicit
+rather than hidden.
 
-The strong paper covers compact mergeable sufficient statistics, not arbitrary
-ML inference. Observer ambiguity remains an empirical proxy unless a separate
-formal privacy definition is added. The contact-frequency baseline is
-deterministic and useful for opportunistic-forwarding comparison, but it is not
-a complete delay-tolerant-routing survey. Empirical rows outside theorem
-assumptions should be read as implemented evidence, not proof instances.
+{{EXHIBIT:figure_10_robustness_boundary}}
+
+### 6.6 Demand Is First-Class In Communication But Not Evidential
+
+The safety claim is architectural rather than purely statistical. Demand
+summaries are replay-visible protocol objects that influence forwarding,
+retention, and recoding decisions. They do not validate evidence, create
+contribution identity, change merge semantics, publish route truth, or inflate
+duplicate rank. Table 12 records both facts directly. Active variants carry
+replay-visible demand summaries. All forbidden evidential side effects stay at
+zero.
+
+{{EXHIBIT:figure_12_host_bridge_demand}}
+
+This separation matters to the paper's AI framing. The system exchanges bounded
+summaries of both learned information and remaining uncertainty. Only coded
+evidence can change the sufficient statistic.
+
+### 6.7 Supporting Fairness Checks
+
+The strong-baseline comparison is a fairness check, not the conceptual center
+of the paper. Its job is to show that the reported gains are not an artifact of
+comparing only against obviously weak opportunistic policies. In the baseline
+summary, active belief diffusion stays ahead of passive controlled coded
+diffusion, contact-frequency opportunism, epidemic forwarding, spray-and-wait,
+random forwarding, and uncoded replication. The budget accounting is the same.
+
+{{EXHIBIT:figure_16_strong_baselines}}
+
+Large-regime replay validation and observer ambiguity remain supporting
+material. They are useful for reproducibility and scope. They are not required
+to establish the main path-free inference, active-demand,
+multi-receiver compatibility, or fair-cost coding claims in the paper body.
+
+## 7. Contributions
+
+This paper makes three contributions:
+
+1. a two-object primitive for temporal decentralized inference. Coded evidence
+   and bounded demand summaries co-diffuse while remaining semantically
+   distinct;
+2. a mergeable-task interface that makes direct statistic decoding the primary
+   object. Exact reconstruction is one threshold special case;
+3. a proof-scoped and replay-backed empirical case. Path-free collective
+   inference is possible in the supported regime. Demand improves allocation
+   under equal byte budgets. The mechanism has explicit safety and stress
+   boundaries.
+
+## 8. Limitations
+
+The paper covers compact mergeable sufficient statistics, not arbitrary machine
+learning inference. Some claims are deterministic theorem-backed across the
+whole supported mechanism boundary; the finite-horizon probabilistic claims are
+theorem-backed only in the sparse-bridge and semi-realistic mobility regimes
+and stay empirical-only in the clustered duplicate-heavy regime. Observer
+ambiguity is a traffic-analysis proxy, not a formal privacy claim. The
+opportunistic baseline set is strong enough to be informative. It is not a
+complete survey of delay-tolerant networking.
+
+## 9. Conclusion
+
+In temporal networks with no stable path in the decision window and no central
+aggregator, agents can still form useful collective beliefs. They do this by
+exchanging two bounded objects. Coded evidence merges into an auditable
+sufficient statistic. Demand summaries expose what evidence would most reduce
+current uncertainty without becoming evidence themselves. For compact mergeable
+tasks, that is enough to obtain earlier guarded commitment, better quality per
+byte, lower uncertainty, and more compatible receiver-side beliefs from
+different temporal histories. The core result is receiver-side commitment from
+partial audited statistics. It is not route delivery followed by later
+post-processing.
