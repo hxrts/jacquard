@@ -96,9 +96,9 @@ fn anomaly_evidence_vector(
         .map(|candidate| {
             if candidate == hidden_anomaly_cluster_id && cluster_id == hidden_anomaly_cluster_id {
                 4
-            } else if candidate == cluster_id {
-                1
-            } else if node_id.is_multiple_of(11) && candidate == hidden_anomaly_cluster_id {
+            } else if candidate == cluster_id
+                || (node_id.is_multiple_of(11) && candidate == hidden_anomaly_cluster_id)
+            {
                 1
             } else {
                 0

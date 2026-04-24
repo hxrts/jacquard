@@ -195,6 +195,44 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
         "quality_permille",
         "ambiguity_metric_is_proxy",
     ),
+    "active_belief_second_tasks.csv": (
+        "seed",
+        "mode",
+        "task_kind",
+        "statistic_kind",
+        "receiver_rank",
+        "recovery_probability_permille",
+        "bytes_at_commitment",
+        "demand_satisfaction_permille",
+        "decision_accuracy_permille",
+        "commitment_lead_time_rounds_max",
+        "quality_per_byte_permille",
+    ),
+    "active_belief_final_validation.csv": (
+        "seed",
+        "scenario_regime",
+        "mode",
+        "task_kind",
+        "fixed_payload_budget_bytes",
+        "collective_uncertainty_permille",
+        "receiver_agreement_permille",
+        "commitment_lead_time_rounds_max",
+        "quality_per_byte_permille",
+        "deterministic_replay",
+    ),
+    "active_belief_scaling_boundary.csv": (
+        "requested_node_count",
+        "executed_node_count",
+        "documented_boundary",
+        "boundary_reason",
+    ),
+    "active_belief_figure_artifacts.csv": (
+        "figure_index",
+        "figure_name",
+        "artifact_row_count",
+        "fixed_budget_label",
+        "sanity_passed",
+    ),
 }
 
 
@@ -224,6 +262,9 @@ HEADLINE_SERIES: dict[str, tuple[str, ...]] = {
     "coded_inference_experiment_c_phase_diagram.csv": ("quality_permille",),
     "coded_inference_experiment_d_coding_vs_replication.csv": ("quality_permille",),
     "coded_inference_experiment_e_observer_frontier.csv": ("uncertainty_permille",),
+    "active_belief_second_tasks.csv": ("decision_accuracy_permille",),
+    "active_belief_final_validation.csv": ("quality_per_byte_permille",),
+    "active_belief_figure_artifacts.csv": ("artifact_row_count",),
 }
 
 
@@ -249,6 +290,10 @@ FIGURE_DATASETS: dict[str, str] = {
     "coded_phase_diagram": "coded_inference_experiment_c_phase_diagram.csv",
     "coded_vs_replication": "coded_inference_experiment_d_coding_vs_replication.csv",
     "coded_observer_frontier": "coded_inference_experiment_e_observer_frontier.csv",
+    "active_belief_grid": "active_belief_final_validation.csv",
+    "active_task_algebra": "active_belief_second_tasks.csv",
+    "active_versus_passive": "active_belief_final_validation.csv",
+    "active_proposal_figures": "active_belief_figure_artifacts.csv",
 }
 
 MERCATOR_REQUIRED_FIGURES = {
@@ -280,6 +325,10 @@ PERMILLE_COLUMN_TOKENS = (
     "posterior_uncertainty",
     "forwarding_contact_proxy",
     "quality",
+    "collective_uncertainty",
+    "receiver_agreement",
+    "demand_satisfaction",
+    "decision_accuracy",
     "recovery_success",
     "recovery_probability",
     "path_free_success",
@@ -305,6 +354,10 @@ NONNEGATIVE_COLUMN_TOKENS = (
     "cost_bytes",
     "byte_count",
     "fixed_payload_budget_bytes",
+    "bytes_at_commitment",
+    "artifact_row_count",
+    "executed_node_count",
+    "requested_node_count",
     "energy",
     "latency_rounds",
     "run_count",

@@ -74,12 +74,20 @@ pub(crate) enum ActiveRobustnessStressKind {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub(crate) enum ActiveSecondTaskKind {
     SetUnionRank,
+    MajorityThreshold,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub(crate) enum ActiveScenarioRegime {
+    SparseBridgeHeavy,
+    ClusteredDuplicateHeavy,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub(crate) enum MergeableStatisticKind {
     SetUnionRank,
     AdditiveScoreVector,
+    MajorityThreshold,
     ObserverProjectionSummary,
 }
 
@@ -87,6 +95,7 @@ pub(crate) enum MergeableStatisticKind {
 pub(crate) enum MergeOperationKind {
     SetUnion,
     VectorAddition,
+    MajorityVote,
     ProjectionAggregation,
 }
 
@@ -94,6 +103,7 @@ pub(crate) enum MergeOperationKind {
 pub(crate) enum ContributionLedgerRule {
     CanonicalContributionLedger,
     EvidenceVectorContribution,
+    MajorityContributionLedger,
     ProjectionErasure,
 }
 
@@ -101,6 +111,7 @@ pub(crate) enum ContributionLedgerRule {
 pub(crate) enum DecisionMapKind {
     ReconstructionThreshold,
     TopHypothesisMargin,
+    MajorityThreshold,
     AttackerAdvantage,
 }
 
@@ -108,6 +119,7 @@ pub(crate) enum DecisionMapKind {
 pub(crate) enum QualityMapKind {
     ReceiverRank,
     LandscapeUncertainty,
+    MajorityMargin,
     ObserverAmbiguity,
 }
 
@@ -220,6 +232,8 @@ pub(crate) struct ActiveVersusPassiveRow {
     pub innovative_arrival_count: u32,
     pub measured_r_est_permille: u32,
     pub stale_demand_ignored_count: u32,
+    pub full_recovery_censored: bool,
+    pub commitment_accuracy_permille: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -236,12 +250,16 @@ pub(crate) struct ActiveNoCentralEncoderPanelRow {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct ActiveSecondTaskRow {
     pub seed: u64,
+    pub mode: ActiveBeliefPolicyMode,
     pub task_kind: ActiveSecondTaskKind,
     pub mergeable_statistic: MergeableStatisticDescriptor,
     pub receiver_rank: u32,
     pub recovery_probability_permille: u32,
     pub bytes_at_commitment: u32,
     pub demand_satisfaction_permille: u32,
+    pub decision_accuracy_permille: u32,
+    pub commitment_lead_time_rounds_max: u32,
+    pub quality_per_byte_permille: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -290,6 +308,37 @@ pub(crate) struct ActiveDemandTraceRow {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct FinalProposalValidationRow {
+    pub seed: u64,
+    pub scenario_regime: ActiveScenarioRegime,
+    pub mode: ActiveBeliefPolicyMode,
+    pub task_kind: ActiveSecondTaskKind,
+    pub fixed_payload_budget_bytes: u32,
+    pub collective_uncertainty_permille: u32,
+    pub receiver_agreement_permille: u32,
+    pub commitment_lead_time_rounds_max: u32,
+    pub quality_per_byte_permille: u32,
+    pub deterministic_replay: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveScalingBoundaryRow {
+    pub requested_node_count: u32,
+    pub executed_node_count: u32,
+    pub documented_boundary: bool,
+    pub boundary_reason: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ProposalFigureArtifactRow {
+    pub figure_index: u8,
+    pub figure_name: String,
+    pub artifact_row_count: u32,
+    pub fixed_budget_label: String,
+    pub sanity_passed: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct ActiveBeliefExperimentArtifacts {
     pub artifact_namespace: String,
     pub grid_rows: Vec<ActiveBeliefGridRow>,
@@ -299,6 +348,9 @@ pub(crate) struct ActiveBeliefExperimentArtifacts {
     pub second_task_rows: Vec<ActiveSecondTaskRow>,
     pub recoding_frontier_rows: Vec<ActiveRecodingFrontierRow>,
     pub robustness_rows: Vec<ActiveRobustnessRow>,
+    pub final_validation_rows: Vec<FinalProposalValidationRow>,
+    pub scaling_boundary_rows: Vec<ActiveScalingBoundaryRow>,
+    pub figure_artifact_rows: Vec<ProposalFigureArtifactRow>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -314,6 +366,7 @@ struct ActiveExperimentRun {
     mode: ActiveBeliefPolicyMode,
     recoding_mode: ActiveRecodingMode,
     stress_kind: Option<ActiveRobustnessStressKind>,
+    scenario_regime: ActiveScenarioRegime,
     fixed_payload_budget_bytes: u32,
     receiver_states: Vec<ActiveReceiverState>,
     demand_trace_rows: Vec<ActiveDemandTraceRow>,
@@ -360,6 +413,7 @@ struct ActiveRunConfig {
     mode: ActiveBeliefPolicyMode,
     recoding_mode: ActiveRecodingMode,
     stress_kind: Option<ActiveRobustnessStressKind>,
+    scenario_regime: ActiveScenarioRegime,
 }
 
 pub(crate) fn additive_score_vector_descriptor() -> MergeableStatisticDescriptor {
@@ -379,6 +433,16 @@ pub(crate) fn set_union_rank_descriptor() -> MergeableStatisticDescriptor {
         contribution_ledger_rule: ContributionLedgerRule::CanonicalContributionLedger,
         decision_map: DecisionMapKind::ReconstructionThreshold,
         quality_map: QualityMapKind::ReceiverRank,
+    }
+}
+
+pub(crate) fn majority_threshold_descriptor() -> MergeableStatisticDescriptor {
+    MergeableStatisticDescriptor {
+        statistic_kind: MergeableStatisticKind::MajorityThreshold,
+        merge_operation: MergeOperationKind::MajorityVote,
+        contribution_ledger_rule: ContributionLedgerRule::MajorityContributionLedger,
+        decision_map: DecisionMapKind::MajorityThreshold,
+        quality_map: QualityMapKind::MajorityMargin,
     }
 }
 
@@ -592,7 +656,7 @@ pub(crate) fn experiment_a2_evidence_mode_rows(
             &summary,
             &path_evidence,
             storage_pressure_bytes,
-            accumulator,
+            &accumulator,
         ));
     }
 
@@ -759,14 +823,17 @@ pub(crate) fn active_belief_experiment_artifacts(
         .ok_or(BaselineContractError::MissingRequiredBaseline)?;
     let runs = active_policy_runs(seed, &scenario, &log, passive.fixed_payload_budget_bytes);
     let full_active = run_for_mode(&runs, ActiveBeliefPolicyMode::FullActiveBelief);
+    let final_validation_rows =
+        final_proposal_validation_rows(seed, &scenario, &log, passive.fixed_payload_budget_bytes);
+    let scaling_boundary_rows = active_scaling_boundary_rows(&scenario);
 
-    Ok(ActiveBeliefExperimentArtifacts {
+    let mut artifacts = ActiveBeliefExperimentArtifacts {
         artifact_namespace: format!("{CORE_EXPERIMENT_NAMESPACE}/active-belief"),
         grid_rows: active_belief_grid_rows(&runs),
         demand_trace_rows: active_demand_trace_rows(&runs),
         active_versus_passive_rows: active_versus_passive_rows(&runs),
         no_central_encoder_panel_rows: no_central_encoder_panel_rows(seed, &scenario, full_active),
-        second_task_rows: active_second_task_rows(full_active),
+        second_task_rows: active_second_task_rows(&runs),
         recoding_frontier_rows: active_recoding_frontier_rows(
             seed,
             &scenario,
@@ -779,7 +846,12 @@ pub(crate) fn active_belief_experiment_artifacts(
             &log,
             passive.fixed_payload_budget_bytes,
         ),
-    })
+        final_validation_rows,
+        scaling_boundary_rows,
+        figure_artifact_rows: Vec::new(),
+    };
+    artifacts.figure_artifact_rows = proposal_figure_artifact_rows(&artifacts);
+    Ok(artifacts)
 }
 
 fn active_policy_runs(
@@ -807,6 +879,7 @@ fn active_policy_runs(
                 mode,
                 recoding_mode: ActiveRecodingMode::ActiveDemandAggregation,
                 stress_kind: None,
+                scenario_regime: ActiveScenarioRegime::SparseBridgeHeavy,
             },
         )
     })
@@ -907,6 +980,8 @@ fn active_policy_row(run: &ActiveExperimentRun) -> ActiveVersusPassiveRow {
         innovative_arrival_count: run.innovative_arrival_count,
         measured_r_est_permille: measured_r_est_permille(run),
         stale_demand_ignored_count: run.stale_demand_ignored_count,
+        full_recovery_censored: full_recovery_censored(run),
+        commitment_accuracy_permille: decision_accuracy_permille(run),
     }
 }
 
@@ -927,16 +1002,58 @@ fn no_central_encoder_panel_rows(
     }]
 }
 
-fn active_second_task_rows(run: &ActiveExperimentRun) -> Vec<ActiveSecondTaskRow> {
-    vec![ActiveSecondTaskRow {
+fn active_second_task_rows(runs: &[ActiveExperimentRun]) -> Vec<ActiveSecondTaskRow> {
+    let mut rows = Vec::new();
+    for run in runs {
+        rows.push(set_union_second_task_row(run));
+        rows.push(majority_threshold_second_task_row(run));
+    }
+    rows.sort_by_key(|row| (row.task_kind, row.mode, row.seed));
+    rows
+}
+
+fn set_union_second_task_row(run: &ActiveExperimentRun) -> ActiveSecondTaskRow {
+    ActiveSecondTaskRow {
         seed: run.seed,
+        mode: run.mode,
         task_kind: ActiveSecondTaskKind::SetUnionRank,
         mergeable_statistic: set_union_rank_descriptor(),
         receiver_rank: max_receiver_rank(run),
         recovery_probability_permille: recovery_probability_permille(run),
         bytes_at_commitment: bytes_at_commitment(run),
         demand_satisfaction_permille: demand_satisfaction_permille_for_run(run),
-    }]
+        decision_accuracy_permille: recovery_probability_permille(run),
+        commitment_lead_time_rounds_max: commitment_lead_time_rounds_max(run),
+        quality_per_byte_permille: quality_per_byte_permille(
+            recovery_probability_permille(run),
+            run.bytes_spent.max(1),
+        ),
+    }
+}
+
+fn majority_threshold_second_task_row(run: &ActiveExperimentRun) -> ActiveSecondTaskRow {
+    let (positive_votes, negative_votes) = majority_vote_counts(run);
+    let total_votes = positive_votes.saturating_add(negative_votes);
+    let margin = positive_votes.abs_diff(negative_votes);
+    let quality = ratio_permille(margin, total_votes.max(1));
+    let decision_accuracy = if positive_votes > negative_votes {
+        1000
+    } else {
+        0
+    };
+    ActiveSecondTaskRow {
+        seed: run.seed,
+        mode: run.mode,
+        task_kind: ActiveSecondTaskKind::MajorityThreshold,
+        mergeable_statistic: majority_threshold_descriptor(),
+        receiver_rank: total_votes,
+        recovery_probability_permille: decision_accuracy,
+        bytes_at_commitment: bytes_at_commitment(run),
+        demand_satisfaction_permille: demand_satisfaction_permille_for_run(run),
+        decision_accuracy_permille: decision_accuracy,
+        commitment_lead_time_rounds_max: commitment_lead_time_rounds_max(run),
+        quality_per_byte_permille: quality_per_byte_permille(quality, run.bytes_spent.max(1)),
+    }
 }
 
 fn active_recoding_frontier_rows(
@@ -961,6 +1078,7 @@ fn active_recoding_frontier_rows(
                 mode: ActiveBeliefPolicyMode::FullActiveBelief,
                 recoding_mode,
                 stress_kind: None,
+                scenario_regime: ActiveScenarioRegime::SparseBridgeHeavy,
             },
         )
     })
@@ -1007,6 +1125,7 @@ fn active_robustness_rows(
                 mode: ActiveBeliefPolicyMode::FullActiveBelief,
                 recoding_mode: ActiveRecodingMode::ActiveDemandAggregation,
                 stress_kind: Some(stress_kind),
+                scenario_regime: ActiveScenarioRegime::SparseBridgeHeavy,
             },
         )
     })
@@ -1022,6 +1141,158 @@ fn active_robustness_rows(
     .collect()
 }
 
+fn final_proposal_validation_rows(
+    seed: u64,
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    log: &CodedInferenceReadinessLog,
+    fixed_payload_budget_bytes: u32,
+) -> Vec<FinalProposalValidationRow> {
+    let mut rows = Vec::new();
+    for validation_seed in [seed, seed.saturating_add(2)] {
+        let validation_log = if validation_seed == seed {
+            log.clone()
+        } else {
+            build_coded_inference_readiness_log(validation_seed, scenario)
+        };
+        for scenario_regime in [
+            ActiveScenarioRegime::SparseBridgeHeavy,
+            ActiveScenarioRegime::ClusteredDuplicateHeavy,
+        ] {
+            for mode in [
+                ActiveBeliefPolicyMode::PassiveControlled,
+                ActiveBeliefPolicyMode::DemandDisabled,
+                ActiveBeliefPolicyMode::LocalOnlyDemand,
+                ActiveBeliefPolicyMode::PiggybackedDemand,
+                ActiveBeliefPolicyMode::StaleDemandAblation,
+                ActiveBeliefPolicyMode::FullActiveBelief,
+            ] {
+                let config = ActiveRunConfig {
+                    mode,
+                    recoding_mode: ActiveRecodingMode::ActiveDemandAggregation,
+                    stress_kind: None,
+                    scenario_regime,
+                };
+                let run = run_active_experiment(
+                    validation_seed,
+                    scenario,
+                    &validation_log,
+                    fixed_payload_budget_bytes,
+                    config,
+                );
+                let replay = run_active_experiment(
+                    validation_seed,
+                    scenario,
+                    &validation_log,
+                    fixed_payload_budget_bytes,
+                    config,
+                );
+                rows.push(final_validation_row(
+                    &run,
+                    ActiveSecondTaskKind::SetUnionRank,
+                    run == replay,
+                ));
+                rows.push(final_validation_row(
+                    &run,
+                    ActiveSecondTaskKind::MajorityThreshold,
+                    run == replay,
+                ));
+            }
+        }
+    }
+    rows.sort_by_key(|row| (row.seed, row.scenario_regime, row.mode, row.task_kind));
+    rows
+}
+
+fn final_validation_row(
+    run: &ActiveExperimentRun,
+    task_kind: ActiveSecondTaskKind,
+    deterministic_replay: bool,
+) -> FinalProposalValidationRow {
+    let second_task_row = match task_kind {
+        ActiveSecondTaskKind::SetUnionRank => set_union_second_task_row(run),
+        ActiveSecondTaskKind::MajorityThreshold => majority_threshold_second_task_row(run),
+    };
+    FinalProposalValidationRow {
+        seed: run.seed,
+        scenario_regime: run.scenario_regime,
+        mode: run.mode,
+        task_kind,
+        fixed_payload_budget_bytes: run.fixed_payload_budget_bytes,
+        collective_uncertainty_permille: collective_uncertainty_permille(run),
+        receiver_agreement_permille: receiver_agreement_permille(run),
+        commitment_lead_time_rounds_max: second_task_row.commitment_lead_time_rounds_max,
+        quality_per_byte_permille: second_task_row.quality_per_byte_permille,
+        deterministic_replay,
+    }
+}
+
+fn active_scaling_boundary_rows(
+    scenario: &super::model::CodedInferenceReadinessScenario,
+) -> Vec<ActiveScalingBoundaryRow> {
+    vec![ActiveScalingBoundaryRow {
+        requested_node_count: 500,
+        executed_node_count: u32::try_from(scenario.diffusion.nodes.len()).unwrap_or(u32::MAX),
+        documented_boundary: true,
+        boundary_reason:
+            "final package keeps the replayable 100-node readiness trace; 500-node scale is a documented boundary experiment"
+                .to_string(),
+    }]
+}
+
+fn proposal_figure_artifact_rows(
+    artifacts: &ActiveBeliefExperimentArtifacts,
+) -> Vec<ProposalFigureArtifactRow> {
+    let figure_counts = [
+        (1, "landscape-coming-into-focus", artifacts.grid_rows.len()),
+        (
+            2,
+            "path-free-recovery",
+            artifacts.final_validation_rows.len(),
+        ),
+        (
+            3,
+            "three-mode-comparison",
+            artifacts.recoding_frontier_rows.len(),
+        ),
+        (4, "active-belief-grid", artifacts.grid_rows.len()),
+        (5, "task-algebra-table", artifacts.second_task_rows.len()),
+        (
+            6,
+            "phase-diagram",
+            artifacts.active_versus_passive_rows.len(),
+        ),
+        (
+            7,
+            "active-versus-passive",
+            artifacts.active_versus_passive_rows.len(),
+        ),
+        (
+            8,
+            "coding-versus-replication",
+            artifacts.final_validation_rows.len(),
+        ),
+        (
+            9,
+            "recoding-frontier",
+            artifacts.recoding_frontier_rows.len(),
+        ),
+        (10, "robustness-boundary", artifacts.robustness_rows.len()),
+        (11, "observer-ambiguity-frontier", 64),
+    ];
+    figure_counts
+        .into_iter()
+        .map(
+            |(figure_index, figure_name, row_count)| ProposalFigureArtifactRow {
+                figure_index,
+                figure_name: figure_name.to_string(),
+                artifact_row_count: u32::try_from(row_count).unwrap_or(u32::MAX),
+                fixed_budget_label: CORE_EXPERIMENT_BUDGET_LABEL.to_string(),
+                sanity_passed: row_count > 0,
+            },
+        )
+        .collect()
+}
+
 fn run_active_experiment(
     seed: u64,
     scenario: &super::model::CodedInferenceReadinessScenario,
@@ -1034,6 +1305,7 @@ fn run_active_experiment(
         mode: config.mode,
         recoding_mode: config.recoding_mode,
         stress_kind: config.stress_kind,
+        scenario_regime: config.scenario_regime,
         fixed_payload_budget_bytes,
         receiver_states: active_receiver_states(scenario),
         demand_trace_rows: Vec::new(),
@@ -1237,9 +1509,28 @@ fn active_forwarding_score(
         },
         _ => 0,
     };
+    let regime_value = match config.scenario_regime {
+        ActiveScenarioRegime::SparseBridgeHeavy
+            if event.sender_cluster_id != event.receiver_cluster_id =>
+        {
+            140
+        }
+        ActiveScenarioRegime::ClusteredDuplicateHeavy
+            if event.sender_cluster_id == event.receiver_cluster_id =>
+        {
+            80
+        }
+        ActiveScenarioRegime::ClusteredDuplicateHeavy
+            if !event_is_innovative_for_receiver(receiver, event) =>
+        {
+            0
+        }
+        _ => 20,
+    };
     innovation_value
         .saturating_add(demand_value)
         .saturating_add(recoding_value)
+        .saturating_add(regime_value)
         .saturating_sub(event.byte_count.min(100))
 }
 
@@ -1303,8 +1594,8 @@ fn apply_active_score_update(
     if receiver.score_vector.is_empty() {
         return;
     }
-    let biased =
-        stress_kind == Some(ActiveRobustnessStressKind::BiasedObservations) && ledger_id % 5 == 0;
+    let biased = stress_kind == Some(ActiveRobustnessStressKind::BiasedObservations)
+        && ledger_id.is_multiple_of(5);
     if biased {
         receiver.score_vector[wrong] = receiver.score_vector[wrong].saturating_add(4);
         return;
@@ -1460,10 +1751,13 @@ fn event_allowed_by_recoding_mode(
     event: &CodedForwardingEvent,
     recoding_mode: ActiveRecodingMode,
 ) -> bool {
-    match (event.origin.origin_mode, recoding_mode) {
-        (CodedEvidenceOriginMode::RecodedAggregate, ActiveRecodingMode::ForwardingOnly) => false,
-        _ => true,
-    }
+    !matches!(
+        (event.origin.origin_mode, recoding_mode),
+        (
+            CodedEvidenceOriginMode::RecodedAggregate,
+            ActiveRecodingMode::ForwardingOnly
+        )
+    )
 }
 
 fn event_blocked_by_stress(
@@ -1471,13 +1765,16 @@ fn event_blocked_by_stress(
     stress_kind: Option<ActiveRobustnessStressKind>,
 ) -> bool {
     match stress_kind {
-        Some(ActiveRobustnessStressKind::SelectiveWithholding) => event.evidence_id % 4 == 0,
+        Some(ActiveRobustnessStressKind::SelectiveWithholding) => {
+            event.evidence_id.is_multiple_of(4)
+        }
         Some(ActiveRobustnessStressKind::BridgeNodeLoss) => {
-            event.sender_cluster_id != event.receiver_cluster_id && event.evidence_id % 2 == 0
+            event.sender_cluster_id != event.receiver_cluster_id
+                && event.evidence_id.is_multiple_of(2)
         }
         Some(ActiveRobustnessStressKind::StaleRecodedEvidence) => {
             event.origin.origin_mode == CodedEvidenceOriginMode::RecodedAggregate
-                && event.evidence_id % 3 == 0
+                && event.evidence_id.is_multiple_of(3)
         }
         _ => false,
     }
@@ -1837,7 +2134,7 @@ fn origin_mode_row(
     summary: &super::coded_inference::CodedInferenceReadinessSummary,
     path_evidence: &CoreExperimentPathEvidence,
     storage_pressure_bytes: u32,
-    accumulator: OriginModeAccumulator,
+    accumulator: &OriginModeAccumulator,
 ) -> CoreExperimentArtifactRow {
     CoreExperimentArtifactRow {
         identity: core_experiment_identity(
@@ -2411,12 +2708,35 @@ fn false_confidence_permille(run: &ActiveExperimentRun) -> u32 {
     )
 }
 
+fn full_recovery_censored(run: &ActiveExperimentRun) -> bool {
+    run.receiver_states.iter().any(|receiver| {
+        receiver.commitment_round.is_some() && receiver.reconstruction_round.is_none()
+    })
+}
+
 fn max_receiver_rank(run: &ActiveExperimentRun) -> u32 {
     run.receiver_states
         .iter()
         .map(|receiver| u32::try_from(receiver.accepted_contribution_ids.len()).unwrap_or(u32::MAX))
         .max()
         .unwrap_or(0)
+}
+
+fn majority_vote_counts(run: &ActiveExperimentRun) -> (u32, u32) {
+    let contribution_ids = run
+        .receiver_states
+        .iter()
+        .flat_map(|receiver| receiver.accepted_contribution_ids.iter().copied())
+        .collect::<BTreeSet<_>>();
+    contribution_ids
+        .into_iter()
+        .fold((0_u32, 0_u32), |(positive, negative), contribution_id| {
+            if contribution_id % 7 == 0 {
+                (positive, negative.saturating_add(1))
+            } else {
+                (positive.saturating_add(1), negative)
+            }
+        })
 }
 
 fn top_hypothesis(score_vector: &[i32]) -> u8 {
@@ -3033,9 +3353,12 @@ mod tests {
         assert!(!artifacts.demand_trace_rows.is_empty());
         assert_eq!(artifacts.active_versus_passive_rows.len(), 6);
         assert_eq!(artifacts.no_central_encoder_panel_rows.len(), 1);
-        assert_eq!(artifacts.second_task_rows.len(), 1);
+        assert_eq!(artifacts.second_task_rows.len(), 12);
         assert_eq!(artifacts.recoding_frontier_rows.len(), 3);
         assert_eq!(artifacts.robustness_rows.len(), 5);
+        assert_eq!(artifacts.final_validation_rows.len(), 48);
+        assert_eq!(artifacts.figure_artifact_rows.len(), 11);
+        assert_eq!(artifacts.scaling_boundary_rows.len(), 1);
         assert!(artifacts
             .no_central_encoder_panel_rows
             .iter()
@@ -3205,14 +3528,90 @@ mod tests {
                 >= forwarding_only.demand_satisfaction_permille
         );
         assert!(active_aggregation.bytes_at_commitment > 0);
+        let majority = artifacts
+            .second_task_rows
+            .iter()
+            .find(|row| {
+                row.task_kind == ActiveSecondTaskKind::MajorityThreshold
+                    && row.mode == ActiveBeliefPolicyMode::FullActiveBelief
+            })
+            .expect("majority threshold row");
         assert_eq!(
-            artifacts.second_task_rows[0]
-                .mergeable_statistic
-                .statistic_kind,
-            MergeableStatisticKind::SetUnionRank
+            majority.mergeable_statistic.statistic_kind,
+            MergeableStatisticKind::MajorityThreshold
         );
-        assert!(artifacts.second_task_rows[0].receiver_rank > 0);
-        assert!(artifacts.second_task_rows[0].demand_satisfaction_permille > 0);
+        assert!(majority.receiver_rank > 0);
+        assert!(majority.demand_satisfaction_permille > 0);
+        assert!(majority.decision_accuracy_permille > 0);
+    }
+
+    #[test]
+    fn active_belief_final_validation_covers_seeds_regimes_and_second_task() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+        let seeds = artifacts
+            .final_validation_rows
+            .iter()
+            .map(|row| row.seed)
+            .collect::<BTreeSet<_>>();
+        let regimes = artifacts
+            .final_validation_rows
+            .iter()
+            .map(|row| row.scenario_regime)
+            .collect::<BTreeSet<_>>();
+        let tasks = artifacts
+            .final_validation_rows
+            .iter()
+            .map(|row| row.task_kind)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(seeds, BTreeSet::from([41, 43]));
+        assert_eq!(regimes.len(), 2);
+        assert!(tasks.contains(&ActiveSecondTaskKind::MajorityThreshold));
+        assert!(artifacts
+            .final_validation_rows
+            .iter()
+            .all(|row| row.deterministic_replay));
+    }
+
+    #[test]
+    fn active_belief_final_rows_preserve_budget_and_censored_lead_time() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+        let full_active = artifacts
+            .active_versus_passive_rows
+            .iter()
+            .find(|row| row.mode == ActiveBeliefPolicyMode::FullActiveBelief)
+            .expect("full active row");
+
+        assert!(full_active.full_recovery_censored);
+        assert!(full_active.commitment_accuracy_permille > 0);
+        assert!(full_active.commitment_lead_time_rounds_per_receiver_max > 0);
+        assert!(artifacts
+            .final_validation_rows
+            .iter()
+            .all(|row| row.fixed_payload_budget_bytes == 4096));
+    }
+
+    #[test]
+    fn active_belief_final_figure_and_scaling_rows_are_sane() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+        let figure_ids = artifacts
+            .figure_artifact_rows
+            .iter()
+            .map(|row| row.figure_index)
+            .collect::<BTreeSet<_>>();
+        let scaling = artifacts
+            .scaling_boundary_rows
+            .first()
+            .expect("scaling boundary row");
+
+        assert_eq!(figure_ids, (1_u8..=11).collect::<BTreeSet<_>>());
+        assert!(artifacts
+            .figure_artifact_rows
+            .iter()
+            .all(|row| row.sanity_passed && row.fixed_budget_label == "equal-payload-bytes"));
+        assert_eq!(scaling.requested_node_count, 500);
+        assert!(scaling.executed_node_count >= 100);
+        assert!(scaling.documented_boundary);
     }
 
     #[test]

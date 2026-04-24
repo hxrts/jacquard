@@ -32,6 +32,18 @@ pub(crate) struct LocalPolicyScoreBreakdown {
     pub total_score: i32,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct LocalPolicyScoreTerms {
+    pub expected_innovation_gain: i32,
+    pub bridge_value: i32,
+    pub landscape_value: i32,
+    pub demand_value: i32,
+    pub duplicate_risk: i32,
+    pub byte_cost: i32,
+    pub storage_pressure_cost: i32,
+    pub reproduction_pressure_penalty: i32,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct LocalPolicyScoreCandidate {
     pub peer_node_id: u32,
@@ -42,16 +54,16 @@ pub(crate) struct LocalPolicyScoreCandidate {
 pub(crate) fn local_policy_score_from_input(
     input: LocalPolicyScoreInput,
 ) -> LocalPolicyScoreBreakdown {
-    LocalPolicyScoreBreakdown::from_terms(
-        bounded_term(input.expected_innovation_gain),
-        bounded_term(input.bridge_value),
-        bounded_term(input.landscape_value),
-        bounded_term(input.demand_value),
-        bounded_term(input.duplicate_risk),
-        bounded_term(input.payload_byte_cost),
-        bounded_term(input.storage_pressure_cost),
-        bounded_term(input.reproduction_pressure_penalty),
-    )
+    LocalPolicyScoreBreakdown::from_terms(LocalPolicyScoreTerms {
+        expected_innovation_gain: bounded_term(input.expected_innovation_gain),
+        bridge_value: bounded_term(input.bridge_value),
+        landscape_value: bounded_term(input.landscape_value),
+        demand_value: bounded_term(input.demand_value),
+        duplicate_risk: bounded_term(input.duplicate_risk),
+        byte_cost: bounded_term(input.payload_byte_cost),
+        storage_pressure_cost: bounded_term(input.storage_pressure_cost),
+        reproduction_pressure_penalty: bounded_term(input.reproduction_pressure_penalty),
+    })
 }
 
 pub(crate) fn compare_scored_candidates(
@@ -68,33 +80,40 @@ pub(crate) fn compare_scored_candidates(
 }
 
 impl LocalPolicyScoreBreakdown {
-    pub(crate) fn from_terms(
-        expected_innovation_gain: i32,
-        bridge_value: i32,
-        landscape_value: i32,
-        demand_value: i32,
-        duplicate_risk: i32,
-        byte_cost: i32,
-        storage_pressure_cost: i32,
-        reproduction_pressure_penalty: i32,
-    ) -> Self {
-        let positive = expected_innovation_gain
-            .saturating_add(bridge_value)
-            .saturating_add(landscape_value)
-            .saturating_add(demand_value);
-        let negative = duplicate_risk
-            .saturating_add(byte_cost)
-            .saturating_add(storage_pressure_cost)
-            .saturating_add(reproduction_pressure_penalty);
+    pub(crate) const fn zero() -> Self {
         Self {
-            expected_innovation_gain,
-            bridge_value,
-            landscape_value,
-            demand_value,
-            duplicate_risk,
-            byte_cost,
-            storage_pressure_cost,
-            reproduction_pressure_penalty,
+            expected_innovation_gain: 0,
+            bridge_value: 0,
+            landscape_value: 0,
+            demand_value: 0,
+            duplicate_risk: 0,
+            byte_cost: 0,
+            storage_pressure_cost: 0,
+            reproduction_pressure_penalty: 0,
+            total_score: 0,
+        }
+    }
+
+    pub(crate) fn from_terms(terms: LocalPolicyScoreTerms) -> Self {
+        let positive = terms
+            .expected_innovation_gain
+            .saturating_add(terms.bridge_value)
+            .saturating_add(terms.landscape_value)
+            .saturating_add(terms.demand_value);
+        let negative = terms
+            .duplicate_risk
+            .saturating_add(terms.byte_cost)
+            .saturating_add(terms.storage_pressure_cost)
+            .saturating_add(terms.reproduction_pressure_penalty);
+        Self {
+            expected_innovation_gain: terms.expected_innovation_gain,
+            bridge_value: terms.bridge_value,
+            landscape_value: terms.landscape_value,
+            demand_value: terms.demand_value,
+            duplicate_risk: terms.duplicate_risk,
+            byte_cost: terms.byte_cost,
+            storage_pressure_cost: terms.storage_pressure_cost,
+            reproduction_pressure_penalty: terms.reproduction_pressure_penalty,
             total_score: positive.saturating_sub(negative),
         }
     }
@@ -110,7 +129,8 @@ mod tests {
 
     use super::{
         compare_scored_candidates, local_policy_score_from_input, LocalPolicyScoreBreakdown,
-        LocalPolicyScoreCandidate, LocalPolicyScoreInput, TERM_MAX, TERM_MIN,
+        LocalPolicyScoreCandidate, LocalPolicyScoreInput, LocalPolicyScoreTerms, TERM_MAX,
+        TERM_MIN,
     };
 
     fn base_input() -> LocalPolicyScoreInput {
@@ -231,12 +251,30 @@ mod tests {
         let low_peer = LocalPolicyScoreCandidate {
             peer_node_id: 7,
             fragment_id: 3,
-            score: LocalPolicyScoreBreakdown::from_terms(100, 0, 0, 0, 0, 0, 0, 0),
+            score: LocalPolicyScoreBreakdown::from_terms(LocalPolicyScoreTerms {
+                expected_innovation_gain: 100,
+                bridge_value: 0,
+                landscape_value: 0,
+                demand_value: 0,
+                duplicate_risk: 0,
+                byte_cost: 0,
+                storage_pressure_cost: 0,
+                reproduction_pressure_penalty: 0,
+            }),
         };
         let high_peer = LocalPolicyScoreCandidate {
             peer_node_id: 8,
             fragment_id: 1,
-            score: LocalPolicyScoreBreakdown::from_terms(100, 0, 0, 0, 0, 0, 0, 0),
+            score: LocalPolicyScoreBreakdown::from_terms(LocalPolicyScoreTerms {
+                expected_innovation_gain: 100,
+                bridge_value: 0,
+                landscape_value: 0,
+                demand_value: 0,
+                duplicate_risk: 0,
+                byte_cost: 0,
+                storage_pressure_cost: 0,
+                reproduction_pressure_penalty: 0,
+            }),
         };
 
         assert_eq!(

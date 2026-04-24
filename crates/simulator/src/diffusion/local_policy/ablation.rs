@@ -204,7 +204,7 @@ fn random_record(
             selected,
             rejection_reason: None,
             total_score: 0,
-            score: LocalPolicyScoreBreakdown::from_terms(0, 0, 0, 0, 0, 0, 0, 0),
+            score: LocalPolicyScoreBreakdown::zero(),
         },
     }
 }

@@ -79,9 +79,20 @@ This map describes the current organization of `verification/Field`.
     - `phase1_potential_accounting_duplicate`
     - `finite_work_recurrence`
     - `finite_work_step_monotone`
-  - explicit Phase 2+ placeholders:
-    - `phase2_anomaly_margin_concentration_placeholder`
-    - `phase2_observer_erasure_noninterference_placeholder`
+    - `receiver_arrival_stochastic_bound_is_narrowed`
+    - `anomaly_margin_concentration_is_narrowed`
+    - `inference_progress_uncertainty_nonincreasing`
+    - `inference_potential_total_is_accounted_sum`
+    - `majority_duplicate_non_inflation`
+    - `majority_positive_innovative_increases_vote_count`
+  - final proposal boundary:
+    - receiver-arrival stochastic reconstruction and anomaly-margin
+      concentration are deliberately narrowed to measured experimental claims
+      rather than presented as proved Lean probability theorems.
+    - `InferencePotential` mirrors the implemented uncertainty, wrong-basin,
+      duplicate, storage, and transmission pressure terms.
+    - `MajorityThresholdState` supplies the stronger second mergeable task
+      boundary beyond set-union reconstruction.
   - Telltale-family mapping:
     - Reuses conceptually, but does not import directly in the Phase 1 local model, `Distributed/Families/DataAvailability.*` for reconstruction quorum and retrievability vocabulary.
     - Emulates locally the finite, deterministic subset of `Runtime/Proofs/Lyapunov.lean`, `Runtime/Proofs/ProtocolMachinePotential.lean`, and `Classical/Families/FosterLyapunovHarris.lean` through `DiffusionPotential`, `phase1_potential_accounting_*`, and `finiteWork`.
@@ -209,6 +220,10 @@ diffusion result is stated over the reduced proof-facing objects above.
 | Stale demand cannot justify invalid evidence | `expired_demand_does_not_accept_invalid_evidence` | `expiredDemandSummary`, `demandAwareAccept` | stale-demand ignored/rejected replay rows |
 | Commitment lead time is a replay metric | `commitment_lead_time_soundness` | `CommitmentTimeline` | commitment and full-recovery event rows |
 | Compatible decisions are guarded local decisions | `same_guarded_basin_compatible`, `compatible_commitments_have_same_hypothesis` | `GuardedCommitment` | receiver agreement rows over committed hypotheses |
+| Receiver-arrival probability is measured, not proved | `receiver_arrival_stochastic_bound_is_narrowed` | `TheoremTargetStatus` | multi-seed validation rows |
+| Margin concentration is measured, not proved | `anomaly_margin_concentration_is_narrowed` | `TheoremTargetStatus` | anomaly-localization artifact rows |
+| Inference potential uses named deterministic terms | `inference_potential_total_is_accounted_sum`, `inference_progress_uncertainty_nonincreasing` | `InferencePotential` | near-critical potential rows |
+| Second task is mergeable and duplicate-safe | `majority_duplicate_non_inflation`, `majority_positive_innovative_increases_vote_count` | `MajorityThresholdState` | majority-threshold second task rows |
 
 ### Phase 8 Non-Claim Note
 

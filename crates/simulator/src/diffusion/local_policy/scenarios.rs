@@ -234,7 +234,13 @@ fn selected_quality(selected: &[&LocalPolicyAblationDecisionRecord]) -> u32 {
     }
     let total = selected
         .iter()
-        .map(|row| row.decision.score.expected_innovation_gain.max(0) as u32)
+        .map(|row| {
+            row.decision
+                .score
+                .expected_innovation_gain
+                .max(0)
+                .cast_unsigned()
+        })
         .fold(0_u32, u32::saturating_add);
     total
         .saturating_div(u32::try_from(selected.len()).unwrap_or(u32::MAX))

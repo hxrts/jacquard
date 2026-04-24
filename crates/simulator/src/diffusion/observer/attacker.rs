@@ -161,12 +161,12 @@ mod tests {
         observer::{project_observer_trace, ObserverProjectionConfig},
     };
 
-    fn attack_with(config: ObserverProjectionConfig) -> ObserverAttackerResult {
+    fn attack_with(config: &ObserverProjectionConfig) -> ObserverAttackerResult {
         let scenario = build_coded_inference_readiness_scenario();
         let hidden = scenario.coded_inference.hidden_anomaly_cluster_id;
         let cluster_count = scenario.coded_inference.cluster_count;
         let log = build_coded_inference_readiness_log(41, &scenario);
-        let trace = project_observer_trace(&log, &config);
+        let trace = project_observer_trace(&log, config);
         run_observer_attacker(
             &ObserverAttackerConfig::anomaly_region("local-evidence-policy"),
             &trace,
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn observer_attacker_ranks_anomaly_candidates_from_projection() {
-        let result = attack_with(ObserverProjectionConfig::global());
+        let result = attack_with(&ObserverProjectionConfig::global());
 
         assert_eq!(result.target, ObserverAttackerTarget::AnomalyRegion);
         assert_eq!(result.candidate_scores.len(), 5);
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn observer_attacker_does_not_require_hidden_simulator_fields() {
-        let result = attack_with(ObserverProjectionConfig::blind());
+        let result = attack_with(&ObserverProjectionConfig::blind());
 
         assert_eq!(result.projection_kind, ObserverProjectionKind::Blind);
         assert_eq!(result.candidate_scores.len(), 5);
@@ -197,8 +197,8 @@ mod tests {
 
     #[test]
     fn observer_attacker_outputs_are_replay_deterministic() {
-        let first = attack_with(ObserverProjectionConfig::regional(vec![1, 100]));
-        let second = attack_with(ObserverProjectionConfig::regional(vec![1, 100]));
+        let first = attack_with(&ObserverProjectionConfig::regional(vec![1, 100]));
+        let second = attack_with(&ObserverProjectionConfig::regional(vec![1, 100]));
 
         assert_eq!(first, second);
     }

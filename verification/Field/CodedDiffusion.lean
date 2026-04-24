@@ -336,14 +336,131 @@ theorem finite_work_step_monotone
   -- Finite work at the next horizon adds a nonnegative opportunity count.
   simp [finiteWork]
 
-/-! ## Phase 2+ Placeholder Theorem Targets -/
+/-! ## Final Proposal Boundary And Inference Potential -/
 
-theorem phase2_anomaly_margin_concentration_placeholder :
-    True := by
-  trivial
+inductive TheoremTargetStatus where
+  | provedDeterministicCore
+  | narrowedToMeasuredExperiment
+  deriving Inhabited, Repr, DecidableEq, BEq
 
-theorem phase2_observer_erasure_noninterference_placeholder :
-    True := by
-  trivial
+def receiverArrivalStochasticBoundStatus : TheoremTargetStatus :=
+  TheoremTargetStatus.narrowedToMeasuredExperiment
+
+def anomalyMarginConcentrationStatus : TheoremTargetStatus :=
+  TheoremTargetStatus.narrowedToMeasuredExperiment
+
+theorem receiver_arrival_stochastic_bound_is_narrowed :
+    receiverArrivalStochasticBoundStatus =
+      TheoremTargetStatus.narrowedToMeasuredExperiment := by
+  -- The final paper treats receiver-arrival probability as measured, not proved.
+  rfl
+
+theorem anomaly_margin_concentration_is_narrowed :
+    anomalyMarginConcentrationStatus =
+      TheoremTargetStatus.narrowedToMeasuredExperiment := by
+  -- Margin concentration is outside the deterministic theorem core.
+  rfl
+
+structure InferencePotential where
+  uncertainty : Nat
+  wrongBasinMass : Nat
+  duplicatePressure : Nat
+  storagePressure : Nat
+  transmissionPressure : Nat
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+def InferencePotential.total (potential : InferencePotential) : Nat :=
+  potential.uncertainty +
+    potential.wrongBasinMass +
+    potential.duplicatePressure +
+    potential.storagePressure +
+    potential.transmissionPressure
+
+def inferenceProgressStep
+    (potential : InferencePotential)
+    (uncertaintyProgress : Nat) : InferencePotential :=
+  { potential with uncertainty := potential.uncertainty - uncertaintyProgress }
+
+theorem inference_progress_uncertainty_nonincreasing
+    (potential : InferencePotential)
+    (uncertaintyProgress : Nat) :
+    (inferenceProgressStep potential uncertaintyProgress).uncertainty ≤
+      potential.uncertainty := by
+  -- Progress can only subtract from the uncertainty component.
+  exact Nat.sub_le potential.uncertainty uncertaintyProgress
+
+theorem inference_potential_total_is_accounted_sum
+    (potential : InferencePotential) :
+    potential.total =
+      potential.uncertainty +
+        potential.wrongBasinMass +
+        potential.duplicatePressure +
+        potential.storagePressure +
+        potential.transmissionPressure := by
+  -- The Rust rows expose these named integer terms directly.
+  rfl
+
+/-! ## Majority-Threshold Mergeable Task -/
+
+structure MajorityThresholdState where
+  positiveVotes : Nat
+  negativeVotes : Nat
+  contributionIds : List ContributionId
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+def majorityVoteCount (state : MajorityThresholdState) : Nat :=
+  state.positiveVotes + state.negativeVotes
+
+def majorityMargin (state : MajorityThresholdState) : Nat :=
+  if state.positiveVotes ≥ state.negativeVotes then
+    state.positiveVotes - state.negativeVotes
+  else
+    state.negativeVotes - state.positiveVotes
+
+def majorityDecisionPositive (state : MajorityThresholdState) : Prop :=
+  state.negativeVotes < state.positiveVotes
+
+def acceptMajorityContribution
+    (contributionId : ContributionId)
+    (positiveEvidence : Bool)
+    (state : MajorityThresholdState) : MajorityThresholdState :=
+  if contributionId ∈ state.contributionIds then
+    state
+  else if positiveEvidence then
+    { state with
+      positiveVotes := state.positiveVotes + 1
+      contributionIds := state.contributionIds ++ [contributionId] }
+  else
+    { state with
+      negativeVotes := state.negativeVotes + 1
+      contributionIds := state.contributionIds ++ [contributionId] }
+
+theorem majority_duplicate_non_inflation
+    (state : MajorityThresholdState)
+    (contributionId : ContributionId)
+    (positiveEvidence : Bool)
+    (hPresent : contributionId ∈ state.contributionIds) :
+    majorityVoteCount
+        (acceptMajorityContribution contributionId positiveEvidence state) =
+      majorityVoteCount state := by
+  -- Already-counted contributions leave the majority statistic unchanged.
+  simp [acceptMajorityContribution, hPresent, majorityVoteCount]
+
+theorem majority_positive_innovative_increases_vote_count
+    (state : MajorityThresholdState)
+    (contributionId : ContributionId)
+    (hNew : contributionId ∉ state.contributionIds) :
+    majorityVoteCount
+        (acceptMajorityContribution contributionId true state) =
+      majorityVoteCount state + 1 := by
+  -- A fresh positive contribution appends one ledger id and adds one vote.
+  simp [
+    acceptMajorityContribution,
+    hNew,
+    majorityVoteCount,
+    Nat.add_assoc,
+    Nat.add_left_comm,
+    Nat.add_comm
+  ]
 
 end FieldCodedDiffusion

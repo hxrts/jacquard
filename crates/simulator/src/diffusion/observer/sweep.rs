@@ -114,7 +114,7 @@ fn run_cell(
     log: &CodedInferenceReadinessLog,
     cell: ObserverSweepCell,
 ) -> ObserverSweepArtifact {
-    let trace = project_observer_trace(&log, &projection_config(cell.projection_kind));
+    let trace = project_observer_trace(log, &projection_config(cell.projection_kind));
     let attacker = run_observer_attacker(
         &ObserverAttackerConfig::anomaly_region("local-evidence-policy"),
         &trace,

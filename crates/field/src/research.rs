@@ -346,7 +346,7 @@ fn validate_contribution_record_shape(
 }
 
 fn canonicalize_contribution_ids(
-    values: &mut Vec<ContributionLedgerId>,
+    values: &mut [ContributionLedgerId],
 ) -> Result<(), ContributionLedgerRecordError> {
     values.sort_unstable();
     if values.windows(2).any(|window| window[0] == window[1]) {
@@ -433,7 +433,7 @@ fn validate_origin_shape(input: &CodedEvidenceRecordInput) -> Result<(), CodedEv
 }
 
 fn canonicalize_ids<T: Copy + Ord>(
-    values: &mut Vec<T>,
+    values: &mut [T],
     duplicate_error: CodedEvidenceRecordError,
 ) -> Result<(), CodedEvidenceRecordError> {
     values.sort_unstable();
@@ -1448,7 +1448,7 @@ fn validate_demand_caps(
 }
 
 fn canonicalize_demand_entries(
-    entries: &mut Vec<ActiveDemandEntry>,
+    entries: &mut [ActiveDemandEntry],
 ) -> Result<(), ActiveDemandSummaryError> {
     entries.sort_unstable_by_key(|entry| entry.entry_id);
     for (index, entry) in entries.iter().enumerate() {
@@ -1475,7 +1475,7 @@ fn demand_entries_encoded_bytes(
 }
 
 fn canonicalize_missing_contributions(
-    values: &mut Vec<ContributionLedgerId>,
+    values: &mut [ContributionLedgerId],
 ) -> Result<(), ActiveDemandGenerationError> {
     values.sort_unstable();
     if values.windows(2).any(|window| window[0] == window[1]) {
@@ -1620,7 +1620,7 @@ impl AnomalyLandscape {
 }
 
 fn canonicalize_anomaly_hypotheses(
-    hypotheses: &mut Vec<AnomalyClusterId>,
+    hypotheses: &mut [AnomalyClusterId],
 ) -> Result<(), AnomalyLandscapeError> {
     hypotheses.sort_unstable();
     if hypotheses.len() < 2 {
@@ -1637,7 +1637,7 @@ fn canonicalize_anomaly_hypotheses(
 
 fn canonicalize_anomaly_scores(
     hypotheses: &AnomalyHypothesisSet,
-    scores: &mut Vec<AnomalyHypothesisScore>,
+    scores: &mut [AnomalyHypothesisScore],
 ) -> Result<(), AnomalyLandscapeError> {
     scores.sort_unstable_by_key(|score| score.hypothesis_id);
     if scores.len() != hypotheses.candidate_hypotheses.len() {
@@ -1709,7 +1709,7 @@ fn validate_evidence_vector_origin(
 
 fn canonicalize_landscape_updates(
     landscape: &AnomalyLandscape,
-    updates: &mut Vec<EvidenceVectorRecord>,
+    updates: &mut [EvidenceVectorRecord],
 ) -> Result<(), LandscapeUpdateError> {
     updates.sort_unstable_by_key(|update| (update.contribution_id, update.evidence_id));
     for (index, update) in updates.iter().enumerate() {
@@ -1862,7 +1862,8 @@ impl ReceiverRankState {
         observed_at_tick: Tick,
     ) -> Result<FragmentArrivalClass, ReceiverRankError> {
         if insert_contribution_id(&mut self.accepted_contribution_ids, contribution_id)? {
-            self.independent_rank = self.accepted_contribution_ids.len() as u16;
+            self.independent_rank = u16::try_from(self.accepted_contribution_ids.len())
+                .map_err(|_| ReceiverRankError::ContributionLedgerFull)?;
             self.innovative_arrivals = self.innovative_arrivals.saturating_add(1);
             self.record_reconstruction_if_complete(observed_at_tick);
             return Ok(FragmentArrivalClass::Innovative);
@@ -3161,9 +3162,13 @@ mod tests {
         )
         .expect("second update");
 
-        let first_outcome =
-            reduce_landscape_updates(&receiver_rank, &landscape, &[first.clone()], Tick(20))
-                .expect("first outcome");
+        let first_outcome = reduce_landscape_updates(
+            &receiver_rank,
+            &landscape,
+            std::slice::from_ref(&first),
+            Tick(20),
+        )
+        .expect("first outcome");
         let second_outcome = reduce_landscape_updates(
             &first_outcome.receiver_rank,
             &first_outcome.landscape,
@@ -3403,7 +3408,7 @@ mod tests {
         .expect("wrong-evidence ledger record");
 
         assert_eq!(
-            recoded.validate_recoding_ledger(&[parent_union.clone()]),
+            recoded.validate_recoding_ledger(std::slice::from_ref(&parent_union)),
             Err(CodedEvidenceRecordError::MissingContributionLedgerRecord)
         );
         assert_eq!(

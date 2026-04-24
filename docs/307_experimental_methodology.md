@@ -60,12 +60,14 @@ measured observer ambiguity proxies.
 Active belief diffusion extends that methodology with first-class demand
 summaries. Demand is measured as replay-visible control data, not as evidence.
 The active artifact bundle reports an active belief grid, demand trace rows,
-active-versus-passive rows, a no-central-encoder panel, a compact second task
-row, a recoding frontier, and bounded robustness rows. Its dependent variables
-include commitment lead time per receiver, receiver agreement, belief
-divergence, collective uncertainty, demand satisfaction, demand-response lag,
-evidence overlap, quality per byte, bytes at commitment, duplicate and
-innovative arrivals, stale-demand ignored count, false-confidence count, and
+active-versus-passive rows, a no-central-encoder panel, compact second-task rows
+for set-union and majority-threshold tasks, a recoding frontier, bounded
+robustness rows, final validation rows, scaling-boundary rows, and figure sanity
+rows. Its dependent variables include commitment lead time per receiver,
+receiver agreement, belief divergence, collective uncertainty, demand
+satisfaction, demand-response lag, evidence overlap, quality per byte, bytes at
+commitment, duplicate and innovative arrivals, stale-demand ignored count,
+false-confidence count, censored full-recovery status, commitment accuracy, and
 measured R_est.
 
 The active comparison keeps the same equal-payload-byte discipline as the
@@ -88,3 +90,10 @@ the empirical claim that demand can improve allocation and belief formation
 while preserving the non-evidential safety boundary; it does not claim arbitrary
 machine learning inference, consensus, common knowledge, or production-network
 robustness.
+
+Final proposal validation rows add a multi-seed and multi-regime layer over the
+reduced causal runner. They cover sparse bridge-heavy and clustered
+duplicate-heavy regimes, passive and active modes, set-union and
+majority-threshold task rows, and deterministic replay assertions. The 500-node
+item is represented as a scaling-boundary row unless a later experiment adds a
+full 500-node run.

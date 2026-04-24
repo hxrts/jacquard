@@ -63,6 +63,41 @@ class ReportSanityTests(unittest.TestCase):
                 messages,
             )
 
+    def test_accepts_active_belief_final_csvs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_dir = Path(tmp)
+            report_dir = artifact_dir / "report"
+            report_dir.mkdir()
+            _write_large(artifact_dir / "router-tuning-report.pdf", b"%PDF")
+            (report_dir / "active_belief_final_validation.csv").write_text(
+                "seed,scenario_regime,mode,task_kind,fixed_payload_budget_bytes,"
+                "collective_uncertainty_permille,receiver_agreement_permille,"
+                "commitment_lead_time_rounds_max,quality_per_byte_permille,"
+                "deterministic_replay\n"
+                "41,sparse-bridge-heavy,full-active-belief,majority-threshold,"
+                "4096,120,1000,6,4,true\n"
+            )
+            (report_dir / "active_belief_second_tasks.csv").write_text(
+                "seed,mode,task_kind,statistic_kind,receiver_rank,"
+                "recovery_probability_permille,bytes_at_commitment,"
+                "demand_satisfaction_permille,decision_accuracy_permille,"
+                "commitment_lead_time_rounds_max,quality_per_byte_permille\n"
+                "41,full-active-belief,majority-threshold,majority-threshold,"
+                "12,1000,384,500,1000,6,4\n"
+            )
+            (report_dir / "active_belief_scaling_boundary.csv").write_text(
+                "requested_node_count,executed_node_count,documented_boundary,"
+                "boundary_reason\n"
+                "500,100,true,documented boundary\n"
+            )
+            (report_dir / "active_belief_figure_artifacts.csv").write_text(
+                "figure_index,figure_name,artifact_row_count,fixed_budget_label,"
+                "sanity_passed\n"
+                "1,landscape-coming-into-focus,3,equal-payload-bytes,true\n"
+            )
+
+            self.assertEqual([], validate_report_artifacts(artifact_dir))
+
     def test_detects_stale_persistence_without_disruption(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             artifact_dir = Path(tmp)

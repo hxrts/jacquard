@@ -39,13 +39,13 @@ pub(crate) struct ObserverArtifactBundle {
 pub(crate) fn observer_artifact_rows(seed: u64) -> ObserverArtifactBundle {
     let rows = run_observer_sweep(seed)
         .into_iter()
-        .map(artifact_row)
+        .map(|row| artifact_row(&row))
         .collect::<Vec<_>>();
     let summary = run_observer_robustness_summary(&[seed]);
     ObserverArtifactBundle { rows, summary }
 }
 
-fn artifact_row(row: super::ObserverSweepArtifact) -> ObserverArtifactRow {
+fn artifact_row(row: &super::ObserverSweepArtifact) -> ObserverArtifactRow {
     ObserverArtifactRow {
         observer_projection_identity: row.cell.projection_kind,
         attacker_target: row.cell.attacker_target,
