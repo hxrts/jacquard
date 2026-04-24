@@ -48,6 +48,7 @@ fn research_boundary_exposes_coded_diffusion_vocabulary() {
         "PayloadBudgetMetadata",
         "FragmentCustody",
         "FragmentArrivalClass",
+        "ReceiverRankError",
         "ReceiverRankState",
         "ReconstructionQuorum",
         "DiffusionPressure",

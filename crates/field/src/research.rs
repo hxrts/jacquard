@@ -268,6 +268,15 @@ pub enum PayloadBudgetError {
     UnequalPayloadByteBudget,
 }
 
+/// Receiver-rank construction or update failure.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ReceiverRankError {
+    /// Exact reconstruction requires a positive rank threshold.
+    ZeroRequiredRank,
+    /// Receiver contribution ledgers are bounded by the serialized `u16` rank shape.
+    ContributionLedgerFull,
+}
+
 /// Integer byte-budget metadata for fair coded-vs-uncoded comparisons.
 ///
 /// This is reconstruction accounting only. It names the fixed comparison
@@ -377,34 +386,114 @@ pub struct FragmentCustody {
 }
 
 /// Receiver-local reconstruction progress.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ReceiverRankState {
     /// Message being reconstructed.
     pub message_id: DiffusionMessageId,
     /// Receiver whose rank is measured.
     pub receiver: NodeId,
+    /// Independent rank required for exact reconstruction.
+    pub required_rank: u16,
     /// Current independent rank.
     pub independent_rank: u16,
+    /// Canonical contribution ids already counted by this receiver.
+    pub accepted_contribution_ids: Vec<ContributionLedgerId>,
     /// Count of arrivals that increased rank.
     pub innovative_arrivals: u16,
     /// Count of arrivals that did not increase rank.
     pub duplicate_arrivals: u16,
+    /// Tick when reconstruction first became true.
+    pub reconstructed_at_tick: Option<Tick>,
 }
 
 impl ReceiverRankState {
-    /// Classify an arrival and return the updated receiver state.
-    #[must_use]
-    pub fn with_arrival(mut self, arrival: FragmentArrivalClass) -> Self {
-        match arrival {
-            FragmentArrivalClass::Innovative => {
-                self.independent_rank = self.independent_rank.saturating_add(1);
-                self.innovative_arrivals = self.innovative_arrivals.saturating_add(1);
-            }
-            FragmentArrivalClass::Duplicate => {
-                self.duplicate_arrivals = self.duplicate_arrivals.saturating_add(1);
-            }
+    /// Construct empty receiver state for one reconstruction target.
+    pub fn try_new(
+        message_id: DiffusionMessageId,
+        receiver: NodeId,
+        required_rank: u16,
+    ) -> Result<Self, ReceiverRankError> {
+        if required_rank == 0 {
+            return Err(ReceiverRankError::ZeroRequiredRank);
         }
-        self
+
+        Ok(Self {
+            message_id,
+            receiver,
+            required_rank,
+            independent_rank: 0,
+            accepted_contribution_ids: Vec::new(),
+            innovative_arrivals: 0,
+            duplicate_arrivals: 0,
+            reconstructed_at_tick: None,
+        })
+    }
+
+    /// Construct empty receiver state from a validated coding window.
+    #[must_use]
+    pub fn for_window(
+        message_id: DiffusionMessageId,
+        receiver: NodeId,
+        coding_window: CodingWindow,
+    ) -> Self {
+        Self {
+            message_id,
+            receiver,
+            required_rank: coding_window.required_rank,
+            independent_rank: 0,
+            accepted_contribution_ids: Vec::new(),
+            innovative_arrivals: 0,
+            duplicate_arrivals: 0,
+            reconstructed_at_tick: None,
+        }
+    }
+
+    /// Classify and record a contribution arrival by canonical contribution id.
+    pub fn record_contribution_arrival(
+        &mut self,
+        contribution_id: ContributionLedgerId,
+        observed_at_tick: Tick,
+    ) -> Result<FragmentArrivalClass, ReceiverRankError> {
+        if insert_contribution_id(&mut self.accepted_contribution_ids, contribution_id)? {
+            self.independent_rank = self.accepted_contribution_ids.len() as u16;
+            self.innovative_arrivals = self.innovative_arrivals.saturating_add(1);
+            self.record_reconstruction_if_complete(observed_at_tick);
+            return Ok(FragmentArrivalClass::Innovative);
+        }
+
+        self.duplicate_arrivals = self.duplicate_arrivals.saturating_add(1);
+        self.record_reconstruction_if_complete(observed_at_tick);
+        Ok(FragmentArrivalClass::Duplicate)
+    }
+
+    /// Record the first reconstruction tick if rank has reached the threshold.
+    pub fn record_reconstruction_if_complete(&mut self, observed_at_tick: Tick) -> Option<Tick> {
+        if self.reconstructed_at_tick.is_none() && self.independent_rank >= self.required_rank {
+            self.reconstructed_at_tick = Some(observed_at_tick);
+        }
+        self.reconstructed_at_tick
+    }
+
+    /// Whether exact reconstruction has been reached.
+    #[must_use]
+    pub fn is_reconstructed(&self) -> bool {
+        self.reconstructed_at_tick.is_some()
+    }
+}
+
+fn insert_contribution_id(
+    accepted_contribution_ids: &mut Vec<ContributionLedgerId>,
+    contribution_id: ContributionLedgerId,
+) -> Result<bool, ReceiverRankError> {
+    match accepted_contribution_ids.binary_search(&contribution_id) {
+        Ok(_) => Ok(false),
+        Err(index) => {
+            if accepted_contribution_ids.len() >= usize::from(u16::MAX) {
+                return Err(ReceiverRankError::ContributionLedgerFull);
+            }
+            accepted_contribution_ids.insert(index, contribution_id);
+            Ok(true)
+        }
     }
 }
 
@@ -799,21 +888,103 @@ mod tests {
     }
 
     #[test]
-    fn receiver_rank_counts_innovative_and_duplicate_arrivals() {
-        let receiver = node_id(7);
-        let state = ReceiverRankState {
-            message_id: DiffusionMessageId(id16(1)),
-            receiver,
-            independent_rank: 0,
-            innovative_arrivals: 0,
-            duplicate_arrivals: 0,
-        }
-        .with_arrival(FragmentArrivalClass::Innovative)
-        .with_arrival(FragmentArrivalClass::Duplicate);
+    fn receiver_rank_counts_canonical_contributions_not_copies() {
+        let mut state = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 3)
+            .expect("receiver rank state");
 
-        assert_eq!(state.independent_rank, 1);
-        assert_eq!(state.innovative_arrivals, 1);
+        assert_eq!(
+            state.record_contribution_arrival(ContributionLedgerId(20), Tick(10)),
+            Ok(FragmentArrivalClass::Innovative)
+        );
+        assert_eq!(
+            state.record_contribution_arrival(ContributionLedgerId(10), Tick(11)),
+            Ok(FragmentArrivalClass::Innovative)
+        );
+        assert_eq!(
+            state.record_contribution_arrival(ContributionLedgerId(20), Tick(12)),
+            Ok(FragmentArrivalClass::Duplicate)
+        );
+
+        assert_eq!(state.independent_rank, 2);
+        assert_eq!(state.innovative_arrivals, 2);
         assert_eq!(state.duplicate_arrivals, 1);
+        assert_eq!(
+            state.accepted_contribution_ids,
+            vec![ContributionLedgerId(10), ContributionLedgerId(20)]
+        );
+        assert_eq!(state.reconstructed_at_tick, None);
+    }
+
+    #[test]
+    fn reconstruction_records_first_threshold_crossing_once() {
+        let mut state = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 2)
+            .expect("receiver rank state");
+
+        assert_eq!(
+            state.record_contribution_arrival(ContributionLedgerId(10), Tick(10)),
+            Ok(FragmentArrivalClass::Innovative)
+        );
+        assert_eq!(state.reconstructed_at_tick, None);
+
+        assert_eq!(
+            state.record_contribution_arrival(ContributionLedgerId(20), Tick(11)),
+            Ok(FragmentArrivalClass::Innovative)
+        );
+        assert_eq!(state.reconstructed_at_tick, Some(Tick(11)));
+        assert!(state.is_reconstructed());
+
+        assert_eq!(
+            state.record_contribution_arrival(ContributionLedgerId(20), Tick(12)),
+            Ok(FragmentArrivalClass::Duplicate)
+        );
+        assert_eq!(
+            state.record_reconstruction_if_complete(Tick(13)),
+            Some(Tick(11))
+        );
+        assert_eq!(state.reconstructed_at_tick, Some(Tick(11)));
+        assert_eq!(state.independent_rank, 2);
+        assert_eq!(state.duplicate_arrivals, 1);
+    }
+
+    #[test]
+    fn receiver_rank_is_deterministic_across_insertion_order() {
+        let mut left = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 3)
+            .expect("left receiver rank state");
+        let mut right = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 3)
+            .expect("right receiver rank state");
+
+        for contribution_id in [
+            ContributionLedgerId(30),
+            ContributionLedgerId(10),
+            ContributionLedgerId(20),
+        ] {
+            left.record_contribution_arrival(contribution_id, Tick(20))
+                .expect("left contribution");
+        }
+        for contribution_id in [
+            ContributionLedgerId(20),
+            ContributionLedgerId(30),
+            ContributionLedgerId(10),
+        ] {
+            right
+                .record_contribution_arrival(contribution_id, Tick(20))
+                .expect("right contribution");
+        }
+
+        assert_eq!(left.independent_rank, right.independent_rank);
+        assert_eq!(
+            left.accepted_contribution_ids,
+            right.accepted_contribution_ids
+        );
+        assert_eq!(left.reconstructed_at_tick, right.reconstructed_at_tick);
+    }
+
+    #[test]
+    fn receiver_rank_rejects_zero_reconstruction_threshold() {
+        assert_eq!(
+            ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 0),
+            Err(ReceiverRankError::ZeroRequiredRank)
+        );
     }
 
     #[test]
