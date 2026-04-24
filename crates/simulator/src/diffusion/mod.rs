@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+mod baselines;
 mod catalog;
 mod coded_inference;
 mod model;
