@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::model::CodedInferenceReadinessScenario;
 
 mod coded;
-mod comparison;
+pub(crate) mod comparison;
 mod epidemic;
 mod spray;
 mod uncoded;

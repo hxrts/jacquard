@@ -6,10 +6,20 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
+use super::{
+    baselines::{comparison::run_equal_budget_baseline_comparison, BaselineContractError},
+    catalog::scenarios::build_coded_inference_readiness_scenario,
+    coded_inference::{
+        build_coded_inference_readiness_log, summarize_coded_inference_readiness_log,
+        CodedInferenceLandscapeEvent, CodedInferenceReadinessLog,
+    },
+};
+
 const CORE_EXPERIMENT_NAMESPACE: &str = "artifacts/coded-inference/core-experiments";
 const CORE_EXPERIMENT_BUDGET_LABEL: &str = "equal-payload-bytes";
 const CORE_WINDOW_START_ROUND: u32 = 4;
 const CORE_WINDOW_END_ROUND: u32 = 12;
+const EXPERIMENT_A_SCENARIO_ID: &str = "clustered-path-free-landscape";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub(crate) enum CoreExperimentId {
@@ -90,6 +100,11 @@ pub(crate) struct CoreExperimentArtifactRow {
     pub path_evidence: CoreExperimentPathEvidence,
     pub round_index: u32,
     pub ordering_key: u32,
+    pub hidden_hypothesis_id: u8,
+    pub hypothesis_id: u8,
+    pub top_hypothesis_id: u8,
+    pub scaled_score: i32,
+    pub energy_gap: i32,
     pub byte_count: u32,
     pub duplicate_count: u32,
     pub latency_rounds: u32,
@@ -223,6 +238,171 @@ pub(crate) fn sort_core_experiment_rows(rows: &mut [CoreExperimentArtifactRow]) 
     });
 }
 
+pub(crate) fn experiment_a_landscape_rows(
+    seed: u64,
+) -> Result<Vec<CoreExperimentArtifactRow>, BaselineContractError> {
+    let scenario = build_coded_inference_readiness_scenario();
+    let log = build_coded_inference_readiness_log(seed, &scenario);
+    let readiness_summary = summarize_coded_inference_readiness_log(&scenario, &log);
+    let comparison = run_equal_budget_baseline_comparison(seed)?;
+    let path_evidence = core_path_evidence(&deterministic_core_fixture_edges(), 1, 5);
+    let mut rows = Vec::new();
+
+    for (ordering_key, event) in log.landscape_events.iter().enumerate() {
+        rows.push(experiment_a_landscape_event_row(
+            seed,
+            &log,
+            &path_evidence,
+            u32::try_from(ordering_key).unwrap_or(u32::MAX),
+            event,
+        ));
+    }
+
+    let final_round = log
+        .landscape_events
+        .last()
+        .map(|event| event.round_index)
+        .unwrap_or(0);
+    for (index, summary) in comparison.summaries.iter().enumerate() {
+        rows.push(CoreExperimentArtifactRow {
+            identity: core_experiment_identity(
+                CoreExperimentId::LandscapeComingIntoFocus,
+                EXPERIMENT_A_SCENARIO_ID,
+                seed,
+                summary.policy_id.as_str(),
+            ),
+            mergeable_statistic: additive_score_vector_descriptor(),
+            path_evidence: path_evidence.clone(),
+            round_index: summary
+                .commitment_round
+                .or(summary.reconstruction_round)
+                .unwrap_or(final_round),
+            ordering_key: 10_000_u32.saturating_add(u32::try_from(index).unwrap_or(u32::MAX)),
+            hidden_hypothesis_id: scenario.coded_inference.hidden_anomaly_cluster_id,
+            hypothesis_id: readiness_summary.top_hypothesis_id,
+            top_hypothesis_id: readiness_summary.top_hypothesis_id,
+            scaled_score: readiness_summary.top_hypothesis_margin,
+            energy_gap: readiness_summary.energy_gap,
+            byte_count: summary.bytes_transmitted,
+            duplicate_count: summary.duplicate_arrival_count,
+            latency_rounds: summary
+                .commitment_round
+                .or(summary.reconstruction_round)
+                .unwrap_or(0),
+            receiver_rank: summary.receiver_rank,
+            top_hypothesis_margin: summary.top_hypothesis_margin,
+            uncertainty_permille: 1000_u32.saturating_sub(summary.decision_accuracy_permille),
+            quality_permille: summary.decision_accuracy_permille,
+            merged_statistic_quality_permille: summary.recovery_probability_permille,
+            observer_advantage_permille: 0,
+        });
+    }
+
+    rows.push(experiment_a_oracle_row(
+        seed,
+        &path_evidence,
+        final_round,
+        &readiness_summary,
+    ));
+    sort_core_experiment_rows(&mut rows);
+    Ok(rows)
+}
+
+fn experiment_a_landscape_event_row(
+    seed: u64,
+    log: &CodedInferenceReadinessLog,
+    path_evidence: &CoreExperimentPathEvidence,
+    ordering_key: u32,
+    event: &CodedInferenceLandscapeEvent,
+) -> CoreExperimentArtifactRow {
+    CoreExperimentArtifactRow {
+        identity: core_experiment_identity(
+            CoreExperimentId::LandscapeComingIntoFocus,
+            EXPERIMENT_A_SCENARIO_ID,
+            seed,
+            "controlled-coded-diffusion-landscape",
+        ),
+        mergeable_statistic: additive_score_vector_descriptor(),
+        path_evidence: path_evidence.clone(),
+        round_index: event.round_index,
+        ordering_key,
+        hidden_hypothesis_id: event.hidden_anomaly_cluster_id,
+        hypothesis_id: event.hypothesis_id,
+        top_hypothesis_id: event.top_hypothesis_id,
+        scaled_score: event.scaled_score,
+        energy_gap: event.energy_gap,
+        byte_count: cumulative_payload_bytes(log, event.round_index),
+        duplicate_count: duplicate_arrivals_at_or_before(log, event.round_index),
+        latency_rounds: event.round_index,
+        receiver_rank: receiver_rank_at_or_before(log, event.round_index),
+        top_hypothesis_margin: event.margin,
+        uncertainty_permille: event.uncertainty_permille,
+        quality_permille: 1000_u32.saturating_sub(event.uncertainty_permille),
+        merged_statistic_quality_permille: 1000_u32.saturating_sub(event.uncertainty_permille),
+        observer_advantage_permille: 0,
+    }
+}
+
+fn experiment_a_oracle_row(
+    seed: u64,
+    path_evidence: &CoreExperimentPathEvidence,
+    final_round: u32,
+    summary: &super::coded_inference::CodedInferenceReadinessSummary,
+) -> CoreExperimentArtifactRow {
+    CoreExperimentArtifactRow {
+        identity: core_experiment_identity(
+            CoreExperimentId::LandscapeComingIntoFocus,
+            EXPERIMENT_A_SCENARIO_ID,
+            seed,
+            "full-information-oracle",
+        ),
+        mergeable_statistic: additive_score_vector_descriptor(),
+        path_evidence: path_evidence.clone(),
+        round_index: final_round,
+        ordering_key: 20_000,
+        hidden_hypothesis_id: summary.top_hypothesis_id,
+        hypothesis_id: summary.top_hypothesis_id,
+        top_hypothesis_id: summary.top_hypothesis_id,
+        scaled_score: summary.top_hypothesis_margin,
+        energy_gap: summary.energy_gap,
+        byte_count: summary.uncoded_fixed_payload_budget_bytes,
+        duplicate_count: 0,
+        latency_rounds: final_round,
+        receiver_rank: summary.coded_fragment_count,
+        top_hypothesis_margin: summary.top_hypothesis_margin,
+        uncertainty_permille: 0,
+        quality_permille: 1000,
+        merged_statistic_quality_permille: 1000,
+        observer_advantage_permille: 0,
+    }
+}
+
+fn cumulative_payload_bytes(log: &CodedInferenceReadinessLog, round_index: u32) -> u32 {
+    log.budget_events
+        .iter()
+        .filter(|event| event.round_index <= round_index)
+        .map(|event| event.payload_bytes_spent)
+        .fold(0_u32, u32::saturating_add)
+}
+
+fn duplicate_arrivals_at_or_before(log: &CodedInferenceReadinessLog, round_index: u32) -> u32 {
+    log.receiver_events
+        .iter()
+        .filter(|event| event.round_index <= round_index)
+        .map(|event| event.duplicate_arrival_count)
+        .max()
+        .unwrap_or(0)
+}
+
+fn receiver_rank_at_or_before(log: &CodedInferenceReadinessLog, round_index: u32) -> u32 {
+    log.receiver_events
+        .iter()
+        .filter(|event| event.round_index <= round_index)
+        .map(|event| event.rank_after)
+        .max()
+        .unwrap_or(0)
+}
+
 fn no_static_path_in_window(
     edges: &[ContactEdge],
     source_node_id: u32,
@@ -329,6 +509,11 @@ mod tests {
             path_evidence: core_path_evidence(&deterministic_core_fixture_edges(), 1, 5),
             round_index: 8,
             ordering_key,
+            hidden_hypothesis_id: 2,
+            hypothesis_id: 2,
+            top_hypothesis_id: 2,
+            scaled_score: 24,
+            energy_gap: 12,
             byte_count: 64,
             duplicate_count: 1,
             latency_rounds: 4,
@@ -390,5 +575,77 @@ mod tests {
             "controlled-coded-diffusion"
         );
         assert_eq!(rows[1].identity.policy_or_mode, "spray-and-wait");
+    }
+
+    #[test]
+    fn experiment_a_landscape_rows_are_deterministic_and_path_free() {
+        let first = experiment_a_landscape_rows(41).expect("first rows");
+        let second = experiment_a_landscape_rows(41).expect("second rows");
+
+        assert_eq!(first, second);
+        assert!(first
+            .iter()
+            .all(|row| row.path_evidence.no_static_path_in_core_window));
+        assert!(first
+            .iter()
+            .all(|row| row.path_evidence.time_respecting_evidence_journey_exists));
+        assert!(first
+            .iter()
+            .any(|row| row.identity.policy_or_mode == "controlled-coded-diffusion"));
+        assert!(first
+            .iter()
+            .any(|row| row.identity.policy_or_mode == "uncoded-replication"));
+        assert!(first
+            .iter()
+            .any(|row| row.identity.policy_or_mode == "epidemic-forwarding"));
+        assert!(first
+            .iter()
+            .any(|row| row.identity.policy_or_mode == "spray-and-wait"));
+    }
+
+    #[test]
+    fn experiment_a_landscape_sharpens_with_additive_score_vector() {
+        let rows = experiment_a_landscape_rows(41).expect("rows");
+        let landscape_rows = rows
+            .iter()
+            .filter(|row| row.identity.policy_or_mode == "controlled-coded-diffusion-landscape")
+            .collect::<Vec<_>>();
+        let first = landscape_rows.first().expect("first landscape row");
+        let last = landscape_rows.last().expect("last landscape row");
+
+        assert_eq!(
+            last.mergeable_statistic.statistic_kind,
+            MergeableStatisticKind::AdditiveScoreVector
+        );
+        assert_eq!(
+            last.mergeable_statistic.merge_operation,
+            MergeOperationKind::VectorAddition
+        );
+        assert!(last.top_hypothesis_margin >= first.top_hypothesis_margin);
+        assert!(last.uncertainty_permille <= first.uncertainty_permille);
+        assert!(last.merged_statistic_quality_permille >= first.merged_statistic_quality_permille);
+        assert_eq!(last.hidden_hypothesis_id, last.top_hypothesis_id);
+    }
+
+    #[test]
+    fn experiment_a_landscape_exports_plot_ready_columns() {
+        let rows = experiment_a_landscape_rows(41).expect("rows");
+        let json = serialize_core_experiment_rows(&rows).expect("json");
+
+        for field in [
+            "hidden_hypothesis_id",
+            "hypothesis_id",
+            "top_hypothesis_id",
+            "scaled_score",
+            "energy_gap",
+            "byte_count",
+            "duplicate_count",
+            "receiver_rank",
+            "top_hypothesis_margin",
+            "uncertainty_permille",
+            "merged_statistic_quality_permille",
+        ] {
+            assert!(json.contains(field));
+        }
     }
 }
