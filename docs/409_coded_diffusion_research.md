@@ -27,7 +27,14 @@ The semantic center is:
 - storage pressure,
 - rank deficit,
 - observer-visible fragment movement,
-- reconstruction quorum.
+- reconstruction quorum,
+- inference task identity,
+- anomaly-localization candidate hypotheses,
+- deterministic integer score vectors,
+- top-hypothesis margin,
+- fixed-denominator uncertainty proxy,
+- decision commitment tick,
+- receiver inference-quality summary.
 
 The initial Rust research boundary is `crates/field/src/research.rs`. It defines the coded-diffusion vocabulary used by new work:
 
@@ -60,10 +67,28 @@ The initial Rust research boundary is `crates/field/src/research.rs`. It defines
 - `DelayedFragmentEvent`
 - `FragmentReplayEvent`
 - `PrivateProtocolRole`
+- `InferenceTaskId`
+- `AnomalyClusterId`
+- `AnomalyHypothesisSet`
+- `AnomalyHypothesisScore`
+- `AnomalyDecisionGuard`
+- `AnomalyLandscape`
+- `AnomalyLandscapeSummary`
+- `AnomalyEvidenceClass`
+- `EvidenceVectorRecord`
+- `EvidenceVectorBatch`
+- `LandscapeUpdateEvent`
+- `LandscapeUpdateOutcome`
+- `DecisionCommitmentState`
+- `AnomalyDecisionProgressSummary`
+- `EvidenceOriginUpdateCounts`
+- `ReceiverInferenceQualitySummary`
 
 The Lean theorem boundary is `verification/Field/CodedDiffusion.lean`, imported as `Field.CodedDiffusion`. It now owns the Phase 1 proof-facing core for k-of-n reconstruction, duplicate non-inflation, innovative rank growth, reconstruction monotonicity, parent-contribution recoding soundness, recoded duplicate non-inflation, observer projection preservation, rank-deficit and duplicate-pressure accounting, and finite deterministic work recurrence. Probability-heavy anomaly-margin and observer-erasure claims remain explicit Phase 2+ placeholders.
 
-The Phase 1 surface is sufficient for the first Phase 2 anomaly-localization implementation. Locally generated evidence carries `LocalObservationId`, recoded aggregate evidence carries parent contribution lineage plus an aggregate-with-local-observation ledger path, and `ReceiverRankState` exposes canonical accepted contribution ids. Phase 2 score updates should attach deterministic integer evidence vectors to accepted innovative local or aggregate contributions; duplicates continue to leave rank and score state unchanged.
+The Phase 2 anomaly-localization surface is now implemented on top of the Phase 1 contribution gate. Locally generated evidence carries `LocalObservationId`, recoded aggregate evidence carries parent contribution lineage plus an aggregate-with-local-observation ledger path, and `ReceiverRankState` exposes canonical accepted contribution ids. `EvidenceVectorRecord` attaches one deterministic integer score vector to one `CodedEvidenceId` plus `ContributionLedgerId` for one `AnomalyLandscape`. The pure `reduce_landscape_updates` reducer canonicalizes contribution order, applies innovative vectors once with saturating integer arithmetic, leaves duplicate arrivals quality-neutral, and emits `LandscapeUpdateEvent` records for replay. `DecisionCommitmentState` records a separate typed `Tick` when the top-hypothesis margin and minimum independent-evidence guard first pass; this remains distinct from exact k-of-n reconstruction. `ReceiverInferenceQualitySummary` reports receiver rank, reconstruction tick, commitment tick, top/runner-up hypotheses, margin, uncertainty, energy gap, innovative and duplicate update counts, and source/local/recoded origin counts.
+
+The simulator readiness export is `crates/simulator/src/diffusion/coded_inference.rs`. It writes coded-inference artifacts under `artifacts/coded-inference/readiness`, not under routing-analysis reports. Its `CodedInferenceLandscapeEvent`, `CodedReceiverEvidenceEvent`, and `CodedInferenceReadinessSummary` records provide the first deterministic data stream for the "landscape coming into focus" figure: target id, round, hypothesis id, scaled score, top hypothesis, runner-up hypothesis, margin, uncertainty proxy, energy gap, receiver rank, reconstruction tick, commitment tick, innovative/duplicate counts, and evidence-origin counts.
 
 ## Legacy Field Baseline
 

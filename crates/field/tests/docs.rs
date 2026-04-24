@@ -46,6 +46,12 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
     assert!(coded_diffusion.contains("PayloadBudgetMetadata"));
     assert!(coded_diffusion.contains("ContributionLedgerRecord"));
     assert!(coded_diffusion.contains("reconstruction monotonicity"));
+    assert!(coded_diffusion.contains("AnomalyLandscape"));
+    assert!(coded_diffusion.contains("EvidenceVectorRecord"));
+    assert!(coded_diffusion.contains("DecisionCommitmentState"));
+    assert!(coded_diffusion.contains("ReceiverInferenceQualitySummary"));
+    assert!(coded_diffusion.contains("CodedInferenceLandscapeEvent"));
+    assert!(coded_diffusion.contains("artifacts/coded-inference/readiness"));
     assert!(adequacy.contains("FieldReplaySnapshot"));
     assert!(adequacy.contains("reduced_protocol_replay()"));
     assert!(parity.contains("field is a single private-selector engine"));
