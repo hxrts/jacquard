@@ -108,6 +108,18 @@ The controlled and uncontrolled coded diffusion outputs are the Phase 4 starting
 
 Deferred optional baselines are direct delivery, PRoPHET/contact-frequency forwarding, and legacy Field corridor behavior. If any of them are added later, they remain explicitly baseline-only and must not become active coded-inference research surfaces.
 
+## Phase 4 Local Evidence Policy Placement
+
+Phase 4 local evidence policy state and decision artifacts are simulator-owned while the policy is being evaluated. The state derives from coded-inference readiness traces, baseline comparison inputs, and Field research vocabulary already exposed for evidence, landscape, commitment, quality, and reproduction-pressure summaries. It does not become a shared routing contract.
+
+Placement is:
+
+- `jacquard-field` owns reusable research vocabulary and existing local inference records.
+- `jacquard-simulator` owns local policy telemetry, score breakdowns, deterministic reducers, ablation variants, scenario fixtures, and comparison artifacts.
+- docs own the research boundary and the meaning of artifact fields.
+
+The policy surface must remain integer-only and deterministic. It must not publish routes, construct corridor plans, own transport, assign host time, use floating-point state, depend on host iteration order, or use ambient randomness. Any random-forwarding ablation must use explicit seeded or stable deterministic ordering and must carry the same budget metadata as the full policy.
+
 ## Legacy Field Baseline
 
 `docs/406_field_routing.md` is legacy context. It documents the old corridor-envelope Field engine that still exists as a runnable baseline.
