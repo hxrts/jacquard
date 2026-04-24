@@ -5,7 +5,7 @@ This map describes the current organization of `verification/Field`.
 ## Top-Level Theorem Packs
 
 - `Field/CodedDiffusion.lean`
-  - active coded-diffusion theorem path for k-of-n reconstruction, duplicate non-inflation, observer projection, and diffusion-potential accounting
+  - active coded-diffusion theorem path for Phase 1 evidence-origin modes, contribution ledgers, k-of-n reconstruction, duplicate non-inflation, recoding soundness, observer projection, diffusion-potential accounting, and finite deterministic work recurrence
 - `Field/Architecture.lean`
   - shared enum vocabulary for projection kinds, refinement-ladder stages, lineage stages, and semantic-versus-proof-artifact roles
 - `Field/CostAPI.lean`
@@ -44,18 +44,49 @@ This map describes the current organization of `verification/Field`.
 
 - `Field/CodedDiffusion.lean`
   - owns the first active coded-diffusion proof vocabulary:
+    - `EvidenceOriginMode` for source-coded, locally generated, and recoded/aggregated evidence
+    - `EvidenceId`, `ContributionId`, and `LocalObservationId` for Phase 1 proof-facing ids
     - `CodingWindow` for k-of-n reconstruction requirements
-    - `ReceiverRank` for independent receiver rank and duplicate/innovative arrival accounting
+    - `ReceiverRank` for independent receiver contribution ids and duplicate/innovative arrival accounting
+    - `ReconstructionQuorum` for valid k-of-n reconstruction quorums
+    - `ContributionLedgerKind` and `ContributionLedgerRecord` for source, local, parent-ledger-union, and aggregate-with-local-observation contribution validity
     - `FragmentObservation` and `ObserverProjection` for observer-visible fragment/rank/custody projection
     - `DiffusionPotential` for rank-deficit, duplicate-pressure, and storage-pressure accounting
-  - theorem placeholders already stated:
+    - `finiteWork` for deterministic finite-horizon work recurrence support
+  - completed theorem names:
+    - `coding_window_valid_k_pos`
+    - `coding_window_valid_k_le_n`
     - `k_of_n_reconstruction`
+    - `valid_quorum_implies_reconstruction`
     - `duplicate_non_inflation`
     - `innovative_arrival_increases_rank_by_one`
+    - `innovative_evidence_increases_rank_exactly_when_new`
+    - `duplicate_evidence_preserves_rank_when_present`
+    - `reconstruction_monotonicity_innovative`
+    - `recoding_soundness_parent_contribution_ledger`
+    - `aggregate_contribution_requires_local_observation`
+    - `recoded_duplicate_non_inflation`
+    - `source_and_local_evidence_share_rank_accounting`
+    - `observer_projection_preserves_rank`
     - `observer_projection_preserves_duplicate_count`
     - `observer_projection_preserves_custody_count`
     - `innovative_step_rank_deficit_nonincreasing`
     - `duplicate_step_preserves_rank_deficit`
+    - `duplicate_step_increases_duplicate_pressure`
+    - `phase1_potential_accounting_innovative`
+    - `phase1_potential_accounting_duplicate`
+    - `finite_work_recurrence`
+    - `finite_work_step_monotone`
+  - explicit Phase 2+ placeholders:
+    - `phase2_anomaly_margin_concentration_placeholder`
+    - `phase2_observer_erasure_noninterference_placeholder`
+  - Telltale-family mapping:
+    - Reuses conceptually, but does not import directly in the Phase 1 local model, `Distributed/Families/DataAvailability.*` for reconstruction quorum and retrievability vocabulary.
+    - Emulates locally the finite, deterministic subset of `Runtime/Proofs/Lyapunov.lean`, `Runtime/Proofs/ProtocolMachinePotential.lean`, and `Classical/Families/FosterLyapunovHarris.lean` through `DiffusionPotential`, `phase1_potential_accounting_*`, and `finiteWork`.
+    - Reuses conceptually `Runtime/Proofs/ObserverProjection.lean`, `Protocol/InformationCost.lean`, and `Protocol/Noninterference*.lean` for the observer projection/erasure story; only Phase 1 projection preservation is proved here.
+    - Leaves probability-heavy concentration support in `Classical/Families/ConcentrationInequalities.lean` as an explicit Phase 2 target.
+  - Rust alignment:
+    - `EvidenceOriginMode`, `ContributionLedgerKind`, `ContributionLedgerRecord`, `CodingWindow`, `ReceiverRank`, and reconstruction/recoding theorem names intentionally mirror `crates/field/src/research.rs`.
 
 ## Legacy Route/Corridor Baseline Packs
 

@@ -1,9 +1,44 @@
-/-! # Coded Diffusion — active research theorem placeholders -/
+/-
+The Problem. Phase 1 needs a compact proof-facing model for coded evidence
+that matches the Rust reconstruction surface: independent contribution ids,
+duplicate suppression, k-of-n reconstruction, recoding ledgers, observer
+projection, and finite work accounting. The active theorem object is evidence
+rank, not Field corridor routing or router-owned route truth.
+
+Solution Structure.
+1. Define evidence origins, contribution ids, coding windows, receiver rank,
+   reconstruction quorums, and contribution-ledger records.
+2. Prove duplicate non-inflation, innovative rank growth, reconstruction
+   monotonicity, recoding soundness, and observer projection preservation.
+3. Provide deterministic potential and finite-work recurrence lemmas, with
+   explicit Phase 2 placeholders for probability-heavy inference results.
+-/
+
+/-! # Coded Diffusion — active Phase 1 theorem core -/
 
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
 namespace FieldCodedDiffusion
+
+/-! ## Identifiers And Evidence Origin -/
+
+abbrev EvidenceId := Nat
+abbrev ContributionId := Nat
+abbrev LocalObservationId := Nat
+
+inductive EvidenceOriginMode where
+  | sourceCoded
+  | locallyGenerated
+  | recodedAggregated
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+inductive ContributionLedgerKind where
+  | sourceCodedRank
+  | localObservation
+  | parentLedgerUnion
+  | aggregateWithLocalObservation
+  deriving Inhabited, Repr, DecidableEq, BEq
 
 /-! ## Reconstruction Vocabulary -/
 
@@ -15,39 +50,175 @@ structure CodingWindow where
 def CodingWindow.valid (window : CodingWindow) : Prop :=
   0 < window.k ∧ window.k ≤ window.n
 
+theorem coding_window_valid_k_pos
+    (window : CodingWindow)
+    (hValid : window.valid) :
+    0 < window.k := by
+  exact hValid.left
+
+theorem coding_window_valid_k_le_n
+    (window : CodingWindow)
+    (hValid : window.valid) :
+    window.k ≤ window.n := by
+  exact hValid.right
+
 structure ReceiverRank where
-  rank : Nat
+  contributionIds : List ContributionId
   innovativeArrivals : Nat
   duplicateArrivals : Nat
+  reconstructedAt? : Option Nat
   deriving Inhabited, Repr, DecidableEq, BEq
 
+def receiverRank (rank : ReceiverRank) : Nat :=
+  rank.contributionIds.length
+
 def reconstructable (window : CodingWindow) (rank : ReceiverRank) : Prop :=
-  window.k ≤ rank.rank
+  window.k ≤ receiverRank rank
+
+structure ReconstructionQuorum where
+  contributionIds : List ContributionId
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+def validReconstructionQuorum
+    (window : CodingWindow)
+    (quorum : ReconstructionQuorum) : Prop :=
+  window.k ≤ quorum.contributionIds.length
 
 theorem k_of_n_reconstruction
     (window : CodingWindow)
     (rank : ReceiverRank)
-    (hRank : window.k ≤ rank.rank) :
+    (hRank : window.k ≤ receiverRank rank) :
     reconstructable window rank := by
   exact hRank
+
+theorem valid_quorum_implies_reconstruction
+    (window : CodingWindow)
+    (quorum : ReconstructionQuorum)
+    (hQuorum : validReconstructionQuorum window quorum) :
+    window.k ≤ quorum.contributionIds.length := by
+  exact hQuorum
 
 /-! ## Duplicate Non-Inflation -/
 
 def duplicateArrival (rank : ReceiverRank) : ReceiverRank :=
   { rank with duplicateArrivals := rank.duplicateArrivals + 1 }
 
-def innovativeArrival (rank : ReceiverRank) : ReceiverRank :=
+def innovativeArrivalWith
+    (contributionId : ContributionId)
+    (rank : ReceiverRank) : ReceiverRank :=
   { rank with
-    rank := rank.rank + 1
+    contributionIds := rank.contributionIds ++ [contributionId]
     innovativeArrivals := rank.innovativeArrivals + 1 }
 
+def acceptContribution
+    (contributionId : ContributionId)
+    (rank : ReceiverRank) : ReceiverRank :=
+  if contributionId ∈ rank.contributionIds then
+    duplicateArrival rank
+  else
+    innovativeArrivalWith contributionId rank
+
 theorem duplicate_non_inflation (rank : ReceiverRank) :
-    (duplicateArrival rank).rank = rank.rank := by
+    receiverRank (duplicateArrival rank) = receiverRank rank := by
   rfl
 
-theorem innovative_arrival_increases_rank_by_one (rank : ReceiverRank) :
-    (innovativeArrival rank).rank = rank.rank + 1 := by
-  rfl
+theorem innovative_arrival_increases_rank_by_one
+    (rank : ReceiverRank)
+    (contributionId : ContributionId) :
+    receiverRank (innovativeArrivalWith contributionId rank) =
+      receiverRank rank + 1 := by
+  simp [receiverRank, innovativeArrivalWith]
+
+theorem innovative_evidence_increases_rank_exactly_when_new
+    (rank : ReceiverRank)
+    (contributionId : ContributionId)
+    (hNew : contributionId ∉ rank.contributionIds) :
+    receiverRank (acceptContribution contributionId rank) =
+      receiverRank rank + 1 := by
+  -- A fresh contribution takes the innovative branch, which appends one id.
+  simp [acceptContribution, hNew, innovative_arrival_increases_rank_by_one]
+
+theorem duplicate_evidence_preserves_rank_when_present
+    (rank : ReceiverRank)
+    (contributionId : ContributionId)
+    (hPresent : contributionId ∈ rank.contributionIds) :
+    receiverRank (acceptContribution contributionId rank) = receiverRank rank := by
+  -- An already-counted contribution takes the duplicate branch and leaves ids unchanged.
+  simp [acceptContribution, hPresent, duplicate_non_inflation]
+
+theorem reconstruction_monotonicity_innovative
+    (window : CodingWindow)
+    (rank : ReceiverRank)
+    (contributionId : ContributionId)
+    (hRec : reconstructable window rank) :
+    reconstructable window (innovativeArrivalWith contributionId rank) := by
+  -- Existing reconstruction survives because appending one contribution only grows rank.
+  exact Nat.le_trans hRec (by simp [receiverRank, innovativeArrivalWith])
+
+/-! ## Contribution-Ledger And Recoding Soundness -/
+
+structure ContributionLedgerRecord where
+  evidenceId : EvidenceId
+  contributionId : ContributionId
+  kind : ContributionLedgerKind
+  parentContributionIds : List ContributionId
+  hasLocalObservation : Bool
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+def validContributionLedger (record : ContributionLedgerRecord) : Prop :=
+  match record.kind with
+  | .sourceCodedRank =>
+      record.parentContributionIds = [] ∧ record.hasLocalObservation = false
+  | .localObservation =>
+      record.parentContributionIds = [] ∧ record.hasLocalObservation = true
+  | .parentLedgerUnion =>
+      record.parentContributionIds ≠ [] ∧
+        record.contributionId ∈ record.parentContributionIds
+  | .aggregateWithLocalObservation =>
+      record.parentContributionIds ≠ [] ∧ record.hasLocalObservation = true
+
+theorem recoding_soundness_parent_contribution_ledger
+    (record : ContributionLedgerRecord)
+    (hValid : validContributionLedger record)
+    (hKind : record.kind = ContributionLedgerKind.parentLedgerUnion) :
+    record.contributionId ∈ record.parentContributionIds := by
+  -- Unfolding validity for a parent-ledger union exposes parent membership directly.
+  simp [validContributionLedger, hKind] at hValid
+  exact hValid.right
+
+theorem aggregate_contribution_requires_local_observation
+    (record : ContributionLedgerRecord)
+    (hValid : validContributionLedger record)
+    (hKind : record.kind = ContributionLedgerKind.aggregateWithLocalObservation) :
+    record.hasLocalObservation = true := by
+  -- Aggregate validity is exactly parent support plus a local-observation witness.
+  simp [validContributionLedger, hKind] at hValid
+  exact hValid.right
+
+theorem recoded_duplicate_non_inflation
+    (rank : ReceiverRank)
+    (record : ContributionLedgerRecord)
+    (hPresent : record.contributionId ∈ rank.contributionIds) :
+    receiverRank (acceptContribution record.contributionId rank) =
+      receiverRank rank := by
+  -- Recoding cannot make an already-counted contribution innovative.
+  exact duplicate_evidence_preserves_rank_when_present rank record.contributionId hPresent
+
+theorem source_and_local_evidence_share_rank_accounting
+    (rank : ReceiverRank)
+    (sourceContribution localContribution : ContributionId)
+    (hSourceNew : sourceContribution ∉ rank.contributionIds)
+    (hLocalNew : localContribution ∉ rank.contributionIds) :
+    receiverRank (acceptContribution sourceContribution rank) =
+        receiverRank rank + 1 ∧
+      receiverRank (acceptContribution localContribution rank) =
+        receiverRank rank + 1 := by
+  -- Source-coded and local observations both enter through the same contribution gate.
+  exact
+    ⟨ innovative_evidence_increases_rank_exactly_when_new
+        rank sourceContribution hSourceNew
+    , innovative_evidence_increases_rank_exactly_when_new
+        rank localContribution hLocalNew ⟩
 
 /-! ## Observer Projection -/
 
@@ -58,6 +229,7 @@ structure FragmentObservation where
   deriving Inhabited, Repr, DecidableEq, BEq
 
 structure ObserverProjection where
+  observedRank : Nat
   rankDeficit : Nat
   duplicateArrivals : Nat
   custodyCount : Nat
@@ -66,9 +238,17 @@ structure ObserverProjection where
 def observerProjection
     (window : CodingWindow)
     (observation : FragmentObservation) : ObserverProjection :=
-  { rankDeficit := window.k - observation.observedRank
+  { observedRank := observation.observedRank
+    rankDeficit := window.k - observation.observedRank
     duplicateArrivals := observation.duplicateArrivals
     custodyCount := observation.custodyCount }
+
+theorem observer_projection_preserves_rank
+    (window : CodingWindow)
+    (observation : FragmentObservation) :
+    (observerProjection window observation).observedRank =
+      observation.observedRank := by
+  rfl
 
 theorem observer_projection_preserves_duplicate_count
     (window : CodingWindow)
@@ -110,5 +290,60 @@ theorem duplicate_step_preserves_rank_deficit
     (potential : DiffusionPotential) :
     (duplicatePotentialStep potential).rankDeficit = potential.rankDeficit := by
   rfl
+
+theorem duplicate_step_increases_duplicate_pressure
+    (potential : DiffusionPotential) :
+    (duplicatePotentialStep potential).duplicatePressure =
+      potential.duplicatePressure + 1 := by
+  rfl
+
+theorem phase1_potential_accounting_innovative
+    (potential : DiffusionPotential) :
+    (innovativePotentialStep potential).rankDeficit ≤ potential.rankDeficit ∧
+      (innovativePotentialStep potential).duplicatePressure =
+        potential.duplicatePressure := by
+  -- Innovative steps can only reduce the rank deficit and leave duplicate pressure alone.
+  exact ⟨innovative_step_rank_deficit_nonincreasing potential, rfl⟩
+
+theorem phase1_potential_accounting_duplicate
+    (potential : DiffusionPotential) :
+    (duplicatePotentialStep potential).rankDeficit = potential.rankDeficit ∧
+      (duplicatePotentialStep potential).duplicatePressure =
+        potential.duplicatePressure + 1 := by
+  -- Duplicate steps do not affect rank deficit; they account for pressure explicitly.
+  exact
+    ⟨ duplicate_step_preserves_rank_deficit potential
+    , duplicate_step_increases_duplicate_pressure potential ⟩
+
+/-! ## Finite Deterministic Work Recurrence -/
+
+def finiteWork (activeOpportunities : Nat → Nat) : Nat → Nat
+  | 0 => activeOpportunities 0
+  | t + 1 => finiteWork activeOpportunities t + activeOpportunities (t + 1)
+
+theorem finite_work_recurrence
+    (activeOpportunities : Nat → Nat)
+    (t : Nat) :
+    finiteWork activeOpportunities (t + 1) =
+      finiteWork activeOpportunities t + activeOpportunities (t + 1) := by
+  rfl
+
+theorem finite_work_step_monotone
+    (activeOpportunities : Nat → Nat)
+    (t : Nat) :
+    finiteWork activeOpportunities t ≤
+      finiteWork activeOpportunities (t + 1) := by
+  -- Finite work at the next horizon adds a nonnegative opportunity count.
+  simp [finiteWork]
+
+/-! ## Phase 2+ Placeholder Theorem Targets -/
+
+theorem phase2_anomaly_margin_concentration_placeholder :
+    True := by
+  trivial
+
+theorem phase2_observer_erasure_noninterference_placeholder :
+    True := by
+  trivial
 
 end FieldCodedDiffusion
