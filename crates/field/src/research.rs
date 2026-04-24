@@ -36,6 +36,17 @@ pub struct LocalObservationId(pub u32);
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ContributionLedgerId(pub u32);
 
+/// Stable inference-task identifier for one anytime landscape.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct InferenceTaskId(pub u32);
+
+/// Stable candidate id for anomaly-localization cluster hypotheses.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct AnomalyClusterId(pub u16);
+
+/// Maximum candidate clusters represented by one anomaly landscape.
+pub const ANOMALY_HYPOTHESIS_COUNT_MAX: u16 = 256;
+
 /// How one contribution ledger entry is justified.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ContributionLedgerKind {
@@ -573,6 +584,225 @@ fn checked_payload_product(count: u32, bytes: u32) -> Result<u32, PayloadBudgetE
         .ok_or(PayloadBudgetError::PayloadBudgetOverflow)
 }
 
+/// Validation failure for anomaly-localization landscape state.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum AnomalyLandscapeError {
+    /// A landscape must contain at least two candidate hypotheses.
+    TooFewHypotheses,
+    /// Candidate hypotheses are capped for deterministic replay surfaces.
+    TooManyHypotheses,
+    /// Candidate hypothesis ids must be unique after canonical ordering.
+    DuplicateHypothesis,
+    /// Fixture ground truth must be one of the candidate hypotheses.
+    HiddenHypothesisMissing,
+    /// Score vectors must name each candidate exactly once.
+    MalformedScoreVector,
+    /// Score vector entries must not duplicate a hypothesis id.
+    DuplicateScoreHypothesis,
+    /// Score vector entries must not name a non-candidate hypothesis id.
+    ScoreForUnknownHypothesis,
+    /// Decision margin thresholds are nonnegative integer values.
+    NegativeDecisionMarginThreshold,
+    /// Decision commitment requires at least one independent contribution.
+    ZeroMinimumDecisionEvidence,
+}
+
+/// One deterministic integer score for one anomaly hypothesis.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AnomalyHypothesisScore {
+    /// Candidate cluster being scored.
+    pub hypothesis_id: AnomalyClusterId,
+    /// Deterministic scaled score or energy for this candidate.
+    pub scaled_score: i32,
+}
+
+/// Bounded candidate metadata for one anomaly-localization landscape.
+///
+/// This is inference state only. It does not describe route admission,
+/// corridor support, selected private paths, or route-quality ranking.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AnomalyHypothesisSet {
+    /// Inference task represented by this landscape.
+    pub task_id: InferenceTaskId,
+    /// Coded target that owns this landscape.
+    pub target_id: CodedTargetId,
+    /// Optional ground-truth cluster used by deterministic fixtures.
+    pub hidden_anomaly_cluster_id: Option<AnomalyClusterId>,
+    /// Canonical candidate cluster ids.
+    pub candidate_hypotheses: Vec<AnomalyClusterId>,
+}
+
+impl AnomalyHypothesisSet {
+    /// Build canonical anomaly-hypothesis metadata.
+    pub fn try_new(
+        task_id: InferenceTaskId,
+        target_id: CodedTargetId,
+        mut candidate_hypotheses: Vec<AnomalyClusterId>,
+        hidden_anomaly_cluster_id: Option<AnomalyClusterId>,
+    ) -> Result<Self, AnomalyLandscapeError> {
+        canonicalize_anomaly_hypotheses(&mut candidate_hypotheses)?;
+        if let Some(hidden) = hidden_anomaly_cluster_id {
+            if !candidate_hypotheses.contains(&hidden) {
+                return Err(AnomalyLandscapeError::HiddenHypothesisMissing);
+            }
+        }
+
+        Ok(Self {
+            task_id,
+            target_id,
+            hidden_anomaly_cluster_id,
+            candidate_hypotheses,
+        })
+    }
+
+    /// Number of candidate hypotheses.
+    #[must_use]
+    pub fn hypothesis_count(&self) -> u16 {
+        u16::try_from(self.candidate_hypotheses.len()).unwrap_or(u16::MAX)
+    }
+}
+
+/// Decision guard for anomaly-localization commitment.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AnomalyDecisionGuard {
+    /// Required top-vs-runner-up margin before commitment.
+    pub margin_threshold: i32,
+    /// Required independent evidence count before commitment.
+    pub minimum_independent_evidence: u16,
+}
+
+impl AnomalyDecisionGuard {
+    /// Build decision-guard metadata.
+    pub fn try_new(
+        margin_threshold: i32,
+        minimum_independent_evidence: u16,
+    ) -> Result<Self, AnomalyLandscapeError> {
+        if margin_threshold < 0 {
+            return Err(AnomalyLandscapeError::NegativeDecisionMarginThreshold);
+        }
+        if minimum_independent_evidence == 0 {
+            return Err(AnomalyLandscapeError::ZeroMinimumDecisionEvidence);
+        }
+
+        Ok(Self {
+            margin_threshold,
+            minimum_independent_evidence,
+        })
+    }
+}
+
+/// Deterministic quality summary for one anomaly landscape.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AnomalyLandscapeSummary {
+    /// Highest-scoring hypothesis after deterministic tie-breaking.
+    pub top_hypothesis: AnomalyClusterId,
+    /// Next-highest hypothesis after deterministic tie-breaking.
+    pub runner_up_hypothesis: AnomalyClusterId,
+    /// Top score minus runner-up score.
+    pub top_hypothesis_margin: i32,
+    /// Fixed-denominator uncertainty proxy in permille.
+    pub uncertainty_permille: u16,
+    /// Integer energy gap derived from score gaps.
+    pub energy_gap: i32,
+}
+
+/// Receiver-local anomaly-localization landscape.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AnomalyLandscape {
+    /// Candidate metadata for this inference task.
+    pub hypotheses: AnomalyHypothesisSet,
+    /// Canonical score vector ordered by hypothesis id.
+    pub scores: Vec<AnomalyHypothesisScore>,
+    /// Decision guard used by later commitment checks.
+    pub decision_guard: AnomalyDecisionGuard,
+    /// Deterministic quality summary for the current score vector.
+    pub summary: AnomalyLandscapeSummary,
+}
+
+impl AnomalyLandscape {
+    /// Build a canonical anomaly landscape from candidate scores.
+    pub fn try_new(
+        hypotheses: AnomalyHypothesisSet,
+        mut scores: Vec<AnomalyHypothesisScore>,
+        decision_guard: AnomalyDecisionGuard,
+    ) -> Result<Self, AnomalyLandscapeError> {
+        canonicalize_anomaly_scores(&hypotheses, &mut scores)?;
+        let summary = summarize_anomaly_scores(&scores);
+
+        Ok(Self {
+            hypotheses,
+            scores,
+            decision_guard,
+            summary,
+        })
+    }
+}
+
+fn canonicalize_anomaly_hypotheses(
+    hypotheses: &mut Vec<AnomalyClusterId>,
+) -> Result<(), AnomalyLandscapeError> {
+    hypotheses.sort_unstable();
+    if hypotheses.len() < 2 {
+        return Err(AnomalyLandscapeError::TooFewHypotheses);
+    }
+    if hypotheses.len() > usize::from(ANOMALY_HYPOTHESIS_COUNT_MAX) {
+        return Err(AnomalyLandscapeError::TooManyHypotheses);
+    }
+    if hypotheses.windows(2).any(|window| window[0] == window[1]) {
+        return Err(AnomalyLandscapeError::DuplicateHypothesis);
+    }
+    Ok(())
+}
+
+fn canonicalize_anomaly_scores(
+    hypotheses: &AnomalyHypothesisSet,
+    scores: &mut Vec<AnomalyHypothesisScore>,
+) -> Result<(), AnomalyLandscapeError> {
+    scores.sort_unstable_by_key(|score| score.hypothesis_id);
+    if scores.len() != hypotheses.candidate_hypotheses.len() {
+        return Err(AnomalyLandscapeError::MalformedScoreVector);
+    }
+
+    for (index, score) in scores.iter().enumerate() {
+        if index > 0 && scores[index - 1].hypothesis_id == score.hypothesis_id {
+            return Err(AnomalyLandscapeError::DuplicateScoreHypothesis);
+        }
+        if hypotheses.candidate_hypotheses[index] != score.hypothesis_id {
+            return Err(AnomalyLandscapeError::ScoreForUnknownHypothesis);
+        }
+    }
+
+    Ok(())
+}
+
+fn summarize_anomaly_scores(scores: &[AnomalyHypothesisScore]) -> AnomalyLandscapeSummary {
+    debug_assert!(scores.len() >= 2);
+    let mut ranked = scores.to_vec();
+    ranked.sort_unstable_by(|left, right| {
+        right
+            .scaled_score
+            .cmp(&left.scaled_score)
+            .then_with(|| left.hypothesis_id.cmp(&right.hypothesis_id))
+    });
+    let top = ranked[0];
+    let runner_up = ranked[1];
+    let margin = top.scaled_score.saturating_sub(runner_up.scaled_score);
+
+    AnomalyLandscapeSummary {
+        top_hypothesis: top.hypothesis_id,
+        runner_up_hypothesis: runner_up.hypothesis_id,
+        top_hypothesis_margin: margin,
+        uncertainty_permille: anomaly_uncertainty_permille(margin),
+        energy_gap: margin,
+    }
+}
+
+fn anomaly_uncertainty_permille(margin: i32) -> u16 {
+    let positive_margin = u32::try_from(margin.max(0)).unwrap_or(u32::MAX);
+    let uncertainty = 1000_u32.saturating_sub(positive_margin.saturating_mul(20));
+    u16::try_from(uncertainty).unwrap_or(0)
+}
+
 /// Classification of one received fragment relative to receiver state.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum FragmentArrivalClass {
@@ -931,6 +1161,157 @@ mod tests {
                 .record_contribution_arrival(*contribution_id, observed_at_tick)
                 .expect("record contribution arrival");
         }
+    }
+
+    fn anomaly_hypotheses() -> AnomalyHypothesisSet {
+        AnomalyHypothesisSet::try_new(
+            InferenceTaskId(70),
+            CodedTargetId(10),
+            vec![
+                AnomalyClusterId(4),
+                AnomalyClusterId(1),
+                AnomalyClusterId(3),
+                AnomalyClusterId(0),
+                AnomalyClusterId(2),
+            ],
+            Some(AnomalyClusterId(3)),
+        )
+        .expect("anomaly hypotheses")
+    }
+
+    fn anomaly_guard() -> AnomalyDecisionGuard {
+        AnomalyDecisionGuard::try_new(12, 3).expect("anomaly decision guard")
+    }
+
+    fn anomaly_scores(values: &[(u16, i32)]) -> Vec<AnomalyHypothesisScore> {
+        values
+            .iter()
+            .map(|(hypothesis_id, scaled_score)| AnomalyHypothesisScore {
+                hypothesis_id: AnomalyClusterId(*hypothesis_id),
+                scaled_score: *scaled_score,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn anomaly_landscape_canonicalizes_candidates_and_scores() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(4, 2), (1, 8), (3, 8), (0, 1), (2, 3)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+
+        assert_eq!(
+            landscape.hypotheses.candidate_hypotheses,
+            vec![
+                AnomalyClusterId(0),
+                AnomalyClusterId(1),
+                AnomalyClusterId(2),
+                AnomalyClusterId(3),
+                AnomalyClusterId(4),
+            ]
+        );
+        assert_eq!(
+            landscape
+                .scores
+                .iter()
+                .map(|score| score.hypothesis_id)
+                .collect::<Vec<_>>(),
+            landscape.hypotheses.candidate_hypotheses
+        );
+        assert_eq!(landscape.summary.top_hypothesis, AnomalyClusterId(1));
+        assert_eq!(landscape.summary.runner_up_hypothesis, AnomalyClusterId(3));
+        assert_eq!(landscape.summary.top_hypothesis_margin, 0);
+        assert_eq!(landscape.summary.uncertainty_permille, 1000);
+        assert_eq!(landscape.summary.energy_gap, 0);
+        assert_eq!(landscape.hypotheses.hypothesis_count(), 5);
+    }
+
+    #[test]
+    fn anomaly_landscape_rejects_invalid_or_ambiguous_shapes() {
+        assert_eq!(
+            AnomalyHypothesisSet::try_new(
+                InferenceTaskId(70),
+                CodedTargetId(10),
+                vec![AnomalyClusterId(1)],
+                Some(AnomalyClusterId(1)),
+            ),
+            Err(AnomalyLandscapeError::TooFewHypotheses)
+        );
+        assert_eq!(
+            AnomalyHypothesisSet::try_new(
+                InferenceTaskId(70),
+                CodedTargetId(10),
+                vec![AnomalyClusterId(1), AnomalyClusterId(1)],
+                Some(AnomalyClusterId(1)),
+            ),
+            Err(AnomalyLandscapeError::DuplicateHypothesis)
+        );
+        assert_eq!(
+            AnomalyHypothesisSet::try_new(
+                InferenceTaskId(70),
+                CodedTargetId(10),
+                vec![AnomalyClusterId(1), AnomalyClusterId(2)],
+                Some(AnomalyClusterId(3)),
+            ),
+            Err(AnomalyLandscapeError::HiddenHypothesisMissing)
+        );
+        assert_eq!(
+            AnomalyDecisionGuard::try_new(-1, 1),
+            Err(AnomalyLandscapeError::NegativeDecisionMarginThreshold)
+        );
+        assert_eq!(
+            AnomalyDecisionGuard::try_new(1, 0),
+            Err(AnomalyLandscapeError::ZeroMinimumDecisionEvidence)
+        );
+    }
+
+    #[test]
+    fn landscape_score_vectors_must_match_candidates_exactly() {
+        assert_eq!(
+            AnomalyLandscape::try_new(
+                anomaly_hypotheses(),
+                anomaly_scores(&[(0, 1), (1, 2), (2, 3), (3, 4)]),
+                anomaly_guard(),
+            )
+            .map(|landscape| landscape.summary),
+            Err(AnomalyLandscapeError::MalformedScoreVector)
+        );
+        assert_eq!(
+            AnomalyLandscape::try_new(
+                anomaly_hypotheses(),
+                anomaly_scores(&[(0, 1), (1, 2), (2, 3), (3, 4), (3, 5)]),
+                anomaly_guard(),
+            )
+            .map(|landscape| landscape.summary),
+            Err(AnomalyLandscapeError::DuplicateScoreHypothesis)
+        );
+        assert_eq!(
+            AnomalyLandscape::try_new(
+                anomaly_hypotheses(),
+                anomaly_scores(&[(0, 1), (1, 2), (2, 3), (3, 4), (9, 5)]),
+                anomaly_guard(),
+            )
+            .map(|landscape| landscape.summary),
+            Err(AnomalyLandscapeError::ScoreForUnknownHypothesis)
+        );
+    }
+
+    #[test]
+    fn landscape_summary_uses_integer_margin_uncertainty_and_gap() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, -2), (1, 4), (2, 6), (3, 21), (4, 9)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+
+        assert_eq!(landscape.summary.top_hypothesis, AnomalyClusterId(3));
+        assert_eq!(landscape.summary.runner_up_hypothesis, AnomalyClusterId(4));
+        assert_eq!(landscape.summary.top_hypothesis_margin, 12);
+        assert_eq!(landscape.summary.uncertainty_permille, 760);
+        assert_eq!(landscape.summary.energy_gap, 12);
     }
 
     #[test]

@@ -69,15 +69,17 @@ pub use choreography::{
     FieldRoundDisposition,
 };
 pub use research::{
-    CodedEvidenceId, CodedEvidenceRecord, CodedEvidenceRecordError, CodedEvidenceRecordInput,
-    CodedEvidenceValidity, CodedTargetId, CodingRankId, CodingWindow, ContributionLedgerId,
-    ContributionLedgerKind, ContributionLedgerRecord, ContributionLedgerRecordError,
-    ContributionLedgerRecordInput, DelayedFragmentEvent, DiffusionFragmentId, DiffusionMessageId,
-    DiffusionOrderParameters, DiffusionPressure, EvidenceOriginMode, FragmentArrivalClass,
-    FragmentCustody, FragmentReplayEvent, FragmentRetentionPolicy, FragmentSpreadBelief,
+    AnomalyClusterId, AnomalyDecisionGuard, AnomalyHypothesisScore, AnomalyHypothesisSet,
+    AnomalyLandscape, AnomalyLandscapeError, AnomalyLandscapeSummary, CodedEvidenceId,
+    CodedEvidenceRecord, CodedEvidenceRecordError, CodedEvidenceRecordInput, CodedEvidenceValidity,
+    CodedTargetId, CodingRankId, CodingWindow, ContributionLedgerId, ContributionLedgerKind,
+    ContributionLedgerRecord, ContributionLedgerRecordError, ContributionLedgerRecordInput,
+    DelayedFragmentEvent, DiffusionFragmentId, DiffusionMessageId, DiffusionOrderParameters,
+    DiffusionPressure, EvidenceOriginMode, FragmentArrivalClass, FragmentCustody,
+    FragmentReplayEvent, FragmentRetentionPolicy, FragmentSpreadBelief, InferenceTaskId,
     LocalObservationId, NearCriticalControlState, PayloadBudgetError, PayloadBudgetKind,
     PayloadBudgetMetadata, PrivateProtocolRole, ReceiverRankError, ReceiverRankState,
-    ReconstructionQuorum,
+    ReconstructionQuorum, ANOMALY_HYPOTHESIS_COUNT_MAX,
 };
 
 /// Baseline-only corridor-routing compatibility exports.
