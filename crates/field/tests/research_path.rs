@@ -53,6 +53,8 @@ fn research_boundary_exposes_coded_diffusion_vocabulary() {
         "AnomalyEvidenceClass",
         "EvidenceVectorRecord",
         "EvidenceVectorBatch",
+        "LandscapeUpdateEvent",
+        "LandscapeUpdateOutcome",
         "EvidenceOriginMode",
         "CodedEvidenceRecord",
         "CodingWindow",

@@ -630,6 +630,19 @@ pub enum EvidenceVectorRecordError {
     DuplicateContributionUpdate,
 }
 
+/// Validation failure for pure anomaly landscape update reduction.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum LandscapeUpdateError {
+    /// Update records must belong to the landscape inference task.
+    TaskMismatch,
+    /// Update records must belong to the landscape coded target.
+    TargetMismatch,
+    /// A reducer input can update a contribution id at most once.
+    DuplicateContributionUpdate,
+    /// Receiver-rank state rejected the contribution update.
+    ReceiverRankUpdateFailed,
+}
+
 /// One deterministic integer score for one anomaly hypothesis.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AnomalyHypothesisScore {
@@ -817,6 +830,44 @@ pub struct EvidenceVectorBatch {
     pub records: Vec<EvidenceVectorRecord>,
 }
 
+/// Replay-visible result of applying one evidence-vector record.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct LandscapeUpdateEvent {
+    /// Inference task updated by this event.
+    pub task_id: InferenceTaskId,
+    /// Evidence record that carried the score update.
+    pub evidence_id: CodedEvidenceId,
+    /// Contribution id used for duplicate suppression.
+    pub contribution_id: ContributionLedgerId,
+    /// Phase 1 origin mode preserved for logs.
+    pub origin_mode: EvidenceOriginMode,
+    /// Whether this contribution changed rank and landscape score.
+    pub arrival_class: FragmentArrivalClass,
+    /// Receiver rank before applying the contribution gate.
+    pub rank_before: u16,
+    /// Receiver rank after applying the contribution gate.
+    pub rank_after: u16,
+    /// Summary before applying this update.
+    pub summary_before: AnomalyLandscapeSummary,
+    /// Summary after applying this update.
+    pub summary_after: AnomalyLandscapeSummary,
+}
+
+/// Pure reducer output for receiver-rank and landscape updates.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct LandscapeUpdateOutcome {
+    /// Updated receiver rank state.
+    pub receiver_rank: ReceiverRankState,
+    /// Updated anomaly landscape.
+    pub landscape: AnomalyLandscape,
+    /// Replay-visible update events in canonical contribution order.
+    pub events: Vec<LandscapeUpdateEvent>,
+    /// Number of updates that changed independent rank and scores.
+    pub innovative_update_count: u16,
+    /// Number of duplicate updates that left scores unchanged.
+    pub duplicate_update_count: u16,
+}
+
 impl EvidenceVectorBatch {
     /// Build a canonical batch and reject duplicate contribution updates.
     pub fn try_new(
@@ -838,6 +889,60 @@ impl EvidenceVectorBatch {
 
         Ok(Self { task_id, records })
     }
+}
+
+/// Apply evidence-vector records to receiver rank and anomaly landscape.
+///
+/// Score addition uses saturating integer arithmetic so replay cannot diverge
+/// through platform-specific overflow behavior.
+pub fn reduce_landscape_updates(
+    receiver_rank: &ReceiverRankState,
+    landscape: &AnomalyLandscape,
+    updates: &[EvidenceVectorRecord],
+    observed_at_tick: Tick,
+) -> Result<LandscapeUpdateOutcome, LandscapeUpdateError> {
+    let mut ordered_updates = updates.to_vec();
+    canonicalize_landscape_updates(landscape, &mut ordered_updates)?;
+
+    let mut next_rank = receiver_rank.clone();
+    let mut next_landscape = landscape.clone();
+    let mut events = Vec::with_capacity(ordered_updates.len());
+    let mut innovative_update_count = 0_u16;
+    let mut duplicate_update_count = 0_u16;
+
+    for update in &ordered_updates {
+        let summary_before = next_landscape.summary;
+        let rank_before = next_rank.independent_rank;
+        let arrival_class = next_rank
+            .record_contribution_arrival(update.contribution_id, observed_at_tick)
+            .map_err(|_| LandscapeUpdateError::ReceiverRankUpdateFailed)?;
+        if arrival_class == FragmentArrivalClass::Innovative {
+            apply_score_update(&mut next_landscape, &update.score_update);
+            innovative_update_count = innovative_update_count.saturating_add(1);
+        } else {
+            duplicate_update_count = duplicate_update_count.saturating_add(1);
+        }
+        let summary_after = next_landscape.summary;
+        events.push(LandscapeUpdateEvent {
+            task_id: update.task_id,
+            evidence_id: update.evidence_id,
+            contribution_id: update.contribution_id,
+            origin_mode: update.origin_mode,
+            arrival_class,
+            rank_before,
+            rank_after: next_rank.independent_rank,
+            summary_before,
+            summary_after,
+        });
+    }
+
+    Ok(LandscapeUpdateOutcome {
+        receiver_rank: next_rank,
+        landscape: next_landscape,
+        events,
+        innovative_update_count,
+        duplicate_update_count,
+    })
 }
 
 impl AnomalyLandscape {
@@ -945,6 +1050,34 @@ fn validate_evidence_vector_origin(
         }
     }
     Ok(())
+}
+
+fn canonicalize_landscape_updates(
+    landscape: &AnomalyLandscape,
+    updates: &mut Vec<EvidenceVectorRecord>,
+) -> Result<(), LandscapeUpdateError> {
+    updates.sort_unstable_by_key(|update| (update.contribution_id, update.evidence_id));
+    for (index, update) in updates.iter().enumerate() {
+        if update.task_id != landscape.hypotheses.task_id {
+            return Err(LandscapeUpdateError::TaskMismatch);
+        }
+        if update.target_id != landscape.hypotheses.target_id {
+            return Err(LandscapeUpdateError::TargetMismatch);
+        }
+        if index > 0 && updates[index - 1].contribution_id == update.contribution_id {
+            return Err(LandscapeUpdateError::DuplicateContributionUpdate);
+        }
+    }
+    Ok(())
+}
+
+fn apply_score_update(landscape: &mut AnomalyLandscape, update: &[AnomalyHypothesisScore]) {
+    debug_assert_eq!(landscape.scores.len(), update.len());
+    for (score, delta) in landscape.scores.iter_mut().zip(update.iter()) {
+        debug_assert_eq!(score.hypothesis_id, delta.hypothesis_id);
+        score.scaled_score = score.scaled_score.saturating_add(delta.scaled_score);
+    }
+    landscape.summary = summarize_anomaly_scores(&landscape.scores);
 }
 
 /// Classification of one received fragment relative to receiver state.
@@ -1633,6 +1766,170 @@ mod tests {
         assert_eq!(
             EvidenceVectorBatch::try_new(landscape.hypotheses.task_id, vec![second, first]),
             Err(EvidenceVectorRecordError::DuplicateContributionUpdate)
+        );
+    }
+
+    #[test]
+    fn landscape_update_applies_single_innovative_vector() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+        let receiver_rank = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 3)
+            .expect("receiver rank");
+        let update = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(1, 2, 3),
+            ContributionLedgerId(3),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 9), (4, 1)]),
+            None,
+        )
+        .expect("evidence vector");
+
+        let outcome = reduce_landscape_updates(&receiver_rank, &landscape, &[update], Tick(20))
+            .expect("landscape update");
+
+        assert_eq!(outcome.receiver_rank.independent_rank, 1);
+        assert_eq!(outcome.innovative_update_count, 1);
+        assert_eq!(outcome.duplicate_update_count, 0);
+        assert_eq!(
+            outcome.landscape.summary.top_hypothesis,
+            AnomalyClusterId(3)
+        );
+        assert_eq!(outcome.landscape.summary.top_hypothesis_margin, 8);
+        assert_eq!(outcome.landscape.summary.uncertainty_permille, 840);
+        assert_eq!(outcome.landscape.summary.energy_gap, 8);
+        assert_eq!(
+            outcome.events[0].arrival_class,
+            FragmentArrivalClass::Innovative
+        );
+        assert_eq!(outcome.events[0].rank_before, 0);
+        assert_eq!(outcome.events[0].rank_after, 1);
+    }
+
+    #[test]
+    fn landscape_update_duplicate_preserves_quality() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 5), (4, 0)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+        let mut receiver_rank =
+            ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 3)
+                .expect("receiver rank");
+        receiver_rank
+            .record_contribution_arrival(ContributionLedgerId(3), Tick(19))
+            .expect("seed duplicate contribution");
+        let update = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(1, 2, 3),
+            ContributionLedgerId(3),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 9), (4, 0)]),
+            None,
+        )
+        .expect("duplicate evidence vector");
+
+        let outcome = reduce_landscape_updates(&receiver_rank, &landscape, &[update], Tick(20))
+            .expect("landscape update");
+
+        assert_eq!(outcome.receiver_rank.independent_rank, 1);
+        assert_eq!(outcome.receiver_rank.duplicate_arrivals, 1);
+        assert_eq!(outcome.innovative_update_count, 0);
+        assert_eq!(outcome.duplicate_update_count, 1);
+        assert_eq!(outcome.landscape.scores, landscape.scores);
+        assert_eq!(outcome.landscape.summary, landscape.summary);
+        assert_eq!(
+            outcome.events[0].arrival_class,
+            FragmentArrivalClass::Duplicate
+        );
+        assert_eq!(
+            outcome.events[0].summary_before,
+            outcome.events[0].summary_after
+        );
+    }
+
+    #[test]
+    fn landscape_update_is_deterministic_across_input_order() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+        let receiver_rank = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 3)
+            .expect("receiver rank");
+        let first = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(1, 2, 3),
+            ContributionLedgerId(3),
+            anomaly_scores(&[(0, 0), (1, 2), (2, 0), (3, 5), (4, 0)]),
+            None,
+        )
+        .expect("first update");
+        let second = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(2, 3, 4),
+            ContributionLedgerId(4),
+            anomaly_scores(&[(0, 0), (1, 7), (2, 0), (3, 1), (4, 0)]),
+            None,
+        )
+        .expect("second update");
+
+        let left = reduce_landscape_updates(
+            &receiver_rank,
+            &landscape,
+            &[second.clone(), first.clone()],
+            Tick(20),
+        )
+        .expect("left update");
+        let right =
+            reduce_landscape_updates(&receiver_rank, &landscape, &[first, second], Tick(20))
+                .expect("right update");
+
+        assert_eq!(left.receiver_rank, right.receiver_rank);
+        assert_eq!(left.landscape, right.landscape);
+        assert_eq!(left.events, right.events);
+        assert_eq!(left.landscape.summary.top_hypothesis, AnomalyClusterId(1));
+        assert_eq!(
+            left.landscape.summary.runner_up_hypothesis,
+            AnomalyClusterId(3)
+        );
+    }
+
+    #[test]
+    fn landscape_update_rejects_duplicate_updates_in_one_input() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+        let receiver_rank = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 3)
+            .expect("receiver rank");
+        let first = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(1, 2, 3),
+            ContributionLedgerId(3),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 5), (4, 0)]),
+            None,
+        )
+        .expect("first update");
+        let second = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(2, 3, 3),
+            ContributionLedgerId(3),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 1), (4, 0)]),
+            None,
+        )
+        .expect("second update");
+
+        assert_eq!(
+            reduce_landscape_updates(&receiver_rank, &landscape, &[first, second], Tick(20))
+                .map(|outcome| outcome.innovative_update_count),
+            Err(LandscapeUpdateError::DuplicateContributionUpdate)
         );
     }
 
