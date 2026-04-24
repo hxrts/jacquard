@@ -962,6 +962,50 @@ pub struct AnomalyDecisionProgressSummary {
     pub landscape_summary: AnomalyLandscapeSummary,
 }
 
+/// Evidence-origin counts for inference quality summaries.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EvidenceOriginUpdateCounts {
+    /// Source-coded evidence update events.
+    pub source_coded: u16,
+    /// Locally generated evidence update events.
+    pub locally_generated: u16,
+    /// Recoded or aggregate evidence update events.
+    pub recoded_aggregated: u16,
+}
+
+/// Receiver-facing inference quality summary for one anomaly landscape.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReceiverInferenceQualitySummary {
+    /// Inference task represented by this summary.
+    pub task_id: InferenceTaskId,
+    /// Coded target represented by this summary.
+    pub target_id: CodedTargetId,
+    /// Receiver whose quality is summarized.
+    pub receiver: NodeId,
+    /// Current independent receiver rank.
+    pub receiver_rank: u16,
+    /// Exact reconstruction tick from Phase 1 receiver state.
+    pub exact_reconstruction_tick: Option<Tick>,
+    /// Decision commitment tick from Phase 2 commitment state.
+    pub decision_commitment_tick: Option<Tick>,
+    /// Current top hypothesis.
+    pub top_hypothesis: AnomalyClusterId,
+    /// Current runner-up hypothesis.
+    pub runner_up_hypothesis: AnomalyClusterId,
+    /// Current top-vs-runner-up margin.
+    pub top_hypothesis_margin: i32,
+    /// Current fixed-denominator uncertainty proxy.
+    pub uncertainty_permille: u16,
+    /// Current integer energy gap.
+    pub energy_gap: i32,
+    /// Number of update events that changed rank and quality.
+    pub innovative_update_count: u16,
+    /// Number of update events that left quality unchanged.
+    pub duplicate_update_count: u16,
+    /// Evidence-origin counts preserved for logs and summaries.
+    pub origin_counts: EvidenceOriginUpdateCounts,
+}
+
 impl AnomalyDecisionProgressSummary {
     /// Build a progress summary without mutating rank, landscape, or commitment state.
     pub fn from_state(
@@ -978,6 +1022,36 @@ impl AnomalyDecisionProgressSummary {
             reconstructed_at_tick: receiver_rank.reconstructed_at_tick,
             committed_at_tick: commitment.committed_at_tick,
             landscape_summary: landscape.summary,
+        })
+    }
+}
+
+impl ReceiverInferenceQualitySummary {
+    /// Build a quality summary from current state and replay-visible update events.
+    pub fn from_events(
+        landscape: &AnomalyLandscape,
+        receiver_rank: &ReceiverRankState,
+        commitment: &DecisionCommitmentState,
+        events: &[LandscapeUpdateEvent],
+    ) -> Result<Self, DecisionCommitmentError> {
+        commitment.validate_landscape(landscape)?;
+        let (innovative_update_count, duplicate_update_count, origin_counts) =
+            summarize_update_events(events);
+        Ok(Self {
+            task_id: landscape.hypotheses.task_id,
+            target_id: landscape.hypotheses.target_id,
+            receiver: receiver_rank.receiver,
+            receiver_rank: receiver_rank.independent_rank,
+            exact_reconstruction_tick: receiver_rank.reconstructed_at_tick,
+            decision_commitment_tick: commitment.committed_at_tick,
+            top_hypothesis: landscape.summary.top_hypothesis,
+            runner_up_hypothesis: landscape.summary.runner_up_hypothesis,
+            top_hypothesis_margin: landscape.summary.top_hypothesis_margin,
+            uncertainty_permille: landscape.summary.uncertainty_permille,
+            energy_gap: landscape.summary.energy_gap,
+            innovative_update_count,
+            duplicate_update_count,
+            origin_counts,
         })
     }
 }
@@ -1192,6 +1266,41 @@ fn apply_score_update(landscape: &mut AnomalyLandscape, update: &[AnomalyHypothe
         score.scaled_score = score.scaled_score.saturating_add(delta.scaled_score);
     }
     landscape.summary = summarize_anomaly_scores(&landscape.scores);
+}
+
+fn summarize_update_events(
+    events: &[LandscapeUpdateEvent],
+) -> (u16, u16, EvidenceOriginUpdateCounts) {
+    let mut innovative_update_count = 0_u16;
+    let mut duplicate_update_count = 0_u16;
+    let mut origin_counts = EvidenceOriginUpdateCounts::default();
+    for event in events {
+        match event.arrival_class {
+            FragmentArrivalClass::Innovative => {
+                innovative_update_count = innovative_update_count.saturating_add(1);
+            }
+            FragmentArrivalClass::Duplicate => {
+                duplicate_update_count = duplicate_update_count.saturating_add(1);
+            }
+        }
+        match event.origin_mode {
+            EvidenceOriginMode::SourceCoded => {
+                origin_counts.source_coded = origin_counts.source_coded.saturating_add(1);
+            }
+            EvidenceOriginMode::LocallyGenerated => {
+                origin_counts.locally_generated = origin_counts.locally_generated.saturating_add(1);
+            }
+            EvidenceOriginMode::RecodedAggregated => {
+                origin_counts.recoded_aggregated =
+                    origin_counts.recoded_aggregated.saturating_add(1);
+            }
+        }
+    }
+    (
+        innovative_update_count,
+        duplicate_update_count,
+        origin_counts,
+    )
 }
 
 /// Classification of one received fragment relative to receiver state.
@@ -2190,6 +2299,162 @@ mod tests {
             AnomalyClusterId(3)
         );
         assert_eq!(summary.landscape_summary.top_hypothesis_margin, 5);
+    }
+
+    #[test]
+    fn quality_summary_distinguishes_reconstruction_commitment_and_duplicates() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]),
+            AnomalyDecisionGuard::try_new(8, 2).expect("decision guard"),
+        )
+        .expect("anomaly landscape");
+        let mut receiver_rank =
+            ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 3)
+                .expect("receiver rank");
+        receiver_rank
+            .record_contribution_arrival(ContributionLedgerId(3), Tick(10))
+            .expect("seed duplicate contribution");
+        let source_update = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(1, 2, 3),
+            ContributionLedgerId(3),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 9), (4, 0)]),
+            None,
+        )
+        .expect("source update");
+        let local = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(2),
+            origin_mode: EvidenceOriginMode::LocallyGenerated,
+            fragment_id: None,
+            rank_id: None,
+            local_observation_id: Some(LocalObservationId(44)),
+            contribution_ledger_ids: vec![ContributionLedgerId(10_044)],
+            ..source_input()
+        })
+        .expect("local evidence");
+        let local_update = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &local,
+            ContributionLedgerId(10_044),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 5), (4, 0)]),
+            None,
+        )
+        .expect("local update");
+        let recoded = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            origin_mode: EvidenceOriginMode::RecodedAggregated,
+            fragment_id: None,
+            rank_id: None,
+            local_observation_id: Some(LocalObservationId(45)),
+            parent_evidence_ids: vec![CodedEvidenceId(1), CodedEvidenceId(2)],
+            contribution_ledger_ids: vec![ContributionLedgerId(100)],
+            ..source_input()
+        })
+        .expect("recoded evidence");
+        let recoded_update = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &recoded,
+            ContributionLedgerId(100),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 6), (4, 0)]),
+            None,
+        )
+        .expect("recoded update");
+
+        let outcome = reduce_landscape_updates(
+            &receiver_rank,
+            &landscape,
+            &[local_update, recoded_update, source_update],
+            Tick(20),
+        )
+        .expect("landscape update");
+        let mut commitment = DecisionCommitmentState::new(
+            landscape.hypotheses.task_id,
+            landscape.hypotheses.target_id,
+        );
+        commitment
+            .check_commitment(&outcome.landscape, &outcome.receiver_rank, Tick(21))
+            .expect("commitment check");
+        let summary = ReceiverInferenceQualitySummary::from_events(
+            &outcome.landscape,
+            &outcome.receiver_rank,
+            &commitment,
+            &outcome.events,
+        )
+        .expect("quality summary");
+
+        assert_eq!(summary.receiver_rank, 3);
+        assert_eq!(summary.exact_reconstruction_tick, Some(Tick(20)));
+        assert_eq!(summary.decision_commitment_tick, Some(Tick(21)));
+        assert_eq!(summary.innovative_update_count, 2);
+        assert_eq!(summary.duplicate_update_count, 1);
+        assert_eq!(summary.top_hypothesis, AnomalyClusterId(3));
+        assert_eq!(summary.top_hypothesis_margin, 11);
+    }
+
+    #[test]
+    fn quality_summary_counts_source_local_and_recoded_origins() {
+        let before = AnomalyLandscapeSummary {
+            top_hypothesis: AnomalyClusterId(3),
+            runner_up_hypothesis: AnomalyClusterId(1),
+            top_hypothesis_margin: 4,
+            uncertainty_permille: 920,
+            energy_gap: 4,
+        };
+        let middle = AnomalyLandscapeSummary {
+            top_hypothesis_margin: 8,
+            uncertainty_permille: 840,
+            energy_gap: 8,
+            ..before
+        };
+        let after = AnomalyLandscapeSummary {
+            top_hypothesis_margin: 11,
+            uncertainty_permille: 780,
+            energy_gap: 11,
+            ..before
+        };
+        let events = [
+            LandscapeUpdateEvent {
+                task_id: InferenceTaskId(70),
+                evidence_id: CodedEvidenceId(1),
+                contribution_id: ContributionLedgerId(3),
+                origin_mode: EvidenceOriginMode::SourceCoded,
+                arrival_class: FragmentArrivalClass::Duplicate,
+                rank_before: 1,
+                rank_after: 1,
+                summary_before: before,
+                summary_after: before,
+            },
+            LandscapeUpdateEvent {
+                task_id: InferenceTaskId(70),
+                evidence_id: CodedEvidenceId(2),
+                contribution_id: ContributionLedgerId(10_044),
+                origin_mode: EvidenceOriginMode::LocallyGenerated,
+                arrival_class: FragmentArrivalClass::Innovative,
+                rank_before: 1,
+                rank_after: 2,
+                summary_before: before,
+                summary_after: middle,
+            },
+            LandscapeUpdateEvent {
+                task_id: InferenceTaskId(70),
+                evidence_id: CodedEvidenceId(7),
+                contribution_id: ContributionLedgerId(100),
+                origin_mode: EvidenceOriginMode::RecodedAggregated,
+                arrival_class: FragmentArrivalClass::Innovative,
+                rank_before: 2,
+                rank_after: 3,
+                summary_before: middle,
+                summary_after: after,
+            },
+        ];
+        let (innovative, duplicate, origin_counts) = summarize_update_events(&events);
+
+        assert_eq!(innovative, 2);
+        assert_eq!(duplicate, 1);
+        assert_eq!(origin_counts.source_coded, 1);
+        assert_eq!(origin_counts.locally_generated, 1);
+        assert_eq!(origin_counts.recoded_aggregated, 1);
     }
 
     #[test]

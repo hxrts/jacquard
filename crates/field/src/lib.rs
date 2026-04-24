@@ -77,12 +77,13 @@ pub use research::{
     ContributionLedgerKind, ContributionLedgerRecord, ContributionLedgerRecordError,
     ContributionLedgerRecordInput, DecisionCommitmentError, DecisionCommitmentState,
     DelayedFragmentEvent, DiffusionFragmentId, DiffusionMessageId, DiffusionOrderParameters,
-    DiffusionPressure, EvidenceOriginMode, EvidenceVectorBatch, EvidenceVectorRecord,
-    EvidenceVectorRecordError, FragmentArrivalClass, FragmentCustody, FragmentReplayEvent,
-    FragmentRetentionPolicy, FragmentSpreadBelief, InferenceTaskId, LandscapeUpdateError,
-    LandscapeUpdateEvent, LandscapeUpdateOutcome, LocalObservationId, NearCriticalControlState,
-    PayloadBudgetError, PayloadBudgetKind, PayloadBudgetMetadata, PrivateProtocolRole,
-    ReceiverRankError, ReceiverRankState, ReconstructionQuorum, ANOMALY_HYPOTHESIS_COUNT_MAX,
+    DiffusionPressure, EvidenceOriginMode, EvidenceOriginUpdateCounts, EvidenceVectorBatch,
+    EvidenceVectorRecord, EvidenceVectorRecordError, FragmentArrivalClass, FragmentCustody,
+    FragmentReplayEvent, FragmentRetentionPolicy, FragmentSpreadBelief, InferenceTaskId,
+    LandscapeUpdateError, LandscapeUpdateEvent, LandscapeUpdateOutcome, LocalObservationId,
+    NearCriticalControlState, PayloadBudgetError, PayloadBudgetKind, PayloadBudgetMetadata,
+    PrivateProtocolRole, ReceiverInferenceQualitySummary, ReceiverRankError, ReceiverRankState,
+    ReconstructionQuorum, ANOMALY_HYPOTHESIS_COUNT_MAX,
 };
 
 /// Baseline-only corridor-routing compatibility exports.

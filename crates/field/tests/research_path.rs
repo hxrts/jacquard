@@ -57,6 +57,8 @@ fn research_boundary_exposes_coded_diffusion_vocabulary() {
         "LandscapeUpdateOutcome",
         "DecisionCommitmentState",
         "AnomalyDecisionProgressSummary",
+        "ReceiverInferenceQualitySummary",
+        "EvidenceOriginUpdateCounts",
         "EvidenceOriginMode",
         "CodedEvidenceRecord",
         "CodingWindow",
