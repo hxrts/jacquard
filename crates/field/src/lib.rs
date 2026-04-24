@@ -68,10 +68,12 @@ pub use choreography::{
     FieldRoundDisposition,
 };
 pub use research::{
-    CodingWindow, DelayedFragmentEvent, DiffusionFragmentId, DiffusionMessageId,
-    DiffusionOrderParameters, DiffusionPressure, FragmentArrivalClass, FragmentCustody,
-    FragmentReplayEvent, FragmentRetentionPolicy, FragmentSpreadBelief, NearCriticalControlState,
-    PrivateProtocolRole, ReceiverRankState, ReconstructionQuorum,
+    CodedEvidenceId, CodedEvidenceRecord, CodedEvidenceRecordError, CodedEvidenceRecordInput,
+    CodedEvidenceValidity, CodedTargetId, CodingRankId, CodingWindow, ContributionLedgerId,
+    DelayedFragmentEvent, DiffusionFragmentId, DiffusionMessageId, DiffusionOrderParameters,
+    DiffusionPressure, EvidenceOriginMode, FragmentArrivalClass, FragmentCustody,
+    FragmentReplayEvent, FragmentRetentionPolicy, FragmentSpreadBelief, LocalObservationId,
+    NearCriticalControlState, PrivateProtocolRole, ReceiverRankState, ReconstructionQuorum,
 };
 
 /// Baseline-only corridor-routing compatibility exports.

@@ -35,7 +35,14 @@ fn research_boundary_exposes_coded_diffusion_vocabulary() {
     let source = research_source();
     let required_terms = [
         "DiffusionMessageId",
+        "CodedTargetId",
+        "CodedEvidenceId",
         "DiffusionFragmentId",
+        "CodingRankId",
+        "LocalObservationId",
+        "ContributionLedgerId",
+        "EvidenceOriginMode",
+        "CodedEvidenceRecord",
         "CodingWindow",
         "FragmentCustody",
         "FragmentArrivalClass",

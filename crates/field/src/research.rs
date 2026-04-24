@@ -8,13 +8,211 @@
 use jacquard_core::{NodeId, Tick};
 use serde::{Deserialize, Serialize};
 
+/// Stable target identifier for one reconstruction or inference objective.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct CodedTargetId(pub u32);
+
 /// Stable message identifier for one coded reconstruction objective.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct DiffusionMessageId(pub [u8; 16]);
 
+/// Stable evidence identifier for one reconstruction or inference record.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct CodedEvidenceId(pub u32);
+
 /// Stable fragment identifier within one coded reconstruction objective.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct DiffusionFragmentId(pub [u8; 16]);
+
+/// Stable coding-rank identifier for one independent reconstruction contribution.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct CodingRankId(pub u32);
+
+/// Stable local-observation identifier for distributed evidence.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct LocalObservationId(pub u32);
+
+/// Stable contribution-ledger identifier used to audit useful rank.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct ContributionLedgerId(pub u32);
+
+/// Source of one coded-evidence record.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum EvidenceOriginMode {
+    /// Fragment came from a source-coded reconstruction payload.
+    SourceCoded,
+    /// Evidence was generated from a node-local observation.
+    LocallyGenerated,
+    /// Evidence was recoded or aggregated from parent evidence records.
+    RecodedAggregated,
+}
+
+/// Validity status assigned after deterministic record validation.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CodedEvidenceValidity {
+    /// Record passed the local syntactic and lineage validity checks.
+    Valid,
+}
+
+/// Validation failure for coded evidence records.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CodedEvidenceRecordError {
+    /// Source-coded evidence must carry both a fragment id and a rank id.
+    MissingSourceFragmentOrRank,
+    /// Source-coded evidence must not carry a local observation id.
+    UnexpectedLocalObservation,
+    /// Locally generated evidence must carry a local observation id.
+    MissingLocalObservation,
+    /// Original source/local records must not carry parent evidence ids.
+    UnexpectedParentEvidence,
+    /// Recoded or aggregated evidence must name at least one parent.
+    RecodedWithoutParents,
+    /// A recoded record cannot name itself as a parent.
+    SelfParent,
+    /// Parent ids must be unique after deterministic ordering.
+    DuplicateParentEvidence,
+    /// Contribution ledger ids must be nonempty.
+    EmptyContributionLedger,
+    /// Contribution ledger ids must be unique after deterministic ordering.
+    DuplicateContributionLedger,
+}
+
+/// Construction input for one reconstruction or inference evidence record.
+///
+/// The resulting record is evidence-facing, not route-facing: parent ids and
+/// contribution ledgers explain rank or aggregate contribution validity, not
+/// route admission, corridor support, selected private paths, or ranking.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CodedEvidenceRecordInput {
+    /// Reconstruction or inference target receiving this evidence.
+    pub target_id: CodedTargetId,
+    /// Message or task id that owns this evidence.
+    pub message_id: DiffusionMessageId,
+    /// Stable evidence id.
+    pub evidence_id: CodedEvidenceId,
+    /// Source mode for this evidence.
+    pub origin_mode: EvidenceOriginMode,
+    /// Source-coded fragment id, when applicable.
+    pub fragment_id: Option<DiffusionFragmentId>,
+    /// Source-coded rank id, when applicable.
+    pub rank_id: Option<CodingRankId>,
+    /// Current holder for custody or forwarding.
+    pub holder: NodeId,
+    /// Local observation id, when this evidence includes local data.
+    pub local_observation_id: Option<LocalObservationId>,
+    /// Parent evidence records for recoded or aggregated evidence.
+    pub parent_evidence_ids: Vec<CodedEvidenceId>,
+    /// Canonical contribution ids counted by receiver rank or aggregate logic.
+    pub contribution_ledger_ids: Vec<ContributionLedgerId>,
+    /// Deterministic payload size in bytes.
+    pub payload_bytes: u32,
+}
+
+/// Deterministic reconstruction or inference evidence record.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CodedEvidenceRecord {
+    /// Reconstruction or inference target receiving this evidence.
+    pub target_id: CodedTargetId,
+    /// Message or task id that owns this evidence.
+    pub message_id: DiffusionMessageId,
+    /// Stable evidence id.
+    pub evidence_id: CodedEvidenceId,
+    /// Source mode for this evidence.
+    pub origin_mode: EvidenceOriginMode,
+    /// Source-coded fragment id, when applicable.
+    pub fragment_id: Option<DiffusionFragmentId>,
+    /// Source-coded rank id, when applicable.
+    pub rank_id: Option<CodingRankId>,
+    /// Current holder for custody or forwarding.
+    pub holder: NodeId,
+    /// Local observation id, when this evidence includes local data.
+    pub local_observation_id: Option<LocalObservationId>,
+    /// Parent evidence records for recoded or aggregated evidence.
+    pub parent_evidence_ids: Vec<CodedEvidenceId>,
+    /// Canonical contribution ids counted by receiver rank or aggregate logic.
+    pub contribution_ledger_ids: Vec<ContributionLedgerId>,
+    /// Deterministic payload size in bytes.
+    pub payload_bytes: u32,
+    /// Validity marker assigned by `CodedEvidenceRecord::try_new`.
+    pub validity: CodedEvidenceValidity,
+}
+
+impl CodedEvidenceRecord {
+    /// Build a canonical evidence record or reject malformed lineage.
+    pub fn try_new(mut input: CodedEvidenceRecordInput) -> Result<Self, CodedEvidenceRecordError> {
+        canonicalize_ids(
+            &mut input.parent_evidence_ids,
+            CodedEvidenceRecordError::DuplicateParentEvidence,
+        )?;
+        canonicalize_ids(
+            &mut input.contribution_ledger_ids,
+            CodedEvidenceRecordError::DuplicateContributionLedger,
+        )?;
+        if input.contribution_ledger_ids.is_empty() {
+            return Err(CodedEvidenceRecordError::EmptyContributionLedger);
+        }
+        validate_origin_shape(&input)?;
+
+        Ok(Self {
+            target_id: input.target_id,
+            message_id: input.message_id,
+            evidence_id: input.evidence_id,
+            origin_mode: input.origin_mode,
+            fragment_id: input.fragment_id,
+            rank_id: input.rank_id,
+            holder: input.holder,
+            local_observation_id: input.local_observation_id,
+            parent_evidence_ids: input.parent_evidence_ids,
+            contribution_ledger_ids: input.contribution_ledger_ids,
+            payload_bytes: input.payload_bytes,
+            validity: CodedEvidenceValidity::Valid,
+        })
+    }
+}
+
+fn validate_origin_shape(input: &CodedEvidenceRecordInput) -> Result<(), CodedEvidenceRecordError> {
+    match input.origin_mode {
+        EvidenceOriginMode::SourceCoded => {
+            if input.fragment_id.is_none() || input.rank_id.is_none() {
+                return Err(CodedEvidenceRecordError::MissingSourceFragmentOrRank);
+            }
+            if input.local_observation_id.is_some() {
+                return Err(CodedEvidenceRecordError::UnexpectedLocalObservation);
+            }
+            if !input.parent_evidence_ids.is_empty() {
+                return Err(CodedEvidenceRecordError::UnexpectedParentEvidence);
+            }
+        }
+        EvidenceOriginMode::LocallyGenerated => {
+            if input.local_observation_id.is_none() {
+                return Err(CodedEvidenceRecordError::MissingLocalObservation);
+            }
+            if !input.parent_evidence_ids.is_empty() {
+                return Err(CodedEvidenceRecordError::UnexpectedParentEvidence);
+            }
+        }
+        EvidenceOriginMode::RecodedAggregated => {
+            if input.parent_evidence_ids.is_empty() {
+                return Err(CodedEvidenceRecordError::RecodedWithoutParents);
+            }
+            if input.parent_evidence_ids.contains(&input.evidence_id) {
+                return Err(CodedEvidenceRecordError::SelfParent);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn canonicalize_ids<T: Copy + Ord>(
+    values: &mut Vec<T>,
+    duplicate_error: CodedEvidenceRecordError,
+) -> Result<(), CodedEvidenceRecordError> {
+    values.sort_unstable();
+    if values.windows(2).any(|window| window[0] == window[1]) {
+        return Err(duplicate_error);
+    }
+    Ok(())
+}
 
 /// Bounded coding-width description for one message.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -274,6 +472,150 @@ mod tests {
 
     fn node_id(fill: u8) -> NodeId {
         NodeId([fill; 32])
+    }
+
+    fn source_input() -> CodedEvidenceRecordInput {
+        CodedEvidenceRecordInput {
+            target_id: CodedTargetId(10),
+            message_id: DiffusionMessageId(id16(1)),
+            evidence_id: CodedEvidenceId(1),
+            origin_mode: EvidenceOriginMode::SourceCoded,
+            fragment_id: Some(DiffusionFragmentId(id16(2))),
+            rank_id: Some(CodingRankId(3)),
+            holder: node_id(4),
+            local_observation_id: None,
+            parent_evidence_ids: Vec::new(),
+            contribution_ledger_ids: vec![ContributionLedgerId(3)],
+            payload_bytes: 32,
+        }
+    }
+
+    #[test]
+    fn coded_evidence_origin_modes_are_distinct_and_validated() {
+        let source = CodedEvidenceRecord::try_new(source_input()).expect("source-coded record");
+        assert_eq!(source.origin_mode, EvidenceOriginMode::SourceCoded);
+        assert_eq!(source.validity, CodedEvidenceValidity::Valid);
+
+        let local = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(2),
+            origin_mode: EvidenceOriginMode::LocallyGenerated,
+            fragment_id: None,
+            rank_id: None,
+            local_observation_id: Some(LocalObservationId(44)),
+            contribution_ledger_ids: vec![ContributionLedgerId(10_044)],
+            ..source_input()
+        })
+        .expect("local record");
+        assert_eq!(local.origin_mode, EvidenceOriginMode::LocallyGenerated);
+        assert_eq!(local.local_observation_id, Some(LocalObservationId(44)));
+
+        let recoded = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(3),
+            origin_mode: EvidenceOriginMode::RecodedAggregated,
+            fragment_id: None,
+            rank_id: None,
+            local_observation_id: Some(LocalObservationId(45)),
+            parent_evidence_ids: vec![CodedEvidenceId(2), CodedEvidenceId(1)],
+            contribution_ledger_ids: vec![ContributionLedgerId(10_045), ContributionLedgerId(3)],
+            ..source_input()
+        })
+        .expect("recoded record");
+        assert_eq!(recoded.origin_mode, EvidenceOriginMode::RecodedAggregated);
+        assert_eq!(
+            recoded.parent_evidence_ids,
+            vec![CodedEvidenceId(1), CodedEvidenceId(2)]
+        );
+    }
+
+    #[test]
+    fn coded_evidence_recoded_lineage_is_canonical_and_auditable() {
+        let recoded = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            origin_mode: EvidenceOriginMode::RecodedAggregated,
+            fragment_id: None,
+            rank_id: None,
+            parent_evidence_ids: vec![CodedEvidenceId(5), CodedEvidenceId(1)],
+            contribution_ledger_ids: vec![ContributionLedgerId(9), ContributionLedgerId(3)],
+            ..source_input()
+        })
+        .expect("canonical recoded record");
+
+        assert_eq!(
+            recoded.parent_evidence_ids,
+            vec![CodedEvidenceId(1), CodedEvidenceId(5)]
+        );
+        assert_eq!(
+            recoded.contribution_ledger_ids,
+            vec![ContributionLedgerId(3), ContributionLedgerId(9)]
+        );
+    }
+
+    #[test]
+    fn coded_evidence_rejects_malformed_recoding_lineage() {
+        assert_eq!(
+            CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+                evidence_id: CodedEvidenceId(7),
+                origin_mode: EvidenceOriginMode::RecodedAggregated,
+                fragment_id: None,
+                rank_id: None,
+                parent_evidence_ids: Vec::new(),
+                contribution_ledger_ids: vec![ContributionLedgerId(9)],
+                ..source_input()
+            }),
+            Err(CodedEvidenceRecordError::RecodedWithoutParents)
+        );
+        assert_eq!(
+            CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+                evidence_id: CodedEvidenceId(7),
+                origin_mode: EvidenceOriginMode::RecodedAggregated,
+                fragment_id: None,
+                rank_id: None,
+                parent_evidence_ids: vec![CodedEvidenceId(7)],
+                contribution_ledger_ids: vec![ContributionLedgerId(9)],
+                ..source_input()
+            }),
+            Err(CodedEvidenceRecordError::SelfParent)
+        );
+        assert_eq!(
+            CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+                evidence_id: CodedEvidenceId(7),
+                origin_mode: EvidenceOriginMode::RecodedAggregated,
+                fragment_id: None,
+                rank_id: None,
+                parent_evidence_ids: vec![CodedEvidenceId(1), CodedEvidenceId(1)],
+                contribution_ledger_ids: vec![ContributionLedgerId(9)],
+                ..source_input()
+            }),
+            Err(CodedEvidenceRecordError::DuplicateParentEvidence)
+        );
+    }
+
+    #[test]
+    fn coded_evidence_rejects_invalid_original_record_shapes() {
+        assert_eq!(
+            CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+                fragment_id: None,
+                ..source_input()
+            }),
+            Err(CodedEvidenceRecordError::MissingSourceFragmentOrRank)
+        );
+        assert_eq!(
+            CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+                origin_mode: EvidenceOriginMode::LocallyGenerated,
+                fragment_id: None,
+                rank_id: None,
+                local_observation_id: None,
+                ..source_input()
+            }),
+            Err(CodedEvidenceRecordError::MissingLocalObservation)
+        );
+        assert_eq!(
+            CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+                parent_evidence_ids: vec![CodedEvidenceId(2)],
+                ..source_input()
+            }),
+            Err(CodedEvidenceRecordError::UnexpectedParentEvidence)
+        );
     }
 
     #[test]
