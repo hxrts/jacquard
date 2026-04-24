@@ -5,6 +5,7 @@
 mod attacker;
 mod metrics;
 mod projection;
+mod robustness;
 mod sweep;
 
 #[allow(unused_imports)]
@@ -21,6 +22,10 @@ pub(crate) use metrics::{
 pub(crate) use projection::{
     project_observer_trace, ObserverEventKind, ObserverProjectionConfig, ObserverProjectionKind,
     ObserverTraceEvent,
+};
+#[allow(unused_imports)]
+pub(crate) use robustness::{
+    run_observer_robustness_summary, ObserverRobustnessScenarioKind, ObserverRobustnessSummary,
 };
 #[allow(unused_imports)]
 pub(crate) use sweep::{

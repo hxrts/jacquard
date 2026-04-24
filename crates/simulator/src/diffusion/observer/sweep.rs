@@ -9,7 +9,8 @@ use super::{
 };
 use crate::diffusion::{
     catalog::scenarios::build_coded_inference_readiness_scenario,
-    coded_inference::build_coded_inference_readiness_log,
+    coded_inference::{build_coded_inference_readiness_log, CodedInferenceReadinessLog},
+    model::CodedInferenceReadinessScenario,
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -44,9 +45,11 @@ pub(crate) struct ObserverSweepArtifact {
 }
 
 pub(crate) fn run_observer_sweep(seed: u64) -> Vec<ObserverSweepArtifact> {
+    let scenario = build_coded_inference_readiness_scenario();
+    let log = build_coded_inference_readiness_log(seed, &scenario);
     observer_sweep_cells(seed)
         .into_iter()
-        .map(run_cell)
+        .map(|cell| run_cell(&scenario, &log, cell))
         .collect()
 }
 
@@ -106,9 +109,11 @@ fn append_band_cells(
     }
 }
 
-fn run_cell(cell: ObserverSweepCell) -> ObserverSweepArtifact {
-    let scenario = build_coded_inference_readiness_scenario();
-    let log = build_coded_inference_readiness_log(cell.seed, &scenario);
+fn run_cell(
+    scenario: &CodedInferenceReadinessScenario,
+    log: &CodedInferenceReadinessLog,
+    cell: ObserverSweepCell,
+) -> ObserverSweepArtifact {
     let trace = project_observer_trace(&log, &projection_config(cell.projection_kind));
     let attacker = run_observer_attacker(
         &ObserverAttackerConfig::anomaly_region("local-evidence-policy"),
