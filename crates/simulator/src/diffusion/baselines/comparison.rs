@@ -288,4 +288,15 @@ mod tests {
             .all(|summary| summary.recovery_probability_permille <= 1000
                 && summary.decision_accuracy_permille <= 1000));
     }
+
+    #[test]
+    fn baseline_comparison_does_not_write_route_analysis_fields() {
+        let artifact = run_equal_budget_baseline_comparison(41).expect("comparison");
+        let serialized = serde_json::to_string(&artifact).expect("artifact json");
+
+        assert!(!serialized.contains("field_corridor_publication_dependency"));
+        assert!(!serialized.contains("private_route_witness_dependency"));
+        assert!(!serialized.contains("route_quality_ranking_dependency"));
+        assert!(!serialized.contains("routing_analysis_filter_id"));
+    }
 }

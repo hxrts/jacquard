@@ -90,6 +90,24 @@ The Phase 2 anomaly-localization surface is now implemented on top of the Phase 
 
 The simulator readiness export is `crates/simulator/src/diffusion/coded_inference.rs`. It writes coded-inference artifacts under `artifacts/coded-inference/readiness`, not under routing-analysis reports. Its `CodedInferenceLandscapeEvent`, `CodedReceiverEvidenceEvent`, and `CodedInferenceReadinessSummary` records provide the first deterministic data stream for the "landscape coming into focus" figure: target id, round, hypothesis id, scaled score, top hypothesis, runner-up hypothesis, margin, uncertainty proxy, energy gap, receiver rank, reconstruction tick, commitment tick, innovative/duplicate counts, and evidence-origin counts.
 
+## Phase 3 Baseline Comparison Surface
+
+Phase 3 comparison artifacts live under `artifacts/coded-inference/baselines`. The required baseline roster is:
+
+- `uncoded-replication`
+- `epidemic-forwarding`
+- `spray-and-wait`
+- `uncontrolled-coded-diffusion`
+- `controlled-coded-diffusion`
+
+The primary fairness rule is equal-payload-byte comparison. Every Phase 3 comparison summary and aggregate artifact carries the fixed budget label `equal-payload-bytes` and the fixed payload budget `4096` bytes. A secondary budget is not part of the Phase 3 required comparison; if one is added later, it must be named explicitly and emitted as separate figure/table input rather than silently replacing the primary budget.
+
+Every baseline runs over the coded-inference readiness trace format with the same seed, scenario family, receiver, hidden target, and metric schema. The shared summary reports recovery probability, decision accuracy, reconstruction round, commitment round, receiver rank, top-hypothesis margin, bytes transmitted, forwarding events, peak stored payload units and bytes per node, duplicate rate, innovative arrival rate, duplicate arrival count, innovative arrival count, optional target reproduction band, and optional measured reproduction pressure.
+
+The controlled and uncontrolled coded diffusion outputs are the Phase 4 starting surface for local evidence policy adaptation. Controlled output carries the target reproduction band separately from measured reproduction pressure; uncontrolled output reports measured pressure without a target band. Neither output is allowed to depend on route admission, corridor publication, private route witnesses, route-quality ranking, dominant-engine selection, or routing-analysis filters.
+
+Deferred optional baselines are direct delivery, PRoPHET/contact-frequency forwarding, and legacy Field corridor behavior. If any of them are added later, they remain explicitly baseline-only and must not become active coded-inference research surfaces.
+
 ## Legacy Field Baseline
 
 `docs/406_field_routing.md` is legacy context. It documents the old corridor-envelope Field engine that still exists as a runnable baseline.

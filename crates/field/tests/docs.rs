@@ -52,6 +52,16 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
     assert!(coded_diffusion.contains("ReceiverInferenceQualitySummary"));
     assert!(coded_diffusion.contains("CodedInferenceLandscapeEvent"));
     assert!(coded_diffusion.contains("artifacts/coded-inference/readiness"));
+    assert!(coded_diffusion.contains("artifacts/coded-inference/baselines"));
+    assert!(coded_diffusion.contains("uncoded-replication"));
+    assert!(coded_diffusion.contains("epidemic-forwarding"));
+    assert!(coded_diffusion.contains("spray-and-wait"));
+    assert!(coded_diffusion.contains("uncontrolled-coded-diffusion"));
+    assert!(coded_diffusion.contains("controlled-coded-diffusion"));
+    assert!(coded_diffusion.contains("equal-payload-bytes"));
+    assert!(coded_diffusion.contains("4096"));
+    assert!(coded_diffusion.contains("direct delivery"));
+    assert!(coded_diffusion.contains("PRoPHET/contact-frequency forwarding"));
     assert!(adequacy.contains("FieldReplaySnapshot"));
     assert!(adequacy.contains("reduced_protocol_replay()"));
     assert!(parity.contains("field is a single private-selector engine"));
