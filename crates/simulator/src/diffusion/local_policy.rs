@@ -11,6 +11,7 @@ use super::coded_inference::{CodedArrivalClassification, CodedContactTraceEvent}
 mod ablation;
 mod baseline;
 mod reducer;
+mod scenarios;
 mod score;
 
 #[allow(unused_imports)]
@@ -23,6 +24,10 @@ pub(crate) use baseline::run_local_evidence_policy_baseline;
 pub(crate) use reducer::{
     reduce_local_policy_forwarding, LocalPolicyDecisionRecord, LocalPolicyFragmentCandidate,
     LocalPolicyPeerCandidate, LocalPolicyReducerBudget, LocalPolicyRejectionReason,
+};
+#[allow(unused_imports)]
+pub(crate) use scenarios::{
+    run_local_policy_scenario_matrix, LocalPolicyScenarioArtifact, LocalPolicyScenarioKind,
 };
 #[allow(unused_imports)]
 pub(crate) use score::{
