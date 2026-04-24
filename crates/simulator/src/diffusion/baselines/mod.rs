@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::model::CodedInferenceReadinessScenario;
 
+mod coded;
 mod epidemic;
 mod spray;
 mod uncoded;
