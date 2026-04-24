@@ -15,6 +15,10 @@ use super::{
         CodedInferenceReadinessLog,
     },
     model::CodedEvidenceOriginMode,
+    near_critical::{
+        run_near_critical_sweep, ControllerModeKind, NearCriticalSweepArtifact,
+        NearCriticalSweepRegion,
+    },
 };
 
 const CORE_EXPERIMENT_NAMESPACE: &str = "artifacts/coded-inference/core-experiments";
@@ -34,7 +38,7 @@ pub(crate) enum CoreExperimentId {
     ObserverAmbiguityFrontier,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub(crate) enum MergeableStatisticKind {
     SetUnionRank,
     AdditiveScoreVector,
@@ -113,6 +117,13 @@ pub(crate) struct CoreExperimentArtifactRow {
     pub recovery_probability_permille: u32,
     pub path_free_success_permille: u32,
     pub cost_to_recover_bytes: u32,
+    pub reproduction_target_low_permille: u32,
+    pub reproduction_target_high_permille: u32,
+    pub r_est_permille: u32,
+    pub forwarding_budget: u32,
+    pub coding_k: u32,
+    pub coding_n: u32,
+    pub duplicate_rate_permille: u32,
     pub byte_count: u32,
     pub duplicate_count: u32,
     pub latency_rounds: u32,
@@ -300,6 +311,13 @@ pub(crate) fn experiment_a_landscape_rows(
                 summary.recovery_probability_permille,
             ),
             cost_to_recover_bytes: summary.bytes_transmitted,
+            reproduction_target_low_permille: 0,
+            reproduction_target_high_permille: 0,
+            r_est_permille: 0,
+            forwarding_budget: 0,
+            coding_k: 0,
+            coding_n: 0,
+            duplicate_rate_permille: summary.duplicate_rate_permille,
             byte_count: summary.bytes_transmitted,
             duplicate_count: summary.duplicate_arrival_count,
             latency_rounds: summary
@@ -393,6 +411,13 @@ pub(crate) fn experiment_b_path_free_recovery_rows(
                 recovery_probability_permille: summary.recovery_probability_permille,
                 path_free_success_permille,
                 cost_to_recover_bytes: summary.bytes_transmitted,
+                reproduction_target_low_permille: 0,
+                reproduction_target_high_permille: 0,
+                r_est_permille: 0,
+                forwarding_budget: 0,
+                coding_k: 0,
+                coding_n: 0,
+                duplicate_rate_permille: summary.duplicate_rate_permille,
                 byte_count: summary.bytes_transmitted,
                 duplicate_count: summary.duplicate_arrival_count,
                 latency_rounds: summary
@@ -412,6 +437,87 @@ pub(crate) fn experiment_b_path_free_recovery_rows(
         .collect::<Vec<_>>();
     sort_core_experiment_rows(&mut rows);
     Ok(rows)
+}
+
+pub(crate) fn experiment_c_phase_diagram_rows(seed: u64) -> Vec<CoreExperimentArtifactRow> {
+    let path_evidence = core_path_evidence(&deterministic_core_fixture_edges(), 1, 5);
+    let mut rows = Vec::new();
+    for artifact in run_near_critical_sweep(seed) {
+        rows.push(experiment_c_row(
+            &artifact,
+            &path_evidence,
+            "exact-reconstruction",
+            set_union_rank_descriptor(),
+            artifact.recovery_permille,
+            artifact.recovery_permille,
+            0,
+        ));
+        rows.push(experiment_c_row(
+            &artifact,
+            &path_evidence,
+            "additive-inference",
+            additive_score_vector_descriptor(),
+            artifact.commitment_permille,
+            artifact.quality_permille,
+            1,
+        ));
+    }
+    sort_core_experiment_rows(&mut rows);
+    rows
+}
+
+fn experiment_c_row(
+    artifact: &NearCriticalSweepArtifact,
+    path_evidence: &CoreExperimentPathEvidence,
+    task_label: &str,
+    descriptor: MergeableStatisticDescriptor,
+    recovery_probability_permille: u32,
+    statistic_quality_permille: u32,
+    task_order: u32,
+) -> CoreExperimentArtifactRow {
+    let (coding_k, coding_n) = coding_rate_for_budget(artifact.cell.forwarding_budget);
+    CoreExperimentArtifactRow {
+        identity: core_experiment_identity(
+            CoreExperimentId::PhaseDiagram,
+            &artifact.cell.scenario_id,
+            artifact.cell.seed,
+            &phase_diagram_mode_label(&artifact.cell, task_label),
+        ),
+        mergeable_statistic: descriptor,
+        path_evidence: path_evidence.clone(),
+        round_index: artifact.cell.forwarding_budget,
+        ordering_key: phase_diagram_ordering_key(&artifact.cell, task_order),
+        hidden_hypothesis_id: 0,
+        hypothesis_id: 0,
+        top_hypothesis_id: 0,
+        scaled_score: i32::try_from(statistic_quality_permille).unwrap_or(i32::MAX),
+        energy_gap: i32::try_from(artifact.w_infer).unwrap_or(i32::MAX),
+        available_evidence_count: artifact.controller_decision.emitted_opportunities,
+        useful_contribution_count: artifact.controller_decision.emitted_opportunities,
+        recovery_probability_permille,
+        path_free_success_permille: path_free_success_permille(
+            path_evidence,
+            recovery_probability_permille,
+        ),
+        cost_to_recover_bytes: artifact.byte_cost,
+        reproduction_target_low_permille: artifact.cell.r_low_permille,
+        reproduction_target_high_permille: artifact.cell.r_high_permille,
+        r_est_permille: artifact.controller_decision.r_est_permille,
+        forwarding_budget: artifact.cell.forwarding_budget,
+        coding_k,
+        coding_n,
+        duplicate_rate_permille: artifact.duplicate_pressure,
+        byte_count: artifact.byte_cost,
+        duplicate_count: artifact.duplicate_pressure,
+        latency_rounds: artifact.transmission_cost,
+        storage_pressure_bytes: artifact.storage_pressure,
+        receiver_rank: artifact.controller_decision.emitted_opportunities,
+        top_hypothesis_margin: i32::try_from(statistic_quality_permille).unwrap_or(i32::MAX),
+        uncertainty_permille: 1000_u32.saturating_sub(statistic_quality_permille),
+        quality_permille: artifact.quality_permille,
+        merged_statistic_quality_permille: statistic_quality_permille,
+        observer_advantage_permille: 0,
+    }
 }
 
 fn experiment_a_landscape_event_row(
@@ -442,6 +548,13 @@ fn experiment_a_landscape_event_row(
         recovery_probability_permille: 0,
         path_free_success_permille: 0,
         cost_to_recover_bytes: cumulative_payload_bytes(log, event.round_index),
+        reproduction_target_low_permille: 0,
+        reproduction_target_high_permille: 0,
+        r_est_permille: 0,
+        forwarding_budget: 0,
+        coding_k: 0,
+        coding_n: 0,
+        duplicate_rate_permille: 0,
         byte_count: cumulative_payload_bytes(log, event.round_index),
         duplicate_count: duplicate_arrivals_at_or_before(log, event.round_index),
         latency_rounds: event.round_index,
@@ -482,6 +595,13 @@ fn experiment_a_oracle_row(
         recovery_probability_permille: 1000,
         path_free_success_permille: 1000,
         cost_to_recover_bytes: summary.uncoded_fixed_payload_budget_bytes,
+        reproduction_target_low_permille: 0,
+        reproduction_target_high_permille: 0,
+        r_est_permille: 0,
+        forwarding_budget: 0,
+        coding_k: summary.coded_fragment_count,
+        coding_n: summary.coded_fragment_count,
+        duplicate_rate_permille: 0,
         byte_count: summary.uncoded_fixed_payload_budget_bytes,
         duplicate_count: 0,
         latency_rounds: final_round,
@@ -530,6 +650,13 @@ fn origin_mode_row(
             summary.recovery_probability_permille,
         ),
         cost_to_recover_bytes: accumulator.byte_count,
+        reproduction_target_low_permille: 0,
+        reproduction_target_high_permille: 0,
+        r_est_permille: 0,
+        forwarding_budget: 0,
+        coding_k: 0,
+        coding_n: 0,
+        duplicate_rate_permille: 0,
         byte_count: accumulator.byte_count,
         duplicate_count: accumulator.duplicate_count,
         latency_rounds: accumulator.latest_arrival_round,
@@ -638,6 +765,65 @@ fn path_free_success_permille(
         recovery_probability_permille
     } else {
         0
+    }
+}
+
+fn coding_rate_for_budget(forwarding_budget: u32) -> (u32, u32) {
+    let coding_k = forwarding_budget.saturating_add(1);
+    let coding_n = forwarding_budget.saturating_mul(2).max(coding_k);
+    (coding_k, coding_n)
+}
+
+fn phase_diagram_mode_label(
+    cell: &super::near_critical::NearCriticalSweepCell,
+    task_label: &str,
+) -> String {
+    format!(
+        "{}-{}-{}",
+        controller_mode_label(cell.controller_mode),
+        region_label(cell.region),
+        task_label
+    )
+}
+
+fn phase_diagram_ordering_key(
+    cell: &super::near_critical::NearCriticalSweepCell,
+    task_order: u32,
+) -> u32 {
+    region_order(cell.region)
+        .saturating_mul(10_000)
+        .saturating_add(controller_mode_order(cell.controller_mode).saturating_mul(1_000))
+        .saturating_add(cell.forwarding_budget.saturating_mul(10))
+        .saturating_add(task_order)
+}
+
+fn region_label(region: NearCriticalSweepRegion) -> &'static str {
+    match region {
+        NearCriticalSweepRegion::Subcritical => "subcritical",
+        NearCriticalSweepRegion::NearCritical => "near-critical",
+        NearCriticalSweepRegion::Supercritical => "supercritical",
+    }
+}
+
+fn region_order(region: NearCriticalSweepRegion) -> u32 {
+    match region {
+        NearCriticalSweepRegion::Subcritical => 0,
+        NearCriticalSweepRegion::NearCritical => 1,
+        NearCriticalSweepRegion::Supercritical => 2,
+    }
+}
+
+fn controller_mode_label(mode: ControllerModeKind) -> &'static str {
+    match mode {
+        ControllerModeKind::Full => "full-controller",
+        ControllerModeKind::Disabled => "disabled-controller",
+    }
+}
+
+fn controller_mode_order(mode: ControllerModeKind) -> u32 {
+    match mode {
+        ControllerModeKind::Full => 0,
+        ControllerModeKind::Disabled => 1,
     }
 }
 
@@ -813,6 +999,13 @@ mod tests {
             recovery_probability_permille: 1000,
             path_free_success_permille: 1000,
             cost_to_recover_bytes: 64,
+            reproduction_target_low_permille: 0,
+            reproduction_target_high_permille: 0,
+            r_est_permille: 0,
+            forwarding_budget: 0,
+            coding_k: 0,
+            coding_n: 0,
+            duplicate_rate_permille: 0,
             byte_count: 64,
             duplicate_count: 1,
             latency_rounds: 4,
@@ -1087,5 +1280,89 @@ mod tests {
         assert!(rows.iter().all(|row| {
             row.mergeable_statistic.statistic_kind == MergeableStatisticKind::SetUnionRank
         }));
+    }
+
+    #[test]
+    fn experiment_c_phase_diagram_covers_band_budget_rate_and_task() {
+        let rows = experiment_c_phase_diagram_rows(41);
+        let target_bands = rows
+            .iter()
+            .map(|row| {
+                (
+                    row.reproduction_target_low_permille,
+                    row.reproduction_target_high_permille,
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        let budgets = rows
+            .iter()
+            .map(|row| row.forwarding_budget)
+            .collect::<BTreeSet<_>>();
+        let coding_rates = rows
+            .iter()
+            .map(|row| (row.coding_k, row.coding_n))
+            .collect::<BTreeSet<_>>();
+        let statistic_kinds = rows
+            .iter()
+            .map(|row| row.mergeable_statistic.statistic_kind)
+            .collect::<BTreeSet<_>>();
+
+        assert!(target_bands.len() >= 3);
+        assert!(budgets.len() >= 3);
+        assert!(coding_rates.len() >= 3);
+        assert!(statistic_kinds.contains(&MergeableStatisticKind::SetUnionRank));
+        assert!(statistic_kinds.contains(&MergeableStatisticKind::AdditiveScoreVector));
+    }
+
+    #[test]
+    fn experiment_c_phase_diagram_subcritical_cells_fail() {
+        let rows = experiment_c_phase_diagram_rows(41);
+        let subcritical = rows
+            .iter()
+            .filter(|row| row.identity.policy_or_mode.contains("subcritical"))
+            .collect::<Vec<_>>();
+
+        assert!(!subcritical.is_empty());
+        assert!(subcritical
+            .iter()
+            .all(|row| row.recovery_probability_permille == 0));
+    }
+
+    #[test]
+    fn experiment_c_phase_diagram_near_critical_band_is_useful() {
+        let rows = experiment_c_phase_diagram_rows(41);
+        let near_critical = rows
+            .iter()
+            .filter(|row| row.identity.policy_or_mode.contains("near-critical"))
+            .collect::<Vec<_>>();
+
+        assert!(!near_critical.is_empty());
+        assert!(near_critical
+            .iter()
+            .any(|row| row.merged_statistic_quality_permille >= 800));
+        assert!(near_critical.iter().all(|row| row.r_est_permille >= 800));
+    }
+
+    #[test]
+    fn experiment_c_phase_diagram_supercritical_cells_show_visible_cost() {
+        let rows = experiment_c_phase_diagram_rows(41);
+        let supercritical_max_cost = rows
+            .iter()
+            .filter(|row| row.identity.policy_or_mode.contains("supercritical"))
+            .map(|row| row.byte_count)
+            .max()
+            .unwrap_or(0);
+        let subcritical_min_cost = rows
+            .iter()
+            .filter(|row| row.identity.policy_or_mode.contains("subcritical"))
+            .map(|row| row.byte_count)
+            .min()
+            .unwrap_or(0);
+
+        assert!(supercritical_max_cost > subcritical_min_cost);
+        assert!(rows
+            .iter()
+            .filter(|row| row.identity.policy_or_mode.contains("supercritical"))
+            .any(|row| row.quality_permille == 1000 && row.byte_count >= 128));
     }
 }
