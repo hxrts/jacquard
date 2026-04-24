@@ -355,7 +355,7 @@ Third, propagated demand improves byte-normalized collective inference. Fourth,
 the gains persist under fair-cost comparisons and remain visible under explicit
 stress and baseline checks.
 
-### 6.1 Belief Landscapes Sharpen In Path-Free Windows
+### 7.1 Belief Landscapes Sharpen In Path-Free Windows
 
 In the path-validation traces, every recorded run has no instantaneous static
 path in the core window and does have a time-respecting evidence journey. Under
@@ -375,7 +375,7 @@ landscape before the receiver has the full raw information object.
 
 {{EXHIBIT:figure_01_landscape_focus}}
 
-### 6.2 The Mechanism Is Larger Than Threshold Delivery
+### 7.2 The Mechanism Is Larger Than Threshold Delivery
 
 Table 3 separates the three evidence-origin modes at the task-object level.
 The threshold case remains important because it is the cleanest sanity check,
@@ -393,7 +393,7 @@ surface and therefore admit the same transport and proof discipline.
 
 {{EXHIBIT:figure_05_task_algebra}}
 
-### 6.3 Propagated Demand Improves Byte-Normalized Collective Inference
+### 7.3 Propagated Demand Improves Byte-Normalized Collective Inference
 
 Under a fixed 4096-byte budget, active belief diffusion reaches median quality
 per byte 887 permille in the multi-receiver anomaly-localization setting. It
@@ -404,6 +404,14 @@ Uncoded replication reaches 587, 788, 381, 1, and 2508. Active demand improves
 byte-normalized quality by about 10 percent over passive controlled coding and
 about 51 percent over uncoded replication. It reduces median uncertainty by
 about 32 percent and 71 percent respectively.
+
+Table 17 reports the paired deterministic summaries behind these headline
+claims. The unit of pairing is seed, regime, receiver, and task for receiver
+runs. It is seed, regime, and task for demand-ablation rows. The table uses
+paired median differences and interquartile paired-difference intervals rather
+than p-values.
+
+{{EXHIBIT:figure_17_headline_statistics}}
 
 Figure 4 shows these gains as receiver-level distributions in direct units
 across the clustered, mobility, and sparse-bridge regimes rather than as
@@ -425,7 +433,7 @@ useful evidence. It does not come from any change in evidence semantics.
 
 {{EXHIBIT:figure_07_active_vs_passive}}
 
-### 6.4 Coding And Recoding Beat Replication Under Fair Cost Accounting
+### 7.4 Coding And Recoding Beat Replication Under Fair Cost Accounting
 
 At the 4096-byte comparison point, active coded diffusion reaches median
 quality 926 permille with duplicate count 8. Passive controlled coded reaches
@@ -450,7 +458,7 @@ median points and interquartile spreads rather than with an overplotted cloud.
 
 {{EXHIBIT:figure_09_recoding_frontier}}
 
-### 6.5 Control And Robustness Boundaries Remain Visible
+### 7.5 Control And Robustness Boundaries Remain Visible
 
 The coded mechanism is only useful if diffusion pressure stays bounded. Figure 6
 makes the operating region explicit. The near-critical runs are the ones that
@@ -471,7 +479,7 @@ rather than hidden.
 
 {{EXHIBIT:figure_10_robustness_boundary}}
 
-### 6.6 Demand Is First-Class In Communication But Not Evidential
+### 7.6 Demand Is First-Class In Communication But Not Evidential
 
 The safety claim is architectural rather than purely statistical. Demand
 summaries are replay-visible protocol objects that influence forwarding,
@@ -487,7 +495,7 @@ This separation matters to the paper's AI framing. The system exchanges bounded
 summaries of both learned information and remaining uncertainty. Only coded
 evidence can change the sufficient statistic.
 
-### 6.7 Supporting Fairness Checks
+### 7.7 Supporting Fairness Checks
 
 The strong-baseline comparison is a fairness check, not the conceptual center
 of the paper. Its job is to show that the reported gains are not an artifact of
@@ -503,7 +511,11 @@ material. They are useful for reproducibility and scope. They are not required
 to establish the main path-free inference, active-demand,
 multi-receiver compatibility, or fair-cost coding claims in the paper body.
 
-## 7. Contributions
+{{EXHIBIT:figure_14_large_regime}}
+
+{{EXHIBIT:figure_11_observer_ambiguity}}
+
+## 8. Contributions
 
 This paper makes three contributions:
 
@@ -517,7 +529,7 @@ This paper makes three contributions:
    under equal byte budgets. The mechanism has explicit safety and stress
    boundaries.
 
-## 8. Limitations
+## 9. Limitations
 
 The paper covers compact mergeable sufficient statistics, not arbitrary machine
 learning inference. Some claims are deterministic theorem-backed across the
@@ -528,7 +540,7 @@ ambiguity is a traffic-analysis proxy, not a formal privacy claim. The
 opportunistic baseline set is strong enough to be informative. It is not a
 complete survey of delay-tolerant networking.
 
-## 9. Conclusion
+## 10. Conclusion
 
 In temporal networks with no stable path in the decision window and no central
 aggregator, agents can still form useful collective beliefs. They do this by

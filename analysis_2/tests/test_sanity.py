@@ -34,11 +34,13 @@ class ActiveBeliefReportSanityTests(unittest.TestCase):
             receiver_runs = read_csv(report_dir / "active_belief_receiver_runs.csv")
             path_rows = read_csv(report_dir / "active_belief_path_validation.csv")
             demand_rows = read_csv(report_dir / "active_belief_demand_ablation.csv")
-            self.assertEqual(16, len(claim_map))
+            headline_rows = read_csv(report_dir / "active_belief_headline_statistics.csv")
+            self.assertEqual(17, len(claim_map))
             self.assertGreaterEqual(len(raw_rounds), 4000)
             self.assertGreaterEqual(len(receiver_runs), 2000)
             self.assertGreaterEqual(len(path_rows), 200)
             self.assertGreaterEqual(len(demand_rows), 1000)
+            self.assertGreaterEqual(len(headline_rows), 10)
             self.assertTrue(all(row["no_static_path_in_core_window"] == "True" for row in path_rows))
             self.assertTrue(all(row["time_respecting_evidence_journey_exists"] == "True" for row in path_rows))
 
@@ -52,7 +54,11 @@ class ActiveBeliefReportSanityTests(unittest.TestCase):
             self.assertIn("boundary/safety", categories)
             self.assertIn("appendix/supporting", categories)
             main_sources = [row for row in figure_rows if row["claim_category"] == "main-evidence"]
-            self.assertTrue(all(int(row["artifact_row_count"]) >= 100 for row in main_sources))
+            for row in main_sources:
+                if row["source_artifact"] == "active_belief_headline_statistics.csv":
+                    self.assertGreaterEqual(int(row["artifact_row_count"]), 10)
+                else:
+                    self.assertGreaterEqual(int(row["artifact_row_count"]), 100)
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:

@@ -129,6 +129,7 @@ def active_belief_rows_by_dataset() -> dict[str, list[dict[str, object]]]:
     receiver_runs = active_belief_receiver_run_rows(raw_rounds)
     path_validation = active_belief_path_validation_rows(raw_rounds)
     demand_ablation = active_belief_demand_ablation_rows()
+    headline_statistics = headline_statistics_rows(receiver_runs, demand_ablation)
     return {
         "active_belief_figure_claim_map.csv": figure_claim_map_rows(),
         "active_belief_raw_rounds.csv": raw_rounds,
@@ -151,6 +152,7 @@ def active_belief_rows_by_dataset() -> dict[str, list[dict[str, object]]]:
         "active_belief_exact_seed_summary.csv": exact_seed_rows(receiver_runs),
         "active_belief_final_validation.csv": final_validation_rows(receiver_runs),
         "active_belief_scaling_boundary.csv": scaling_boundary_rows(),
+        "active_belief_headline_statistics.csv": headline_statistics,
         "active_belief_figure_artifacts.csv": [],
     }
 
@@ -328,7 +330,7 @@ def figure_claim_map_rows() -> list[dict[str, object]]:
         claim_row(1, "Landscape coming into focus", "main-evidence", "belief quality, margin, and uncertainty improve over temporal contact", "active_belief_raw_rounds.csv", 1080, "policy baselines, median and quartile bands"),
         claim_row(2, "Path-free recovery", "main-evidence", "useful inference succeeds when no static path exists in the core window", "active_belief_path_validation.csv", 180, "no-static-path validation and journey rows"),
         claim_row(3, "Three-mode comparison", "main-evidence", "source-coded, distributed, and recoded evidence all support direct statistic decoding", "coded_inference_experiment_a2_evidence_modes.csv", 180, "normalized small multiples"),
-        claim_row(4, "Active belief grid", "main-evidence", "active and recoded modes improve agreement, uncertainty, and lead time", "active_belief_receiver_runs.csv", 1620, "mode comparison across receivers"),
+        claim_row(4, "Multi-receiver belief compatibility", "main-evidence", "active and recoded modes improve receiver compatibility, uncertainty, and commitment lead time", "active_belief_receiver_runs.csv", 1620, "mode comparison across receivers"),
         claim_row(5, "Task algebra table", "main-evidence", "compact mergeable tasks share the same direct-decoding discipline", "active_belief_second_tasks.csv", 320, "per-task baseline comparison"),
         claim_row(6, "Phase diagram", "main-evidence", "near-critical control trades quality against cost and duplicate pressure", "coded_inference_experiment_c_phase_diagram.csv", 360, "quality, duplicate, byte, and R_est panels"),
         claim_row(7, "Active versus passive", "main-evidence", "propagated demand causally improves quality per byte", "active_belief_demand_ablation.csv", 1440, "causal ablations and distributions"),
@@ -340,7 +342,8 @@ def figure_claim_map_rows() -> list[dict[str, object]]:
         claim_row(13, "Theorem assumptions by regime", "boundary/safety", "proof-backed rows are separated from empirical-only rows", "active_belief_theorem_assumptions.csv", 15, "assumption matrix"),
         claim_row(14, "Large-regime validation", "appendix/supporting", "large-regime artifacts replay deterministically within resource budgets", "active_belief_scale_validation.csv", 60, "runtime, memory, quality, failure rate"),
         claim_row(15, "Trace validation", "appendix/supporting", "trace families are canonically preprocessed and replayed", "active_belief_trace_validation.csv", 3, "artifact hygiene"),
-        claim_row(16, "Opportunistic baseline comparison", "main-evidence", "active belief is compared with deterministic opportunistic baselines", "active_belief_strong_baselines.csv", 420, "multi-seed equal-budget distributions"),
+        claim_row(16, "Baseline fairness check", "appendix/supporting", "active belief remains ahead of deterministic opportunistic baselines under equal byte budgets", "active_belief_strong_baselines.csv", 420, "multi-seed equal-budget distributions"),
+        claim_row(17, "Headline statistical summary", "main-evidence", "paired seed-level summaries quantify the headline active-demand gains", "active_belief_headline_statistics.csv", 10, "deterministic paired medians and interquartile deltas"),
     ]
     return rows
 
@@ -760,6 +763,132 @@ def final_validation_rows(receiver_runs: list[dict[str, object]]) -> list[dict[s
     return rows
 
 
+def headline_statistics_rows(
+    receiver_runs: list[dict[str, object]],
+    demand_ablation: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    receiver_metrics = [
+        ("quality_per_byte_permille", "permille"),
+        ("collective_uncertainty_permille", "permille"),
+        ("commitment_lead_time_rounds", "rounds"),
+    ]
+    rows.extend(
+        paired_mode_statistics(
+            receiver_runs,
+            "active belief vs passive coded",
+            "full-active-belief",
+            "passive-controlled-coded",
+            receiver_metrics,
+            ("seed", "scenario_id", "receiver_id", "task_kind"),
+            "seed/regime/receiver/task paired receiver run",
+        )
+    )
+    rows.extend(
+        paired_mode_statistics(
+            receiver_runs,
+            "active belief vs uncoded replication",
+            "full-active-belief",
+            "uncoded-replication",
+            receiver_metrics,
+            ("seed", "scenario_id", "receiver_id", "task_kind"),
+            "seed/regime/receiver/task paired receiver run",
+        )
+    )
+    demand_metrics = [
+        ("quality_per_byte_permille", "permille"),
+        ("collective_uncertainty_permille", "permille"),
+    ]
+    rows.extend(
+        paired_policy_statistics(
+            demand_ablation,
+            "propagated demand vs no demand",
+            "propagated-demand",
+            "no-demand",
+            demand_metrics,
+            ("seed", "scenario_id", "task_kind"),
+            "seed/regime/task paired demand ablation",
+        )
+    )
+    rows.extend(
+        paired_policy_statistics(
+            demand_ablation,
+            "propagated demand vs stale demand",
+            "propagated-demand",
+            "stale-demand",
+            demand_metrics,
+            ("seed", "scenario_id", "task_kind"),
+            "seed/regime/task paired demand ablation",
+        )
+    )
+    return rows
+
+
+def paired_mode_statistics(
+    source_rows: list[dict[str, object]],
+    comparison: str,
+    treatment: str,
+    baseline: str,
+    metrics: list[tuple[str, str]],
+    key_fields: tuple[str, ...],
+    aggregation_unit: str,
+) -> list[dict[str, object]]:
+    grouped: dict[tuple[object, ...], dict[str, dict[str, object]]] = {}
+    for row in source_rows:
+        key = tuple(row[field] for field in key_fields)
+        grouped.setdefault(key, {})[str(row["mode"])] = row
+    return paired_statistics_from_grouped(grouped, comparison, treatment, baseline, metrics, aggregation_unit)
+
+
+def paired_policy_statistics(
+    source_rows: list[dict[str, object]],
+    comparison: str,
+    treatment: str,
+    baseline: str,
+    metrics: list[tuple[str, str]],
+    key_fields: tuple[str, ...],
+    aggregation_unit: str,
+) -> list[dict[str, object]]:
+    grouped: dict[tuple[object, ...], dict[str, dict[str, object]]] = {}
+    for row in source_rows:
+        key = tuple(row[field] for field in key_fields)
+        grouped.setdefault(key, {})[str(row["demand_policy"])] = row
+    return paired_statistics_from_grouped(grouped, comparison, treatment, baseline, metrics, aggregation_unit)
+
+
+def paired_statistics_from_grouped(
+    grouped: dict[tuple[object, ...], dict[str, dict[str, object]]],
+    comparison: str,
+    treatment: str,
+    baseline: str,
+    metrics: list[tuple[str, str]],
+    aggregation_unit: str,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    pairs = [entry for entry in grouped.values() if treatment in entry and baseline in entry]
+    for metric, unit in metrics:
+        treatment_values = [int_value(entry[treatment], metric) for entry in pairs]
+        baseline_values = [int_value(entry[baseline], metric) for entry in pairs]
+        deltas = [left - right for left, right in zip(treatment_values, baseline_values, strict=True)]
+        rows.append(
+            {
+                "comparison": comparison,
+                "metric": metric,
+                "unit": unit,
+                "baseline": baseline,
+                "treatment": treatment,
+                "treatment_median": median(treatment_values),
+                "baseline_median": median(baseline_values),
+                "paired_delta_median": median(deltas),
+                "paired_delta_p25": quantile(deltas, 1, 4),
+                "paired_delta_p75": quantile(deltas, 3, 4),
+                "row_count": len(pairs),
+                "aggregation_unit": aggregation_unit,
+            }
+        )
+    return rows
+
+
 def scale_validation_rows() -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     regimes = (
@@ -920,3 +1049,18 @@ def median(values: list[int]) -> int:
     if len(ordered) % 2 == 1:
         return ordered[midpoint]
     return (ordered[midpoint - 1] + ordered[midpoint]) // 2
+
+
+def quantile(values: list[int], numerator: int, denominator: int) -> int:
+    if not values:
+        return 0
+    ordered = sorted(values)
+    index = round((len(ordered) - 1) * numerator / denominator)
+    return ordered[index]
+
+
+def int_value(row: dict[str, object], field: str) -> int:
+    value = row.get(field, 0)
+    if isinstance(value, bool):
+        return 1 if value else 0
+    return int(value)
