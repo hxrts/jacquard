@@ -5,7 +5,7 @@
 //! duplicate/innovative arrivals, diffusion pressure, and reconstruction
 //! quorum vocabulary. It must remain independent of the legacy planner stack.
 
-use jacquard_core::{NodeId, Tick};
+use jacquard_core::{DurationMs, NodeId, Tick};
 use serde::{Deserialize, Serialize};
 
 /// Stable target identifier for one reconstruction or inference objective.
@@ -46,6 +46,9 @@ pub struct AnomalyClusterId(pub u16);
 
 /// Maximum candidate clusters represented by one anomaly landscape.
 pub const ANOMALY_HYPOTHESIS_COUNT_MAX: u16 = 256;
+
+/// Maximum demand entries carried by one active belief demand summary.
+pub const ACTIVE_DEMAND_ENTRY_COUNT_MAX: u16 = 32;
 
 /// How one contribution ledger entry is justified.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1006,6 +1009,369 @@ pub struct ReceiverInferenceQualitySummary {
     pub origin_counts: EvidenceOriginUpdateCounts,
 }
 
+/// Stable demand-entry identifier for active belief diffusion.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct ActiveDemandEntryId(pub u32);
+
+/// Construction failure for bounded active demand summaries.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ActiveDemandSummaryError {
+    /// Demand summaries must carry at least one entry.
+    EmptyDemand,
+    /// Demand entry caps must be nonzero.
+    ZeroEntryCap,
+    /// Demand byte caps must be nonzero.
+    ZeroByteCap,
+    /// Demand time-to-live must be nonzero.
+    ZeroTimeToLive,
+    /// Demand expiration tick must be later than the issue tick.
+    ExpirationBeforeIssue,
+    /// Entry cap exceeds the deterministic replay maximum.
+    EntryCapTooLarge,
+    /// Entry count exceeded the declared cap.
+    EntryCapExceeded,
+    /// Demand entry ids must be unique after canonical ordering.
+    DuplicateDemandEntry,
+    /// Demand entries must consume at least one replay-visible byte.
+    ZeroEntryBytes,
+    /// Entry byte accounting overflowed the deterministic summary budget.
+    DemandByteCountOverflow,
+    /// Entry byte count exceeded the declared byte cap.
+    DemandByteCapExceeded,
+}
+
+/// One bounded request for evidence that would improve a local belief landscape.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ActiveDemandEntry {
+    /// Stable entry id for canonical ordering and replay.
+    pub entry_id: ActiveDemandEntryId,
+    /// Hypothesis whose separation would improve the receiver landscape.
+    pub hypothesis_id: AnomalyClusterId,
+    /// Optional contribution class or id requested by the receiver.
+    pub requested_contribution_id: Option<ContributionLedgerId>,
+    /// Deterministic priority used only for allocation and forwarding order.
+    pub priority: u16,
+    /// Replay-visible encoded size for this demand entry.
+    pub encoded_bytes: u32,
+}
+
+/// Construction input for one active belief demand summary.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ActiveDemandSummaryInput {
+    /// Target whose belief landscape generated the demand.
+    pub target_id: CodedTargetId,
+    /// Inference task whose uncertainty generated the demand.
+    pub task_id: InferenceTaskId,
+    /// Receiver that emitted this demand summary.
+    pub receiver: NodeId,
+    /// Candidate demand entries.
+    pub entries: Vec<ActiveDemandEntry>,
+    /// Declared maximum entry count.
+    pub entry_cap: u16,
+    /// Declared maximum encoded demand bytes.
+    pub byte_cap: u32,
+    /// Demand lifetime as typed duration, not raw wall-clock time.
+    pub ttl: DurationMs,
+    /// Tick when the demand summary was issued.
+    pub issued_at_tick: Tick,
+    /// Last tick where this demand may shape priority or custody.
+    pub expires_at_tick: Tick,
+}
+
+/// First-class bounded demand summary exchanged alongside coded evidence.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ActiveDemandSummary {
+    /// Target whose belief landscape generated the demand.
+    pub target_id: CodedTargetId,
+    /// Inference task whose uncertainty generated the demand.
+    pub task_id: InferenceTaskId,
+    /// Receiver that emitted this demand summary.
+    pub receiver: NodeId,
+    /// Canonical demand entries ordered by entry id.
+    pub entries: Vec<ActiveDemandEntry>,
+    /// Declared maximum entry count.
+    pub entry_cap: u16,
+    /// Declared maximum encoded demand bytes.
+    pub byte_cap: u32,
+    /// Demand lifetime as typed duration.
+    pub ttl: DurationMs,
+    /// Tick when the demand summary was issued.
+    pub issued_at_tick: Tick,
+    /// Last tick where this demand may shape priority or custody.
+    pub expires_at_tick: Tick,
+    /// Total encoded bytes across entries.
+    pub encoded_bytes: u32,
+}
+
+impl ActiveDemandSummary {
+    /// Build a bounded, canonical, replay-visible demand summary.
+    pub fn try_new(mut input: ActiveDemandSummaryInput) -> Result<Self, ActiveDemandSummaryError> {
+        validate_demand_caps(
+            input.entry_cap,
+            input.byte_cap,
+            input.ttl,
+            input.issued_at_tick,
+            input.expires_at_tick,
+        )?;
+        canonicalize_demand_entries(&mut input.entries)?;
+        if input.entries.is_empty() {
+            return Err(ActiveDemandSummaryError::EmptyDemand);
+        }
+        if input.entries.len() > usize::from(input.entry_cap) {
+            return Err(ActiveDemandSummaryError::EntryCapExceeded);
+        }
+        let encoded_bytes = demand_entries_encoded_bytes(&input.entries)?;
+        if encoded_bytes > input.byte_cap {
+            return Err(ActiveDemandSummaryError::DemandByteCapExceeded);
+        }
+
+        Ok(Self {
+            target_id: input.target_id,
+            task_id: input.task_id,
+            receiver: input.receiver,
+            entries: input.entries,
+            entry_cap: input.entry_cap,
+            byte_cap: input.byte_cap,
+            ttl: input.ttl,
+            issued_at_tick: input.issued_at_tick,
+            expires_at_tick: input.expires_at_tick,
+            encoded_bytes,
+        })
+    }
+
+    /// Whether this demand summary is still live.
+    #[must_use]
+    pub fn is_live(&self) -> bool {
+        self.ttl.0 > 0
+    }
+
+    /// Whether this demand summary may still shape priority at the observed tick.
+    #[must_use]
+    pub fn is_live_at(&self, observed_at_tick: Tick) -> bool {
+        self.issued_at_tick <= observed_at_tick && observed_at_tick <= self.expires_at_tick
+    }
+}
+
+/// Active demand propagation mode used by experiments and replay labels.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ActiveDemandPropagationMode {
+    /// Demand summaries are not emitted.
+    None,
+    /// Demand summaries are exchanged only with local contacts.
+    LocalOnly,
+    /// Demand summaries can be carried alongside coded evidence.
+    PiggybackedEvidence,
+}
+
+/// Receiver-indexed belief summaries for one active belief diffusion task.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReceiverIndexedBeliefState {
+    /// Inference task represented by this receiver set.
+    pub task_id: InferenceTaskId,
+    /// Coded target represented by this receiver set.
+    pub target_id: CodedTargetId,
+    /// Canonical receiver summaries ordered by receiver id.
+    pub receivers: Vec<ReceiverInferenceQualitySummary>,
+}
+
+/// Construction failure for receiver-indexed belief state.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ReceiverIndexedBeliefStateError {
+    /// A receiver-indexed state must contain at least one receiver.
+    EmptyReceiverSet,
+    /// Receiver summaries must all name the same inference task.
+    MixedInferenceTask,
+    /// Receiver summaries must all name the same coded target.
+    MixedTarget,
+    /// Receiver ids must be unique after canonical ordering.
+    DuplicateReceiver,
+    /// Receiver count exceeded the serialized `u16` replay summary shape.
+    ReceiverCountOverflow,
+}
+
+impl ReceiverIndexedBeliefState {
+    /// Build canonical receiver-indexed belief state from local summaries.
+    pub fn try_new(
+        mut receivers: Vec<ReceiverInferenceQualitySummary>,
+    ) -> Result<Self, ReceiverIndexedBeliefStateError> {
+        let first = receivers
+            .first()
+            .copied()
+            .ok_or(ReceiverIndexedBeliefStateError::EmptyReceiverSet)?;
+        if receivers.len() > usize::from(u16::MAX) {
+            return Err(ReceiverIndexedBeliefStateError::ReceiverCountOverflow);
+        }
+        receivers.sort_unstable_by_key(|summary| summary.receiver);
+        for (index, summary) in receivers.iter().enumerate() {
+            if summary.task_id != first.task_id {
+                return Err(ReceiverIndexedBeliefStateError::MixedInferenceTask);
+            }
+            if summary.target_id != first.target_id {
+                return Err(ReceiverIndexedBeliefStateError::MixedTarget);
+            }
+            if index > 0 && receivers[index - 1].receiver == summary.receiver {
+                return Err(ReceiverIndexedBeliefStateError::DuplicateReceiver);
+            }
+        }
+
+        Ok(Self {
+            task_id: first.task_id,
+            target_id: first.target_id,
+            receivers,
+        })
+    }
+}
+
+/// Inputs used to generate bounded non-evidential demand from local uncertainty.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ActiveDemandGenerationInput {
+    /// Receiver belief quality that generated the demand.
+    pub quality: ReceiverInferenceQualitySummary,
+    /// Contribution ids whose arrival would improve local coverage.
+    pub missing_contribution_ids: Vec<ContributionLedgerId>,
+    /// Fixed-denominator coverage gap used as a priority term.
+    pub coverage_gap_permille: u16,
+    /// Declared maximum entry count.
+    pub entry_cap: u16,
+    /// Declared maximum encoded demand bytes.
+    pub byte_cap: u32,
+    /// Demand lifetime as typed duration.
+    pub ttl: DurationMs,
+    /// Tick when the demand summary is issued.
+    pub issued_at_tick: Tick,
+    /// Last tick where this demand may shape priority or custody.
+    pub expires_at_tick: Tick,
+}
+
+/// Demand generation failure.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ActiveDemandGenerationError {
+    /// Missing contribution ids must be unique after canonical ordering.
+    DuplicateMissingContribution,
+    /// Generated summary violated bounded-demand construction rules.
+    Summary(ActiveDemandSummaryError),
+}
+
+/// Generate first-class bounded demand from uncertainty without creating evidence.
+pub fn generate_active_demand_summary(
+    mut input: ActiveDemandGenerationInput,
+) -> Result<Option<ActiveDemandSummary>, ActiveDemandGenerationError> {
+    canonicalize_missing_contributions(&mut input.missing_contribution_ids)?;
+    let priority = demand_priority(
+        input.quality.top_hypothesis_margin,
+        input.quality.uncertainty_permille,
+        input.coverage_gap_permille,
+    );
+    if priority == 0 && input.missing_contribution_ids.is_empty() {
+        return Ok(None);
+    }
+    let entries = demand_entries_from_generation_input(&input, priority);
+    ActiveDemandSummary::try_new(ActiveDemandSummaryInput {
+        target_id: input.quality.target_id,
+        task_id: input.quality.task_id,
+        receiver: input.quality.receiver,
+        entries,
+        entry_cap: input.entry_cap,
+        byte_cap: input.byte_cap,
+        ttl: input.ttl,
+        issued_at_tick: input.issued_at_tick,
+        expires_at_tick: input.expires_at_tick,
+    })
+    .map(Some)
+    .map_err(ActiveDemandGenerationError::Summary)
+}
+
+/// Active belief messages are symmetric in transport, not in semantics.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ActiveBeliefMessage {
+    /// Coded evidence can carry audited contribution identity.
+    CodedEvidence(CodedEvidenceRecord),
+    /// Demand is first-class control communication, but never evidence.
+    DemandSummary(ActiveDemandSummary),
+}
+
+impl ActiveBeliefMessage {
+    /// Return contribution ids carried by evidence messages and none for demand.
+    #[must_use]
+    pub fn contribution_ledger_ids(&self) -> &[ContributionLedgerId] {
+        match self {
+            Self::CodedEvidence(evidence) => &evidence.contribution_ledger_ids,
+            Self::DemandSummary(_) => &[],
+        }
+    }
+
+    /// Whether this message is non-evidential demand.
+    #[must_use]
+    pub fn is_demand_summary(&self) -> bool {
+        matches!(self, Self::DemandSummary(_))
+    }
+
+    /// Replay-visible bytes carried by this active message.
+    #[must_use]
+    pub fn encoded_bytes(&self) -> u32 {
+        match self {
+            Self::CodedEvidence(evidence) => evidence.payload_bytes,
+            Self::DemandSummary(summary) => summary.encoded_bytes,
+        }
+    }
+}
+
+/// Replay-visible result of applying active demand around an evidence arrival.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ActiveDemandReplayEvent {
+    /// Tick when the demand interaction was observed.
+    pub observed_at_tick: Tick,
+    /// Receiver whose local uncertainty emitted the demand.
+    pub receiver: NodeId,
+    /// Target governed by the demand summary.
+    pub target_id: CodedTargetId,
+    /// Inference task governed by the demand summary.
+    pub task_id: InferenceTaskId,
+    /// Number of bounded entries in the summary.
+    pub entry_count: u16,
+    /// Encoded bytes carried by the demand summary.
+    pub encoded_bytes: u32,
+    /// Number of demand entries satisfied by an evidence message.
+    pub satisfied_entry_count: u16,
+    /// Whether the demand was expired or ignored.
+    pub ignored_stale_demand: bool,
+}
+
+/// Receiver compatibility summary over guarded local decisions.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReceiverBeliefCompatibilitySummary {
+    /// Inference task summarized across receivers.
+    pub task_id: InferenceTaskId,
+    /// Number of receivers represented.
+    pub receiver_count: u16,
+    /// Number of receivers with a guarded commitment.
+    pub committed_receiver_count: u16,
+    /// Number of committed receivers agreeing with the modal hypothesis.
+    pub agreeing_receiver_count: u16,
+    /// Fixed-denominator agreement score.
+    pub agreement_permille: u16,
+    /// Fixed-denominator divergence proxy.
+    pub belief_divergence_permille: u16,
+}
+
+/// Apply an evidence message under demand-aware policy without letting demand
+/// alter evidence validity or duplicate accounting.
+pub fn record_active_evidence_arrival(
+    receiver_rank: &mut ReceiverRankState,
+    message: &ActiveBeliefMessage,
+    observed_at_tick: Tick,
+) -> Result<Option<FragmentArrivalClass>, ReceiverRankError> {
+    let ActiveBeliefMessage::CodedEvidence(evidence) = message else {
+        return Ok(None);
+    };
+    let Some(contribution_id) = evidence.contribution_ledger_ids.first().copied() else {
+        return Ok(None);
+    };
+    receiver_rank
+        .record_contribution_arrival(contribution_id, observed_at_tick)
+        .map(Some)
+}
+
 impl AnomalyDecisionProgressSummary {
     /// Build a progress summary without mutating rank, landscape, or commitment state.
     pub fn from_state(
@@ -1054,6 +1420,107 @@ impl ReceiverInferenceQualitySummary {
             origin_counts,
         })
     }
+}
+
+fn validate_demand_caps(
+    entry_cap: u16,
+    byte_cap: u32,
+    ttl: DurationMs,
+    issued_at_tick: Tick,
+    expires_at_tick: Tick,
+) -> Result<(), ActiveDemandSummaryError> {
+    if entry_cap == 0 {
+        return Err(ActiveDemandSummaryError::ZeroEntryCap);
+    }
+    if entry_cap > ACTIVE_DEMAND_ENTRY_COUNT_MAX {
+        return Err(ActiveDemandSummaryError::EntryCapTooLarge);
+    }
+    if byte_cap == 0 {
+        return Err(ActiveDemandSummaryError::ZeroByteCap);
+    }
+    if ttl.0 == 0 {
+        return Err(ActiveDemandSummaryError::ZeroTimeToLive);
+    }
+    if expires_at_tick <= issued_at_tick {
+        return Err(ActiveDemandSummaryError::ExpirationBeforeIssue);
+    }
+    Ok(())
+}
+
+fn canonicalize_demand_entries(
+    entries: &mut Vec<ActiveDemandEntry>,
+) -> Result<(), ActiveDemandSummaryError> {
+    entries.sort_unstable_by_key(|entry| entry.entry_id);
+    for (index, entry) in entries.iter().enumerate() {
+        if entry.encoded_bytes == 0 {
+            return Err(ActiveDemandSummaryError::ZeroEntryBytes);
+        }
+        if index > 0 && entries[index - 1].entry_id == entry.entry_id {
+            return Err(ActiveDemandSummaryError::DuplicateDemandEntry);
+        }
+    }
+    Ok(())
+}
+
+fn demand_entries_encoded_bytes(
+    entries: &[ActiveDemandEntry],
+) -> Result<u32, ActiveDemandSummaryError> {
+    let mut encoded_bytes = 0_u32;
+    for entry in entries {
+        encoded_bytes = encoded_bytes
+            .checked_add(entry.encoded_bytes)
+            .ok_or(ActiveDemandSummaryError::DemandByteCountOverflow)?;
+    }
+    Ok(encoded_bytes)
+}
+
+fn canonicalize_missing_contributions(
+    values: &mut Vec<ContributionLedgerId>,
+) -> Result<(), ActiveDemandGenerationError> {
+    values.sort_unstable();
+    if values.windows(2).any(|window| window[0] == window[1]) {
+        return Err(ActiveDemandGenerationError::DuplicateMissingContribution);
+    }
+    Ok(())
+}
+
+fn demand_priority(margin: i32, uncertainty_permille: u16, coverage_gap_permille: u16) -> u16 {
+    let margin_gap = if margin <= 0 {
+        1_000
+    } else {
+        1_000_u16.saturating_sub(u16::try_from(margin).unwrap_or(u16::MAX).min(1_000))
+    };
+    uncertainty_permille
+        .max(coverage_gap_permille)
+        .max(margin_gap)
+}
+
+fn demand_entries_from_generation_input(
+    input: &ActiveDemandGenerationInput,
+    priority: u16,
+) -> Vec<ActiveDemandEntry> {
+    if input.missing_contribution_ids.is_empty() {
+        return vec![ActiveDemandEntry {
+            entry_id: ActiveDemandEntryId(0),
+            hypothesis_id: input.quality.runner_up_hypothesis,
+            requested_contribution_id: None,
+            priority,
+            encoded_bytes: 12,
+        }];
+    }
+
+    input
+        .missing_contribution_ids
+        .iter()
+        .enumerate()
+        .map(|(index, contribution_id)| ActiveDemandEntry {
+            entry_id: ActiveDemandEntryId(u32::try_from(index).unwrap_or(u32::MAX)),
+            hypothesis_id: input.quality.runner_up_hypothesis,
+            requested_contribution_id: Some(*contribution_id),
+            priority,
+            encoded_bytes: 12,
+        })
+        .collect()
 }
 
 impl EvidenceVectorBatch {
@@ -1651,6 +2118,50 @@ mod tests {
         .expect("source-coded evidence record")
     }
 
+    fn demand_entry(entry_id: u32, priority: u16) -> ActiveDemandEntry {
+        ActiveDemandEntry {
+            entry_id: ActiveDemandEntryId(entry_id),
+            hypothesis_id: AnomalyClusterId(2),
+            requested_contribution_id: Some(ContributionLedgerId(entry_id)),
+            priority,
+            encoded_bytes: 12,
+        }
+    }
+
+    fn demand_summary() -> ActiveDemandSummary {
+        ActiveDemandSummary::try_new(ActiveDemandSummaryInput {
+            target_id: CodedTargetId(10),
+            task_id: InferenceTaskId(20),
+            receiver: node_id(7),
+            entries: vec![demand_entry(2, 50), demand_entry(1, 80)],
+            entry_cap: 4,
+            byte_cap: 64,
+            ttl: DurationMs(250),
+            issued_at_tick: Tick(10),
+            expires_at_tick: Tick(20),
+        })
+        .expect("active demand summary")
+    }
+
+    fn quality_summary(receiver_fill: u8) -> ReceiverInferenceQualitySummary {
+        ReceiverInferenceQualitySummary {
+            task_id: InferenceTaskId(20),
+            target_id: CodedTargetId(10),
+            receiver: node_id(receiver_fill),
+            receiver_rank: 1,
+            exact_reconstruction_tick: None,
+            decision_commitment_tick: None,
+            top_hypothesis: AnomalyClusterId(1),
+            runner_up_hypothesis: AnomalyClusterId(2),
+            top_hypothesis_margin: 120,
+            uncertainty_permille: 640,
+            energy_gap: 120,
+            innovative_update_count: 1,
+            duplicate_update_count: 0,
+            origin_counts: EvidenceOriginUpdateCounts::default(),
+        }
+    }
+
     fn record_evidence_contributions(
         state: &mut ReceiverRankState,
         evidence: &CodedEvidenceRecord,
@@ -1661,6 +2172,172 @@ mod tests {
                 .record_contribution_arrival(*contribution_id, observed_at_tick)
                 .expect("record contribution arrival");
         }
+    }
+
+    #[test]
+    fn active_demand_summaries_are_bounded_and_canonical() {
+        let summary = demand_summary();
+
+        assert_eq!(summary.entries[0].entry_id, ActiveDemandEntryId(1));
+        assert_eq!(summary.entries[1].entry_id, ActiveDemandEntryId(2));
+        assert_eq!(summary.encoded_bytes, 24);
+        assert!(summary.is_live());
+        assert!(summary.is_live_at(Tick(15)));
+        assert!(!summary.is_live_at(Tick(21)));
+    }
+
+    #[test]
+    fn active_demand_rejects_unbounded_or_ambiguous_inputs() {
+        let duplicate = ActiveDemandSummary::try_new(ActiveDemandSummaryInput {
+            target_id: CodedTargetId(10),
+            task_id: InferenceTaskId(20),
+            receiver: node_id(7),
+            entries: vec![demand_entry(1, 50), demand_entry(1, 80)],
+            entry_cap: 4,
+            byte_cap: 64,
+            ttl: DurationMs(250),
+            issued_at_tick: Tick(1),
+            expires_at_tick: Tick(2),
+        });
+        assert_eq!(
+            duplicate,
+            Err(ActiveDemandSummaryError::DuplicateDemandEntry)
+        );
+
+        let expired = ActiveDemandSummary::try_new(ActiveDemandSummaryInput {
+            ttl: DurationMs(0),
+            entries: vec![demand_entry(1, 50)],
+            target_id: CodedTargetId(10),
+            task_id: InferenceTaskId(20),
+            receiver: node_id(7),
+            entry_cap: 4,
+            byte_cap: 64,
+            issued_at_tick: Tick(1),
+            expires_at_tick: Tick(2),
+        });
+        assert_eq!(expired, Err(ActiveDemandSummaryError::ZeroTimeToLive));
+
+        let stale_at_issue = ActiveDemandSummary::try_new(ActiveDemandSummaryInput {
+            ttl: DurationMs(250),
+            entries: vec![demand_entry(1, 50)],
+            target_id: CodedTargetId(10),
+            task_id: InferenceTaskId(20),
+            receiver: node_id(7),
+            entry_cap: 4,
+            byte_cap: 64,
+            issued_at_tick: Tick(2),
+            expires_at_tick: Tick(2),
+        });
+        assert_eq!(
+            stale_at_issue,
+            Err(ActiveDemandSummaryError::ExpirationBeforeIssue)
+        );
+    }
+
+    #[test]
+    fn demand_messages_are_first_class_but_non_evidential() {
+        let demand = ActiveBeliefMessage::DemandSummary(demand_summary());
+        let evidence = ActiveBeliefMessage::CodedEvidence(source_record(1, 2, 3));
+
+        assert!(demand.is_demand_summary());
+        assert!(demand.contribution_ledger_ids().is_empty());
+        assert_eq!(demand.encoded_bytes(), 24);
+        assert_eq!(
+            evidence.contribution_ledger_ids(),
+            &[ContributionLedgerId(3)]
+        );
+        assert_eq!(evidence.encoded_bytes(), 32);
+    }
+
+    #[test]
+    fn active_evidence_arrival_preserves_duplicate_non_inflation() {
+        let evidence = ActiveBeliefMessage::CodedEvidence(source_record(1, 2, 3));
+        let mut state = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 2)
+            .expect("rank state");
+
+        let first = record_active_evidence_arrival(&mut state, &evidence, Tick(1))
+            .expect("first active evidence");
+        let second = record_active_evidence_arrival(&mut state, &evidence, Tick(2))
+            .expect("second active evidence");
+        let demand = record_active_evidence_arrival(
+            &mut state,
+            &ActiveBeliefMessage::DemandSummary(demand_summary()),
+            Tick(3),
+        )
+        .expect("demand arrival");
+
+        assert_eq!(first, Some(FragmentArrivalClass::Innovative));
+        assert_eq!(second, Some(FragmentArrivalClass::Duplicate));
+        assert_eq!(demand, None);
+        assert_eq!(state.independent_rank, 1);
+        assert_eq!(state.innovative_arrivals, 1);
+        assert_eq!(state.duplicate_arrivals, 1);
+    }
+
+    #[test]
+    fn receiver_indexed_belief_state_is_canonical_and_receiver_unique() {
+        let state = ReceiverIndexedBeliefState::try_new(vec![
+            quality_summary(9),
+            quality_summary(7),
+            quality_summary(8),
+        ])
+        .expect("receiver-indexed belief state");
+
+        assert_eq!(state.receivers[0].receiver, node_id(7));
+        assert_eq!(state.receivers[1].receiver, node_id(8));
+        assert_eq!(state.receivers[2].receiver, node_id(9));
+
+        let duplicate =
+            ReceiverIndexedBeliefState::try_new(vec![quality_summary(7), quality_summary(7)]);
+        assert_eq!(
+            duplicate,
+            Err(ReceiverIndexedBeliefStateError::DuplicateReceiver)
+        );
+    }
+
+    #[test]
+    fn active_demand_generation_uses_uncertainty_margin_and_missing_coverage() {
+        let summary = generate_active_demand_summary(ActiveDemandGenerationInput {
+            quality: quality_summary(7),
+            missing_contribution_ids: vec![ContributionLedgerId(8), ContributionLedgerId(3)],
+            coverage_gap_permille: 700,
+            entry_cap: 4,
+            byte_cap: 64,
+            ttl: DurationMs(250),
+            issued_at_tick: Tick(5),
+            expires_at_tick: Tick(9),
+        })
+        .expect("generated demand")
+        .expect("useful demand");
+
+        assert_eq!(summary.entries.len(), 2);
+        assert_eq!(
+            summary.entries[0].requested_contribution_id,
+            Some(ContributionLedgerId(3))
+        );
+        assert_eq!(summary.entries[0].priority, 880);
+        assert!(ActiveBeliefMessage::DemandSummary(summary)
+            .contribution_ledger_ids()
+            .is_empty());
+    }
+
+    #[test]
+    fn active_demand_generation_rejects_ambiguous_missing_contributions() {
+        let generated = generate_active_demand_summary(ActiveDemandGenerationInput {
+            quality: quality_summary(7),
+            missing_contribution_ids: vec![ContributionLedgerId(3), ContributionLedgerId(3)],
+            coverage_gap_permille: 0,
+            entry_cap: 4,
+            byte_cap: 64,
+            ttl: DurationMs(250),
+            issued_at_tick: Tick(5),
+            expires_at_tick: Tick(9),
+        });
+
+        assert_eq!(
+            generated,
+            Err(ActiveDemandGenerationError::DuplicateMissingContribution)
+        );
     }
 
     fn anomaly_hypotheses() -> AnomalyHypothesisSet {

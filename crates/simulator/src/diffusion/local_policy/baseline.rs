@@ -122,9 +122,22 @@ fn fragment_candidates(
             } else {
                 150
             },
+            demand_value: demand_value(readiness_log, event.evidence_id),
             duplicate_risk_hint: duplicate_risk(event.classification),
         })
         .collect()
+}
+
+fn demand_value(
+    readiness_log: &crate::diffusion::coded_inference::CodedInferenceReadinessLog,
+    evidence_id: u32,
+) -> u32 {
+    readiness_log
+        .demand_events
+        .iter()
+        .find(|event| event.satisfied_by_evidence_id == Some(evidence_id))
+        .map(|event| event.uncertainty_permille.min(1_000))
+        .unwrap_or(0)
 }
 
 fn innovation_gain(classification: CodedArrivalClassification) -> u32 {
@@ -239,6 +252,7 @@ mod tests {
             "expected_innovation_gain",
             "bridge_value",
             "landscape_value",
+            "demand_value",
             "duplicate_risk",
             "byte_cost",
             "storage_pressure_cost",

@@ -18,6 +18,7 @@ pub(crate) struct LocalPolicyFragmentCandidate {
     pub payload_bytes: u32,
     pub expected_innovation_gain: u32,
     pub landscape_value: u32,
+    pub demand_value: u32,
     pub duplicate_risk_hint: u32,
 }
 
@@ -123,6 +124,7 @@ fn score_pair(
         expected_innovation_gain: fragment.expected_innovation_gain,
         bridge_value,
         landscape_value: fragment.landscape_value,
+        demand_value: fragment.demand_value,
         duplicate_risk: state
             .recent_duplicate_rate_permille
             .saturating_add(fragment.duplicate_risk_hint)
@@ -239,6 +241,7 @@ mod tests {
                 payload_bytes: 32,
                 expected_innovation_gain: 500,
                 landscape_value: 100,
+                demand_value: 0,
                 duplicate_risk_hint: 0,
             },
             LocalPolicyFragmentCandidate {
@@ -246,6 +249,7 @@ mod tests {
                 payload_bytes: 32,
                 expected_innovation_gain: 100,
                 landscape_value: 0,
+                demand_value: 0,
                 duplicate_risk_hint: 200,
             },
         ]
@@ -321,6 +325,7 @@ mod tests {
                 payload_bytes: 1,
                 expected_innovation_gain: 100,
                 landscape_value: 0,
+                demand_value: 0,
                 duplicate_risk_hint: 0,
             },
             LocalPolicyFragmentCandidate {
@@ -328,6 +333,7 @@ mod tests {
                 payload_bytes: 1,
                 expected_innovation_gain: 100,
                 landscape_value: 0,
+                demand_value: 0,
                 duplicate_risk_hint: 0,
             },
         ];

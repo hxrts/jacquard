@@ -14,6 +14,7 @@ pub(crate) enum LocalPolicyAblationVariant {
     NoBridgeScore,
     NoDuplicateRisk,
     NoLandscapeValue,
+    NoDemandValue,
     NoReproductionControl,
     DeterministicRandomForwarding,
 }
@@ -70,6 +71,7 @@ impl LocalPolicyAblationVariant {
             Self::NoBridgeScore => "local-evidence-policy-no-bridge",
             Self::NoDuplicateRisk => "local-evidence-policy-no-duplicate-risk",
             Self::NoLandscapeValue => "local-evidence-policy-no-landscape",
+            Self::NoDemandValue => "local-evidence-policy-no-demand",
             Self::NoReproductionControl => "local-evidence-policy-no-reproduction-control",
             Self::DeterministicRandomForwarding => "deterministic-random-forwarding",
         }
@@ -81,6 +83,7 @@ impl LocalPolicyAblationVariant {
             Self::NoBridgeScore => vec!["bridge_value".to_string()],
             Self::NoDuplicateRisk => vec!["duplicate_risk".to_string()],
             Self::NoLandscapeValue => vec!["landscape_value".to_string()],
+            Self::NoDemandValue => vec!["demand_value".to_string()],
             Self::NoReproductionControl => {
                 vec!["reproduction_pressure_penalty".to_string()]
             }
@@ -88,6 +91,7 @@ impl LocalPolicyAblationVariant {
                 "expected_innovation_gain".to_string(),
                 "bridge_value".to_string(),
                 "landscape_value".to_string(),
+                "demand_value".to_string(),
                 "duplicate_risk".to_string(),
                 "byte_cost".to_string(),
                 "storage_pressure_cost".to_string(),
@@ -119,6 +123,11 @@ fn apply_variant(
         LocalPolicyAblationVariant::NoLandscapeValue => {
             for fragment in fragments {
                 fragment.landscape_value = 0;
+            }
+        }
+        LocalPolicyAblationVariant::NoDemandValue => {
+            for fragment in fragments {
+                fragment.demand_value = 0;
             }
         }
         LocalPolicyAblationVariant::NoReproductionControl => {
@@ -195,7 +204,7 @@ fn random_record(
             selected,
             rejection_reason: None,
             total_score: 0,
-            score: LocalPolicyScoreBreakdown::from_terms(0, 0, 0, 0, 0, 0, 0),
+            score: LocalPolicyScoreBreakdown::from_terms(0, 0, 0, 0, 0, 0, 0, 0),
         },
     }
 }
@@ -249,6 +258,7 @@ mod tests {
             payload_bytes: 32,
             expected_innovation_gain: 500,
             landscape_value: 300,
+            demand_value: 250,
             duplicate_risk_hint: 200,
         }]
     }
@@ -320,6 +330,23 @@ mod tests {
         assert!(no_landscape[0]
             .disabled_terms
             .contains(&"landscape_value".to_string()));
+    }
+
+    #[test]
+    fn local_policy_ablation_disables_demand_value_term() {
+        let no_demand = run_local_policy_ablation(
+            LocalPolicyAblationVariant::NoDemandValue,
+            41,
+            &state(),
+            &peers(),
+            &fragments(),
+            budget(),
+        );
+
+        assert_eq!(no_demand[0].decision.score.demand_value, 0);
+        assert!(no_demand[0]
+            .disabled_terms
+            .contains(&"demand_value".to_string()));
     }
 
     #[test]

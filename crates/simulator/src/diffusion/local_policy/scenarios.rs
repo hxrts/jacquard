@@ -47,6 +47,7 @@ fn run_scenario_variants(
         LocalPolicyAblationVariant::NoBridgeScore,
         LocalPolicyAblationVariant::NoDuplicateRisk,
         LocalPolicyAblationVariant::NoLandscapeValue,
+        LocalPolicyAblationVariant::NoDemandValue,
         LocalPolicyAblationVariant::NoReproductionControl,
         LocalPolicyAblationVariant::DeterministicRandomForwarding,
     ]
@@ -96,7 +97,7 @@ fn sparse_pressure_fixture() -> ScenarioFixture {
             },
         ]),
         peers: vec![LocalPolicyPeerCandidate { peer_node_id: 3 }],
-        fragments: vec![fragment(1, 32, 700, 100, 0)],
+        fragments: vec![fragment(1, 32, 700, 100, 250, 0)],
         budget: budget(64, 1, 800, 1),
     }
 }
@@ -122,7 +123,7 @@ fn clustered_duplicate_fixture() -> ScenarioFixture {
             },
         ]),
         peers: vec![LocalPolicyPeerCandidate { peer_node_id: 4 }],
-        fragments: vec![fragment(2, 32, 500, 250, 300)],
+        fragments: vec![fragment(2, 32, 500, 250, 100, 300)],
         budget: budget(64, 1, 1_000, 1),
     }
 }
@@ -151,7 +152,7 @@ fn bridge_heavy_fixture() -> ScenarioFixture {
             LocalPolicyPeerCandidate { peer_node_id: 9 },
             LocalPolicyPeerCandidate { peer_node_id: 10 },
         ],
-        fragments: vec![fragment(3, 32, 650, 450, 0)],
+        fragments: vec![fragment(3, 32, 650, 450, 350, 0)],
         budget: budget(64, 1, 1_000, 1),
     }
 }
@@ -165,6 +166,7 @@ fn fragment(
     payload_bytes: u32,
     expected_innovation_gain: u32,
     landscape_value: u32,
+    demand_value: u32,
     duplicate_risk_hint: u32,
 ) -> LocalPolicyFragmentCandidate {
     LocalPolicyFragmentCandidate {
@@ -172,6 +174,7 @@ fn fragment(
         payload_bytes,
         expected_innovation_gain,
         landscape_value,
+        demand_value,
         duplicate_risk_hint,
     }
 }
@@ -258,7 +261,7 @@ mod tests {
     fn local_policy_scenarios_run_all_variants_on_all_fixtures() {
         let matrix = run_local_policy_scenario_matrix(41);
 
-        assert_eq!(matrix.len(), 18);
+        assert_eq!(matrix.len(), 21);
         for scenario in [
             LocalPolicyScenarioKind::SparsePressure,
             LocalPolicyScenarioKind::ClusteredDuplicateHeavy,
@@ -269,7 +272,7 @@ mod tests {
                     .iter()
                     .filter(|artifact| artifact.scenario == scenario)
                     .count(),
-                6
+                7
             );
         }
     }
@@ -341,6 +344,23 @@ mod tests {
         );
 
         assert!(full.selected_score_sum > no_landscape.selected_score_sum);
+    }
+
+    #[test]
+    fn local_policy_scenarios_demand_value_changes_active_behavior() {
+        let matrix = run_local_policy_scenario_matrix(41);
+        let full = artifact(
+            &matrix,
+            LocalPolicyScenarioKind::BridgeHeavy,
+            LocalPolicyAblationVariant::FullPolicy,
+        );
+        let no_demand = artifact(
+            &matrix,
+            LocalPolicyScenarioKind::BridgeHeavy,
+            LocalPolicyAblationVariant::NoDemandValue,
+        );
+
+        assert!(full.selected_score_sum > no_demand.selected_score_sum);
     }
 
     #[test]

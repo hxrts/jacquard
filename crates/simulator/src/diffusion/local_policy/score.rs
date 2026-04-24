@@ -12,6 +12,7 @@ pub(crate) struct LocalPolicyScoreInput {
     pub expected_innovation_gain: u32,
     pub bridge_value: u32,
     pub landscape_value: u32,
+    pub demand_value: u32,
     pub duplicate_risk: u32,
     pub payload_byte_cost: u32,
     pub storage_pressure_cost: u32,
@@ -23,6 +24,7 @@ pub(crate) struct LocalPolicyScoreBreakdown {
     pub expected_innovation_gain: i32,
     pub bridge_value: i32,
     pub landscape_value: i32,
+    pub demand_value: i32,
     pub duplicate_risk: i32,
     pub byte_cost: i32,
     pub storage_pressure_cost: i32,
@@ -44,6 +46,7 @@ pub(crate) fn local_policy_score_from_input(
         bounded_term(input.expected_innovation_gain),
         bounded_term(input.bridge_value),
         bounded_term(input.landscape_value),
+        bounded_term(input.demand_value),
         bounded_term(input.duplicate_risk),
         bounded_term(input.payload_byte_cost),
         bounded_term(input.storage_pressure_cost),
@@ -69,6 +72,7 @@ impl LocalPolicyScoreBreakdown {
         expected_innovation_gain: i32,
         bridge_value: i32,
         landscape_value: i32,
+        demand_value: i32,
         duplicate_risk: i32,
         byte_cost: i32,
         storage_pressure_cost: i32,
@@ -76,7 +80,8 @@ impl LocalPolicyScoreBreakdown {
     ) -> Self {
         let positive = expected_innovation_gain
             .saturating_add(bridge_value)
-            .saturating_add(landscape_value);
+            .saturating_add(landscape_value)
+            .saturating_add(demand_value);
         let negative = duplicate_risk
             .saturating_add(byte_cost)
             .saturating_add(storage_pressure_cost)
@@ -85,6 +90,7 @@ impl LocalPolicyScoreBreakdown {
             expected_innovation_gain,
             bridge_value,
             landscape_value,
+            demand_value,
             duplicate_risk,
             byte_cost,
             storage_pressure_cost,
@@ -112,6 +118,7 @@ mod tests {
             expected_innovation_gain: 200,
             bridge_value: 100,
             landscape_value: 100,
+            demand_value: 75,
             duplicate_risk: 50,
             payload_byte_cost: 25,
             storage_pressure_cost: 25,
@@ -123,13 +130,14 @@ mod tests {
     fn local_policy_score_formula_uses_named_terms_with_expected_signs() {
         let score = local_policy_score_from_input(base_input());
 
-        assert_eq!(score.total_score, 250);
+        assert_eq!(score.total_score, 325);
         assert_eq!(
             score.total_score,
             score
                 .expected_innovation_gain
                 .saturating_add(score.bridge_value)
                 .saturating_add(score.landscape_value)
+                .saturating_add(score.demand_value)
                 .saturating_sub(score.duplicate_risk)
                 .saturating_sub(score.byte_cost)
                 .saturating_sub(score.storage_pressure_cost)
@@ -150,6 +158,10 @@ mod tests {
 
         input = base_input();
         input.landscape_value = input.landscape_value.saturating_add(100);
+        assert!(local_policy_score_from_input(input).total_score > base);
+
+        input = base_input();
+        input.demand_value = input.demand_value.saturating_add(100);
         assert!(local_policy_score_from_input(input).total_score > base);
     }
 
@@ -180,6 +192,7 @@ mod tests {
             expected_innovation_gain: u32::MAX,
             bridge_value: u32::MAX,
             landscape_value: u32::MAX,
+            demand_value: u32::MAX,
             duplicate_risk: 0,
             payload_byte_cost: 0,
             storage_pressure_cost: 0,
@@ -189,6 +202,7 @@ mod tests {
         assert_eq!(score.expected_innovation_gain, TERM_MAX);
         assert_eq!(score.bridge_value, TERM_MAX);
         assert_eq!(score.landscape_value, TERM_MAX);
+        assert_eq!(score.demand_value, TERM_MAX);
         assert!(score.total_score >= TERM_MIN);
     }
 
@@ -201,6 +215,7 @@ mod tests {
             "expected_innovation_gain",
             "bridge_value",
             "landscape_value",
+            "demand_value",
             "duplicate_risk",
             "byte_cost",
             "storage_pressure_cost",
@@ -216,12 +231,12 @@ mod tests {
         let low_peer = LocalPolicyScoreCandidate {
             peer_node_id: 7,
             fragment_id: 3,
-            score: LocalPolicyScoreBreakdown::from_terms(100, 0, 0, 0, 0, 0, 0),
+            score: LocalPolicyScoreBreakdown::from_terms(100, 0, 0, 0, 0, 0, 0, 0),
         };
         let high_peer = LocalPolicyScoreCandidate {
             peer_node_id: 8,
             fragment_id: 1,
-            score: LocalPolicyScoreBreakdown::from_terms(100, 0, 0, 0, 0, 0, 0),
+            score: LocalPolicyScoreBreakdown::from_terms(100, 0, 0, 0, 0, 0, 0, 0),
         };
 
         assert_eq!(

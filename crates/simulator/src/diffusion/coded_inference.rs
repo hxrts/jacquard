@@ -113,6 +113,32 @@ pub(crate) struct CodedControllerTelemetryEvent {
     pub duplicate_pressure_permille: u32,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) enum CodedDemandPropagationMode {
+    None,
+    LocalOnly,
+    PiggybackedPeerDemand,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct CodedDemandSummaryEvent {
+    pub round_index: u32,
+    pub emitting_receiver_node_id: u32,
+    pub peer_node_id: u32,
+    pub received_by_peer_node_id: u32,
+    pub target_id: String,
+    pub propagation_mode: CodedDemandPropagationMode,
+    pub entry_count: u32,
+    pub encoded_bytes: u32,
+    pub ttl_rounds: u32,
+    pub uncertainty_permille: u32,
+    pub margin_before: i32,
+    pub requested_hypothesis_id: u8,
+    pub satisfied_by_evidence_id: Option<u32>,
+    pub demand_response_lag_rounds: Option<u32>,
+    pub ignored_stale_demand: bool,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct CodedInferenceReadinessLog {
     pub artifact_namespace: String,
@@ -123,6 +149,7 @@ pub(crate) struct CodedInferenceReadinessLog {
     pub landscape_events: Vec<CodedInferenceLandscapeEvent>,
     pub budget_events: Vec<CodedBudgetEvent>,
     pub controller_events: Vec<CodedControllerTelemetryEvent>,
+    pub demand_events: Vec<CodedDemandSummaryEvent>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -164,6 +191,16 @@ pub(crate) struct CodedInferenceReadinessSummary {
     pub target_reproduction_max_permille: u32,
     pub active_forwarding_opportunity_count: u32,
     pub innovative_successor_opportunity_count: u32,
+    pub demand_summary_event_count: u32,
+    pub demand_received_event_count: u32,
+    pub demand_satisfied_event_count: u32,
+    pub demand_ignored_stale_event_count: u32,
+    pub demand_response_lag_rounds_max: u32,
+    pub receiver_agreement_permille: u32,
+    pub belief_divergence_permille: u32,
+    pub collective_uncertainty_permille: u32,
+    pub evidence_overlap_permille: u32,
+    pub commitment_lead_time_rounds_per_receiver_max: u32,
     pub raw_copy_forwarding_event_count: u32,
     pub duplicate_forwarding_event_count: u32,
     pub observer_visible_contact_event_count: u32,
@@ -214,6 +251,7 @@ pub(crate) fn build_coded_inference_readiness_log(
         landscape_events: Vec::new(),
         budget_events: Vec::new(),
         controller_events: Vec::new(),
+        demand_events: Vec::new(),
     };
     let mut state = LogBuildState {
         evidence_id: 1,
@@ -304,6 +342,14 @@ pub(crate) fn build_coded_inference_readiness_log(
                 round_payload_bytes.saturating_add(inference.fragment_payload_bytes);
             round_forwarding_events = round_forwarding_events.saturating_add(1);
             if event.receiver_node_id == inference.receiver_node_id {
+                let demand_event = demand_summary_event(
+                    scenario,
+                    &state,
+                    &event,
+                    is_innovative,
+                    contact.connection_delay,
+                );
+                log.demand_events.push(demand_event);
                 record_receiver_event(scenario, &event, &mut state, &mut log);
             }
             state.evidence_ledger_by_id.insert(
@@ -415,6 +461,48 @@ pub(crate) fn summarize_coded_inference_readiness_log(
         .map(|event| event.target_reproduction_max_permille)
         .max()
         .unwrap_or(0);
+    let demand_summary_event_count = u32::try_from(log.demand_events.len()).unwrap_or(u32::MAX);
+    let demand_received_event_count = u32::try_from(
+        log.demand_events
+            .iter()
+            .filter(|event| event.propagation_mode != CodedDemandPropagationMode::None)
+            .count(),
+    )
+    .unwrap_or(u32::MAX);
+    let demand_satisfied_event_count = u32::try_from(
+        log.demand_events
+            .iter()
+            .filter(|event| event.satisfied_by_evidence_id.is_some())
+            .count(),
+    )
+    .unwrap_or(u32::MAX);
+    let demand_ignored_stale_event_count = u32::try_from(
+        log.demand_events
+            .iter()
+            .filter(|event| event.ignored_stale_demand)
+            .count(),
+    )
+    .unwrap_or(u32::MAX);
+    let demand_response_lag_rounds_max = log
+        .demand_events
+        .iter()
+        .filter_map(|event| event.demand_response_lag_rounds)
+        .max()
+        .unwrap_or(0);
+    let evidence_overlap_permille = ratio_permille(
+        final_receiver_event
+            .map(|event| event.duplicate_arrival_count)
+            .unwrap_or(0),
+        final_receiver_event
+            .map(|event| {
+                event
+                    .innovative_arrival_count
+                    .saturating_add(event.duplicate_arrival_count)
+            })
+            .unwrap_or(0),
+    );
+    let commitment_lead_time_rounds_per_receiver_max =
+        commitment_lead_time_rounds(reconstruction_round, decision_event_round);
     let fixed_budget_label = log
         .budget_events
         .last()
@@ -489,6 +577,16 @@ pub(crate) fn summarize_coded_inference_readiness_log(
         target_reproduction_max_permille,
         active_forwarding_opportunity_count,
         innovative_successor_opportunity_count,
+        demand_summary_event_count,
+        demand_received_event_count,
+        demand_satisfied_event_count,
+        demand_ignored_stale_event_count,
+        demand_response_lag_rounds_max,
+        receiver_agreement_permille: 1000,
+        belief_divergence_permille: 0,
+        collective_uncertainty_permille: uncertainty_permille,
+        evidence_overlap_permille,
+        commitment_lead_time_rounds_per_receiver_max,
         raw_copy_forwarding_event_count: u32::try_from(log.forwarding_events.len())
             .unwrap_or(u32::MAX),
         duplicate_forwarding_event_count: u32::try_from(
@@ -601,6 +699,33 @@ fn evidence_origin_for(
                 contribution_ledger_ids: contribution_ledger_ids.into_iter().collect(),
             }
         }
+    }
+}
+
+fn demand_summary_event(
+    scenario: &CodedInferenceReadinessScenario,
+    state: &LogBuildState,
+    event: &CodedForwardingEvent,
+    is_innovative: bool,
+    connection_delay: u32,
+) -> CodedDemandSummaryEvent {
+    let (top, _runner_up, margin_before) = score_summary(&state.score_vector);
+    CodedDemandSummaryEvent {
+        round_index: event.round_index,
+        emitting_receiver_node_id: scenario.coded_inference.receiver_node_id,
+        peer_node_id: event.sender_node_id,
+        received_by_peer_node_id: event.sender_node_id,
+        target_id: scenario.coded_inference.target_id.clone(),
+        propagation_mode: CodedDemandPropagationMode::PiggybackedPeerDemand,
+        entry_count: 1,
+        encoded_bytes: 12,
+        ttl_rounds: 4,
+        uncertainty_permille: uncertainty_permille(margin_before),
+        margin_before,
+        requested_hypothesis_id: top,
+        satisfied_by_evidence_id: is_innovative.then_some(event.evidence_id),
+        demand_response_lag_rounds: is_innovative.then_some(connection_delay),
+        ignored_stale_demand: false,
     }
 }
 
@@ -906,6 +1031,16 @@ fn ratio_permille(numerator: u32, denominator: u32) -> u32 {
     }
 }
 
+fn commitment_lead_time_rounds(
+    reconstruction_round: Option<u32>,
+    decision_round: Option<u32>,
+) -> u32 {
+    match (reconstruction_round, decision_round) {
+        (Some(reconstruction), Some(decision)) => decision.saturating_sub(reconstruction),
+        _ => 0,
+    }
+}
+
 fn score_summary(score_vector: &[i32]) -> (u8, u8, i32) {
     let mut ranked = score_vector
         .iter()
@@ -928,6 +1063,7 @@ mod tests {
     use super::{
         build_coded_inference_readiness_log, serialize_coded_inference_log,
         serialize_coded_inference_summary, summarize_coded_inference_readiness_log,
+        CodedDemandPropagationMode,
     };
     use crate::diffusion::catalog::scenarios::build_coded_inference_readiness_scenario;
 
@@ -952,6 +1088,12 @@ mod tests {
         assert!(!first.landscape_events.is_empty());
         assert!(!first.budget_events.is_empty());
         assert!(!first.controller_events.is_empty());
+        assert!(!first.demand_events.is_empty());
+        assert!(first.demand_events.iter().all(|event| event.entry_count > 0
+            && event.encoded_bytes > 0
+            && event.received_by_peer_node_id == event.peer_node_id
+            && event.propagation_mode == CodedDemandPropagationMode::PiggybackedPeerDemand
+            && !event.ignored_stale_demand));
         assert!(first.forwarding_events.iter().any(|event| {
             event.origin.origin_mode
                 == crate::diffusion::model::CodedEvidenceOriginMode::SourceCoded
@@ -1048,6 +1190,28 @@ mod tests {
         assert!(first.active_forwarding_opportunity_count > 0);
         assert!(first.innovative_successor_opportunity_count > 0);
         assert!(first.effective_reproduction_permille <= 1000);
+        assert!(first.demand_summary_event_count > 0);
+        assert_eq!(
+            first.demand_received_event_count,
+            first.demand_summary_event_count
+        );
+        assert!(first.demand_satisfied_event_count > 0);
+        assert_eq!(first.demand_ignored_stale_event_count, 0);
+        assert!(first.demand_response_lag_rounds_max > 0);
+        assert_eq!(first.receiver_agreement_permille, 1000);
+        assert_eq!(first.belief_divergence_permille, 0);
+        assert_eq!(
+            first.collective_uncertainty_permille,
+            first.uncertainty_permille
+        );
+        assert!(first.evidence_overlap_permille <= 1000);
+        assert_eq!(
+            first.commitment_lead_time_rounds_per_receiver_max,
+            first
+                .decision_event_round
+                .expect("decision round")
+                .saturating_sub(first.reconstruction_round.expect("reconstruction round"))
+        );
         assert_eq!(first.target_reproduction_min_permille, 800);
         assert_eq!(first.target_reproduction_max_permille, 1200);
         assert!(first.observer_visible_contact_event_count > 0);
