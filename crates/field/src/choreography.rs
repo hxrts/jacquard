@@ -13,6 +13,11 @@
 //! `FieldGuestRuntime` steps a session's state machine and returns a
 //! `FieldChoreographyAdvance` describing work done and next-tick hints.
 //! Checkpointing and recovery support session migration across engine restarts.
+//!
+//! Retained coded-diffusion role: these private protocol hooks map to
+//! `PrivateProtocolRole::BoundedSummaryExchange` and
+//! `PrivateProtocolRole::FragmentControlCoordination` for fragment summaries,
+//! custody summaries, and rank-control coordination.
 // long-file-exception: the field choreography runtime keeps protocol state,
 // bridge state, artifact retention, and guest-runtime tests together so the
 // host-bridged session semantics can be reviewed as one cohesive unit.

@@ -16,6 +16,11 @@
 //!
 //! `update_destination_observer` is the entry point called from the runtime's
 //! `refresh_destination_observers` phase on every `engine_tick`.
+//!
+//! Retained coded-diffusion role: the predict-fuse-correct scaffold maps to
+//! `FragmentSpreadBelief` and `ReconstructionQuorum` once evidence is expressed
+//! as fragment custody, innovative arrivals, duplicate arrivals, and receiver
+//! rank instead of baseline corridor claims.
 
 use jacquard_core::{DestinationId, RouteEpoch, Tick};
 

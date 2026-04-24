@@ -1,5 +1,8 @@
 #![allow(clippy::wildcard_imports)]
 
+// Retained coded-diffusion role: session lifecycle hooks map to delayed
+// fragment arrivals, bounded forwarding, and replayable coordination events.
+
 use super::*;
 
 impl<Transport, Effects> RouterManagedEngine for FieldEngine<Transport, Effects>

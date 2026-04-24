@@ -15,6 +15,12 @@
 //! `advance_control_plane` is the entry point called from `engine_tick`; it
 //! runs all four phases and returns a `ControlTickOutcome` carrying the new
 //! regime, posture, and price vector for use by the attractor and observer.
+//!
+//! Retained coded-diffusion role: this controller scaffolding maps to
+//! `NearCriticalControlState`, `DiffusionOrderParameters`, storage pressure,
+//! duplicate pressure, and rank deficit in the research boundary. Existing
+//! route posture names remain baseline-only until the controller is fully
+//! retargeted.
 // long-file-exception: control policy, regime scoring, posture selection, and
 // PI update logic currently form one cohesive controller surface; splitting
 // before the next controller/module pass would obscure the shared state flow.

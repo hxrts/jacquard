@@ -42,6 +42,13 @@ fn research_boundary_exposes_coded_diffusion_vocabulary() {
         "ReceiverRankState",
         "ReconstructionQuorum",
         "DiffusionPressure",
+        "FragmentSpreadBelief",
+        "DiffusionOrderParameters",
+        "NearCriticalControlState",
+        "FragmentRetentionPolicy",
+        "DelayedFragmentEvent",
+        "FragmentReplayEvent",
+        "PrivateProtocolRole",
     ];
 
     for required in required_terms {

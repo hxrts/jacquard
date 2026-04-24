@@ -121,3 +121,32 @@ fn field_route_exports_are_grouped_under_baseline_boundary() {
     assert!(crate_docs.contains("FieldRouteRecoveryState"));
     assert!(crate_docs.contains("New coded-diffusion research work should use"));
 }
+
+#[test]
+fn retained_scaffolding_documents_coded_diffusion_roles() {
+    let research = repo_text("crates/field/src/research.rs");
+    let control = repo_text("crates/field/src/control.rs");
+    let observer = repo_text("crates/field/src/observer.rs");
+    let choreography = repo_text("crates/field/src/choreography.rs");
+    let runtime_observer = repo_text("crates/field/src/runtime/observer.rs");
+    let runtime_control = repo_text("crates/field/src/runtime/control.rs");
+    let runtime_sessions = repo_text("crates/field/src/runtime/sessions.rs");
+
+    for required in [
+        "FragmentSpreadBelief",
+        "DiffusionOrderParameters",
+        "NearCriticalControlState",
+        "FragmentRetentionPolicy",
+        "DelayedFragmentEvent",
+        "FragmentReplayEvent",
+        "PrivateProtocolRole",
+    ] {
+        assert!(research.contains(required));
+    }
+    assert!(control.contains("rank deficit"));
+    assert!(observer.contains("FragmentSpreadBelief"));
+    assert!(choreography.contains("PrivateProtocolRole"));
+    assert!(runtime_observer.contains("fragment custody"));
+    assert!(runtime_control.contains("fragment-control coordination"));
+    assert!(runtime_sessions.contains("delayed"));
+}

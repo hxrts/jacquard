@@ -1,5 +1,8 @@
 #![allow(clippy::wildcard_imports)]
 
+// Retained coded-diffusion role: topology seeding and protocol dispatch remain
+// useful for deterministic fragment-control coordination and summary exchange.
+
 use super::*;
 
 impl<Transport, Effects> FieldEngine<Transport, Effects> {

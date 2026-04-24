@@ -1,5 +1,8 @@
 #![allow(clippy::wildcard_imports)]
 
+// Retained coded-diffusion role: this evidence-ingestion scaffold maps pending
+// summaries and feedback into fragment custody and receiver-rank observations.
+
 use super::*;
 
 pub(super) fn direct_evidence_for_destination(

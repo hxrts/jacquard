@@ -5,7 +5,7 @@
 //! duplicate/innovative arrivals, diffusion pressure, and reconstruction
 //! quorum vocabulary. It must remain independent of the legacy planner stack.
 
-use jacquard_core::NodeId;
+use jacquard_core::{NodeId, Tick};
 use serde::{Deserialize, Serialize};
 
 /// Stable message identifier for one coded reconstruction objective.
@@ -141,6 +141,129 @@ impl DiffusionPressure {
     }
 }
 
+/// Reduced observer belief about fragment spread and reconstruction progress.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FragmentSpreadBelief {
+    /// Message being observed.
+    pub message_id: DiffusionMessageId,
+    /// Distinct fragments observed in custody or movement.
+    pub observed_fragment_count: u16,
+    /// Distinct custodians observed for this message.
+    pub custody_node_count: u16,
+    /// Current reconstruction quorum summary.
+    pub reconstruction_quorum: ReconstructionQuorum,
+}
+
+/// Local order parameters for near-critical coded diffusion control.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DiffusionOrderParameters {
+    /// Diffusion/innovation/duplicate pressure vector.
+    pub pressure: DiffusionPressure,
+    /// Bounded storage pressure, in permille.
+    pub storage_pressure_permille: u16,
+    /// Rank still needed before the local reconstruction target is complete.
+    pub rank_deficit: u16,
+    /// Duplicate arrivals as a normalized local pressure, in permille.
+    pub duplicate_arrival_permille: u16,
+}
+
+impl DiffusionOrderParameters {
+    /// Clamp normalized pressure components to the deterministic range.
+    #[must_use]
+    pub fn clamped(self) -> Self {
+        Self {
+            pressure: self.pressure.clamped(),
+            storage_pressure_permille: self.storage_pressure_permille.min(1000),
+            rank_deficit: self.rank_deficit,
+            duplicate_arrival_permille: self.duplicate_arrival_permille.min(1000),
+        }
+    }
+}
+
+/// Near-critical control state for local coded diffusion decisions.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct NearCriticalControlState {
+    /// Current reduced order parameters.
+    pub order_parameters: DiffusionOrderParameters,
+    /// Consecutive rounds spent inside the controller's stable band.
+    pub stable_band_rounds: u16,
+    /// Whether the controller should currently prefer retention over spread.
+    pub retention_biased: bool,
+}
+
+/// Bounded fragment holding policy.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FragmentRetentionPolicy {
+    /// Maximum fragments retained for one message.
+    pub fragment_budget: u16,
+    /// Pressure threshold at which custody is preferred, in permille.
+    pub custody_threshold_permille: u16,
+    /// Whether duplicate fragments are evicted before innovative fragments.
+    pub evict_duplicates_first: bool,
+}
+
+impl FragmentRetentionPolicy {
+    /// Construct a normalized bounded retention policy.
+    #[must_use]
+    pub fn new(
+        fragment_budget: u16,
+        custody_threshold_permille: u16,
+        evict_duplicates_first: bool,
+    ) -> Self {
+        Self {
+            fragment_budget,
+            custody_threshold_permille: custody_threshold_permille.min(1000),
+            evict_duplicates_first,
+        }
+    }
+}
+
+/// Delayed fragment arrival or forwarding observation.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DelayedFragmentEvent {
+    /// Message that owns the fragment.
+    pub message_id: DiffusionMessageId,
+    /// Fragment being moved.
+    pub fragment_id: DiffusionFragmentId,
+    /// Sender observed for the movement.
+    pub from_node: NodeId,
+    /// Receiver observed for the movement.
+    pub to_node: NodeId,
+    /// Deterministic observation tick.
+    pub observed_at_tick: Tick,
+    /// Whether the receiver gained independent rank.
+    pub arrival_class: FragmentArrivalClass,
+}
+
+/// Replay-facing coded-diffusion event vocabulary.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum FragmentReplayEvent {
+    /// Contact opportunity considered for a fragment.
+    Contact {
+        /// Sender observed in the contact.
+        from_node: NodeId,
+        /// Receiver observed in the contact.
+        to_node: NodeId,
+        /// Deterministic observation tick.
+        observed_at_tick: Tick,
+    },
+    /// Fragment movement was attempted.
+    Forwarded(DelayedFragmentEvent),
+    /// Fragment movement reached the receiver.
+    Arrived(DelayedFragmentEvent),
+    /// Reconstruction quorum was updated.
+    Reconstruction(ReconstructionQuorum),
+}
+
+/// Role assigned to private protocol hooks retained for coded diffusion.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum PrivateProtocolRole {
+    /// Bounded summary exchange for fragment/rank/custody observations.
+    BoundedSummaryExchange,
+    /// Local coordination over fragment-control decisions.
+    FragmentControlCoordination,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -216,6 +339,40 @@ mod tests {
                 custody_pressure_permille: 1000,
                 innovation_pressure_permille: 1000,
                 duplicate_pressure_permille: 999,
+            }
+        );
+    }
+
+    #[test]
+    fn order_parameters_clamp_normalized_pressures() {
+        let parameters = DiffusionOrderParameters {
+            pressure: DiffusionPressure {
+                custody_pressure_permille: 1001,
+                innovation_pressure_permille: 700,
+                duplicate_pressure_permille: 1400,
+            },
+            storage_pressure_permille: 1200,
+            rank_deficit: 4,
+            duplicate_arrival_permille: 1300,
+        }
+        .clamped();
+
+        assert_eq!(parameters.pressure.custody_pressure_permille, 1000);
+        assert_eq!(parameters.pressure.innovation_pressure_permille, 700);
+        assert_eq!(parameters.pressure.duplicate_pressure_permille, 1000);
+        assert_eq!(parameters.storage_pressure_permille, 1000);
+        assert_eq!(parameters.rank_deficit, 4);
+        assert_eq!(parameters.duplicate_arrival_permille, 1000);
+    }
+
+    #[test]
+    fn retention_policy_clamps_custody_threshold() {
+        assert_eq!(
+            FragmentRetentionPolicy::new(8, 1200, true),
+            FragmentRetentionPolicy {
+                fragment_budget: 8,
+                custody_threshold_permille: 1000,
+                evict_duplicates_first: true,
             }
         );
     }
