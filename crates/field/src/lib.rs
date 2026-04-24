@@ -73,7 +73,8 @@ pub use research::{
     DelayedFragmentEvent, DiffusionFragmentId, DiffusionMessageId, DiffusionOrderParameters,
     DiffusionPressure, EvidenceOriginMode, FragmentArrivalClass, FragmentCustody,
     FragmentReplayEvent, FragmentRetentionPolicy, FragmentSpreadBelief, LocalObservationId,
-    NearCriticalControlState, PrivateProtocolRole, ReceiverRankState, ReconstructionQuorum,
+    NearCriticalControlState, PayloadBudgetError, PayloadBudgetKind, PayloadBudgetMetadata,
+    PrivateProtocolRole, ReceiverRankState, ReconstructionQuorum,
 };
 
 /// Baseline-only corridor-routing compatibility exports.

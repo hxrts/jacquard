@@ -44,6 +44,8 @@ fn research_boundary_exposes_coded_diffusion_vocabulary() {
         "EvidenceOriginMode",
         "CodedEvidenceRecord",
         "CodingWindow",
+        "PayloadBudgetKind",
+        "PayloadBudgetMetadata",
         "FragmentCustody",
         "FragmentArrivalClass",
         "ReceiverRankState",

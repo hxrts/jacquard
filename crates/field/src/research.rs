@@ -75,6 +75,8 @@ pub enum CodedEvidenceRecordError {
     EmptyContributionLedger,
     /// Contribution ledger ids must be unique after deterministic ordering.
     DuplicateContributionLedger,
+    /// Evidence payloads must consume at least one byte.
+    ZeroPayloadBytes,
 }
 
 /// Construction input for one reconstruction or inference evidence record.
@@ -150,6 +152,9 @@ impl CodedEvidenceRecord {
         )?;
         if input.contribution_ledger_ids.is_empty() {
             return Err(CodedEvidenceRecordError::EmptyContributionLedger);
+        }
+        if input.payload_bytes == 0 {
+            return Err(CodedEvidenceRecordError::ZeroPayloadBytes);
         }
         validate_origin_shape(&input)?;
 
@@ -235,6 +240,118 @@ impl CodingWindow {
             encoded_fragments,
         })
     }
+}
+
+/// Fixed-budget comparison mode for coded evidence experiments.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum PayloadBudgetKind {
+    /// Coded fragments and uncoded replicas are configured to spend the same payload bytes.
+    EqualPayloadBytes,
+    /// Secondary comparison where forwarding opportunities, not bytes, are fixed.
+    FixedForwardingOpportunities,
+    /// Secondary comparison where retained storage bytes are fixed.
+    FixedStorageBytes,
+}
+
+/// Construction failure for deterministic coded-vs-uncoded payload budgets.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum PayloadBudgetError {
+    /// Coded fragment payload size must be nonzero.
+    ZeroFragmentPayloadBytes,
+    /// Uncoded message payload size must be nonzero.
+    ZeroUncodedMessagePayloadBytes,
+    /// Uncoded replica count must be nonzero.
+    ZeroUncodedReplicaCount,
+    /// Payload multiplication exceeded the representable deterministic budget.
+    PayloadBudgetOverflow,
+    /// Equal-byte comparisons require coded and uncoded payload budgets to match.
+    UnequalPayloadByteBudget,
+}
+
+/// Integer byte-budget metadata for fair coded-vs-uncoded comparisons.
+///
+/// This is reconstruction accounting only. It names the fixed comparison
+/// budget and byte units; it does not score routes or affect route admission.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PayloadBudgetMetadata {
+    /// Comparison rule used for this budget.
+    pub budget_kind: PayloadBudgetKind,
+    /// Reconstruction window for the coded policy.
+    pub coding_window: CodingWindow,
+    /// Deterministic payload bytes carried by one coded fragment.
+    pub fragment_payload_bytes: u32,
+    /// Deterministic payload bytes carried by one uncoded full-message replica.
+    pub uncoded_message_payload_bytes: u32,
+    /// Number of uncoded full-message replicas under the fixed budget.
+    pub uncoded_replica_count: u16,
+    /// Fixed payload-byte budget represented by this comparison.
+    pub fixed_payload_budget_bytes: u32,
+}
+
+impl PayloadBudgetMetadata {
+    /// Build equal-byte budget metadata for coded fragments and uncoded replicas.
+    pub fn equal_payload_bytes(
+        coding_window: CodingWindow,
+        fragment_payload_bytes: u32,
+        uncoded_message_payload_bytes: u32,
+        uncoded_replica_count: u16,
+    ) -> Result<Self, PayloadBudgetError> {
+        if fragment_payload_bytes == 0 {
+            return Err(PayloadBudgetError::ZeroFragmentPayloadBytes);
+        }
+        if uncoded_message_payload_bytes == 0 {
+            return Err(PayloadBudgetError::ZeroUncodedMessagePayloadBytes);
+        }
+        if uncoded_replica_count == 0 {
+            return Err(PayloadBudgetError::ZeroUncodedReplicaCount);
+        }
+
+        let coded_payload_bytes = checked_payload_product(
+            u32::from(coding_window.encoded_fragments),
+            fragment_payload_bytes,
+        )?;
+        let uncoded_payload_bytes = checked_payload_product(
+            u32::from(uncoded_replica_count),
+            uncoded_message_payload_bytes,
+        )?;
+        if coded_payload_bytes != uncoded_payload_bytes {
+            return Err(PayloadBudgetError::UnequalPayloadByteBudget);
+        }
+
+        Ok(Self {
+            budget_kind: PayloadBudgetKind::EqualPayloadBytes,
+            coding_window,
+            fragment_payload_bytes,
+            uncoded_message_payload_bytes,
+            uncoded_replica_count,
+            fixed_payload_budget_bytes: coded_payload_bytes,
+        })
+    }
+
+    /// Total coded-fragment payload bytes under this metadata.
+    #[must_use]
+    pub fn coded_payload_budget_bytes(self) -> u32 {
+        self.fixed_payload_budget_bytes
+    }
+
+    /// Total uncoded full-message payload bytes under this metadata.
+    #[must_use]
+    pub fn uncoded_payload_budget_bytes(self) -> u32 {
+        self.fixed_payload_budget_bytes
+    }
+
+    /// Whether this metadata names an equal payload-byte comparison.
+    #[must_use]
+    pub fn has_equal_payload_byte_budget(self) -> bool {
+        self.budget_kind == PayloadBudgetKind::EqualPayloadBytes
+            && self.coded_payload_budget_bytes() == self.uncoded_payload_budget_bytes()
+    }
+}
+
+fn checked_payload_product(count: u32, bytes: u32) -> Result<u32, PayloadBudgetError> {
+    count
+        .checked_mul(bytes)
+        .ok_or(PayloadBudgetError::PayloadBudgetOverflow)
 }
 
 /// Classification of one received fragment relative to receiver state.
@@ -616,6 +733,13 @@ mod tests {
             }),
             Err(CodedEvidenceRecordError::UnexpectedParentEvidence)
         );
+        assert_eq!(
+            CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+                payload_bytes: 0,
+                ..source_input()
+            }),
+            Err(CodedEvidenceRecordError::ZeroPayloadBytes)
+        );
     }
 
     #[test]
@@ -628,6 +752,49 @@ mod tests {
                 required_rank: 3,
                 encoded_fragments: 5,
             })
+        );
+    }
+
+    #[test]
+    fn byte_budget_represents_equal_payload_bytes_without_floats() {
+        let window = CodingWindow::try_new(8, 12).expect("valid coding window");
+        let budget = PayloadBudgetMetadata::equal_payload_bytes(window, 32, 384, 1)
+            .expect("equal byte budget");
+
+        assert_eq!(budget.budget_kind, PayloadBudgetKind::EqualPayloadBytes);
+        assert_eq!(budget.fragment_payload_bytes, 32);
+        assert_eq!(budget.uncoded_message_payload_bytes, 384);
+        assert_eq!(budget.fixed_payload_budget_bytes, 384);
+        assert_eq!(budget.coded_payload_budget_bytes(), 384);
+        assert_eq!(budget.uncoded_payload_budget_bytes(), 384);
+        assert!(budget.has_equal_payload_byte_budget());
+    }
+
+    #[test]
+    fn byte_budget_rejects_invalid_or_unequal_payload_metadata() {
+        let window = CodingWindow::try_new(8, 12).expect("valid coding window");
+
+        assert_eq!(
+            PayloadBudgetMetadata::equal_payload_bytes(window, 0, 384, 1),
+            Err(PayloadBudgetError::ZeroFragmentPayloadBytes)
+        );
+        assert_eq!(
+            PayloadBudgetMetadata::equal_payload_bytes(window, 32, 0, 1),
+            Err(PayloadBudgetError::ZeroUncodedMessagePayloadBytes)
+        );
+        assert_eq!(
+            PayloadBudgetMetadata::equal_payload_bytes(window, 32, 384, 0),
+            Err(PayloadBudgetError::ZeroUncodedReplicaCount)
+        );
+        assert_eq!(
+            PayloadBudgetMetadata::equal_payload_bytes(window, 32, 256, 1),
+            Err(PayloadBudgetError::UnequalPayloadByteBudget)
+        );
+
+        let overflow_window = CodingWindow::try_new(1, u16::MAX).expect("valid coding window");
+        assert_eq!(
+            PayloadBudgetMetadata::equal_payload_bytes(overflow_window, u32::MAX, 1, 1),
+            Err(PayloadBudgetError::PayloadBudgetOverflow)
         );
     }
 
