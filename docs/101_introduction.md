@@ -33,7 +33,7 @@ Jacquard also allows a host-owned policy engine to compose routing engines throu
 Jacquard ships eight in-tree routing engines as concrete demonstrations of the contract:
 
 - `pathway` for explicit-path routing
-- `field` for corridor-envelope routing over a continuously updated field model
+- `field` for the legacy corridor-envelope baseline and the initial coded-diffusion research workspace
 - `batman-bellman` for Bellman-Ford-enhanced next-hop routing
 - `batman-classic` for spec-faithful BATMAN IV next-hop routing
 - `babel` for RFC 8966 distance-vector routing with bidirectional ETX and feasibility distances
@@ -41,7 +41,7 @@ Jacquard ships eight in-tree routing engines as concrete demonstrations of the c
 - `scatter` for bounded deferred-delivery diffusion routing
 - `mercator` for hybrid corridor routing with stale-safe repair and bounded custody posture
 
-These engines differ in what they publish. Pathway exposes an explicit path, field and mercator publish corridor envelopes, the proactive engines only next-hop visibility, and scatter an opaque viability claim. The shared routing contract carries canonical identity and lifecycle regardless of that published shape.
+These engines differ in what they publish. Pathway exposes an explicit path, field's legacy baseline and mercator publish corridor envelopes, the proactive engines only next-hop visibility, and scatter an opaque viability claim. The shared routing contract carries canonical identity and lifecycle regardless of that published shape. Field's active research reset is coded diffusion, documented in [Coded Diffusion Research Boundary](409_coded_diffusion_research.md), and is not a new shared routing doctrine.
 
 ## Design Commitments
 

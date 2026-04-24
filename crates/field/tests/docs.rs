@@ -18,6 +18,7 @@ fn field_docs_reference_current_pages_and_parity_ledger() {
     let guide = repo_text("verification/Field/Docs/Guide.md");
 
     assert!(summary.contains("406_field_routing.md"));
+    assert!(summary.contains("409_coded_diffusion_research.md"));
     assert!(summary.contains("305_profile_reference.md"));
     assert!(!summary.contains("404_field_routing.md"));
     assert!(!summary.contains("403_field_routing.md"));
@@ -36,8 +37,12 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
     let protocol = repo_text("verification/Field/Docs/Protocol.md");
     let guide = repo_text("verification/Field/Docs/Guide.md");
     let replay_fixtures = repo_text("verification/Field/Adequacy/ReplayFixtures.lean");
+    let coded_diffusion = repo_text("docs/409_coded_diffusion_research.md");
 
     assert!(field_routing.contains("Lean covers:"));
+    assert!(field_routing.contains("409_coded_diffusion_research.md"));
+    assert!(coded_diffusion.contains("active implementation boundary"));
+    assert!(coded_diffusion.contains("Field.CodedDiffusion"));
     assert!(adequacy.contains("FieldReplaySnapshot"));
     assert!(adequacy.contains("reduced_protocol_replay()"));
     assert!(parity.contains("field is a single private-selector engine"));
