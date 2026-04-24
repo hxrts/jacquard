@@ -7,8 +7,9 @@
 //!
 //! The corridor planner is now baseline-only for the coded-diffusion research
 //! path. New research code belongs under the `research` boundary, whose
-//! vocabulary is message fragments, coding rank, fragment custody,
-//! innovative/duplicate arrivals, diffusion pressure, and reconstruction
+//! vocabulary is coded evidence, evidence-origin modes, contribution ledgers,
+//! payload-byte budgets, receiver rank, fragment custody, innovative/duplicate
+//! arrivals, reconstruction ticks, diffusion pressure, and reconstruction
 //! quorum.
 //!
 //! The implementation is intentionally split into thin modules so the

@@ -43,6 +43,9 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
     assert!(field_routing.contains("409_coded_diffusion_research.md"));
     assert!(coded_diffusion.contains("active implementation boundary"));
     assert!(coded_diffusion.contains("Field.CodedDiffusion"));
+    assert!(coded_diffusion.contains("PayloadBudgetMetadata"));
+    assert!(coded_diffusion.contains("ContributionLedgerRecord"));
+    assert!(coded_diffusion.contains("reconstruction monotonicity"));
     assert!(adequacy.contains("FieldReplaySnapshot"));
     assert!(adequacy.contains("reduced_protocol_replay()"));
     assert!(parity.contains("field is a single private-selector engine"));
@@ -107,7 +110,8 @@ fn field_docs_mark_corridor_routing_as_baseline_only_for_research() {
     let field_routing = repo_text("docs/406_field_routing.md");
 
     assert!(crate_docs.contains("coded-diffusion research"));
-    assert!(crate_docs.contains("message fragments"));
+    assert!(crate_docs.contains("coded evidence"));
+    assert!(crate_docs.contains("contribution ledgers"));
     assert!(planner.contains("Baseline-only"));
     assert!(search.contains("Baseline-only"));
     assert!(route.contains("Baseline-only"));

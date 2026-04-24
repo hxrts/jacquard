@@ -10,12 +10,19 @@ The active direction is resource-bounded diffusion-coded inference in temporal n
 
 The semantic center is:
 
+- target identity,
 - message identity,
+- evidence identity,
+- evidence-origin mode,
 - fragment identity,
 - coding width and k-of-n reconstruction,
+- deterministic payload-byte budget metadata,
+- contribution-ledger identity,
 - independent receiver rank,
+- reconstruction event tick,
 - fragment custody,
 - innovative versus duplicate arrivals,
+- recoding parent and contribution lineage,
 - diffusion pressure,
 - storage pressure,
 - rank deficit,
@@ -24,11 +31,26 @@ The semantic center is:
 
 The initial Rust research boundary is `crates/field/src/research.rs`. It defines the coded-diffusion vocabulary used by new work:
 
+- `CodedTargetId`
 - `DiffusionMessageId`
+- `CodedEvidenceId`
 - `DiffusionFragmentId`
+- `EvidenceOriginMode`
+- `CodedEvidenceRecord`
+- `CodedEvidenceRecordInput`
+- `CodedEvidenceValidity`
 - `CodingWindow`
+- `CodingRankId`
+- `LocalObservationId`
+- `ContributionLedgerId`
+- `ContributionLedgerKind`
+- `ContributionLedgerRecord`
+- `ContributionLedgerRecordInput`
+- `PayloadBudgetKind`
+- `PayloadBudgetMetadata`
 - `FragmentCustody`
 - `ReceiverRankState`
+- `ReceiverRankError`
 - `ReconstructionQuorum`
 - `DiffusionPressure`
 - `FragmentSpreadBelief`
@@ -39,7 +61,9 @@ The initial Rust research boundary is `crates/field/src/research.rs`. It defines
 - `FragmentReplayEvent`
 - `PrivateProtocolRole`
 
-The initial Lean theorem boundary is `verification/Field/CodedDiffusion.lean`, imported as `Field.CodedDiffusion`. It owns the first proof-facing placeholders for k-of-n reconstruction, duplicate non-inflation, observer projection, and diffusion-potential accounting.
+The Lean theorem boundary is `verification/Field/CodedDiffusion.lean`, imported as `Field.CodedDiffusion`. It now owns the Phase 1 proof-facing core for k-of-n reconstruction, duplicate non-inflation, innovative rank growth, reconstruction monotonicity, parent-contribution recoding soundness, recoded duplicate non-inflation, observer projection preservation, rank-deficit and duplicate-pressure accounting, and finite deterministic work recurrence. Probability-heavy anomaly-margin and observer-erasure claims remain explicit Phase 2+ placeholders.
+
+The Phase 1 surface is sufficient for the first Phase 2 anomaly-localization implementation. Locally generated evidence carries `LocalObservationId`, recoded aggregate evidence carries parent contribution lineage plus an aggregate-with-local-observation ledger path, and `ReceiverRankState` exposes canonical accepted contribution ids. Phase 2 score updates should attach deterministic integer evidence vectors to accepted innovative local or aggregate contributions; duplicates continue to leave rank and score state unchanged.
 
 ## Legacy Field Baseline
 
