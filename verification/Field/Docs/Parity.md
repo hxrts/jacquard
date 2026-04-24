@@ -9,33 +9,33 @@ quietly drifting.
 | Surface | Rust owner | Lean/docs owner | Status |
 |---|---|---|---|
 | search config / execution policy | `FieldSearchConfig` | `Field/Search/API.lean`, `Field/Adequacy/Search.lean`, `Docs/Guide.md` | active parity surface |
-| query family split | `SearchQuery::single_goal`, candidate-set resolution in `search/runner.rs` | `Field/Search/API.lean`, `Docs/403_field_routing.md` | active parity surface |
+| query family split | `SearchQuery::single_goal`, candidate-set resolution in `search/runner.rs` | `Field/Search/API.lean`, `Docs/Guide.md` | active parity surface |
 | snapshot identity / reconfiguration | `FieldSearchEpoch`, `FieldSearchSnapshotId`, `FieldSearchReconfiguration` | `Field/Search/API.lean`, `Field/Adequacy/Search.lean`, `Docs/Closure.md` | active parity surface |
-| selected private result | `FieldSelectedContinuation`, `FieldPlannerSearchRecord` | `Docs/403_field_routing.md`, `Docs/Closure.md` | active parity surface |
-| planner-visible publication boundary | `planner.rs` one-candidate corridor projection | `Docs/403_field_routing.md`, router docs | active parity surface |
+| selected private result | `FieldSelectedContinuation`, `FieldPlannerSearchRecord` | `Docs/Closure.md` | active parity surface |
+| planner-visible publication boundary | `planner.rs` one-candidate corridor projection | router docs | active parity surface |
 
 ## Runtime Boundary
 
 | Surface | Rust owner | Lean/docs owner | Status |
 |---|---|---|---|
-| evidence ingress | `ingest_forward_summary`, `record_forward_summary`, `record_reverse_feedback` | `Docs/403_field_routing.md`, `Docs/Closure.md` | active parity surface |
-| observer refresh / cache gating | `runtime.rs`, `observer.rs` | `Docs/403_field_routing.md` | active parity surface |
-| continuation-envelope route state | `route.rs`, `runtime.rs` | `Docs/403_field_routing.md`, `Docs/Closure.md` | active parity surface |
-| route maintenance / commitment invalidation | `runtime.rs` | `Docs/403_field_routing.md`, `Docs/Adequacy.md` | active parity surface |
+| evidence ingress | `ingest_forward_summary`, `record_forward_summary`, `record_reverse_feedback` | `Docs/Closure.md` | active parity surface |
+| observer refresh / cache gating | `runtime.rs`, `observer.rs` | `Docs/Adequacy.md` | active parity surface |
+| continuation-envelope route state | `route.rs`, `runtime.rs` | `Docs/Closure.md` | active parity surface |
+| route maintenance / commitment invalidation | `runtime.rs` | `Docs/Adequacy.md` | active parity surface |
 | runtime/search linkage metadata | `FieldRuntimeRoundArtifact` | `Field/Adequacy/API.lean`, `Docs/Adequacy.md` | active parity surface |
 
 ## Replay / Inspection Boundary
 
 | Surface | Rust owner | Lean/docs owner | Status |
 |---|---|---|---|
-| versioned replay snapshot | `FieldReplaySnapshot` | `Docs/403_field_routing.md`, `Docs/Adequacy.md` | active parity surface |
+| versioned replay snapshot | `FieldReplaySnapshot` | `Docs/Adequacy.md` | active parity surface |
 | search replay view | `FieldSearchReplaySurface` | `Docs/Closure.md` | observational |
 | protocol replay packaging | `FieldProtocolReplaySurface` | `Docs/Protocol.md`, `Docs/Adequacy.md` | observational |
 | reduced protocol replay extraction | `FieldReplaySnapshot::reduced_protocol_replay()` | `Field/Protocol/Reconfiguration.lean`, `Field/Adequacy/Search.lean`, `Docs/Protocol.md`, `Docs/Adequacy.md` | reduced |
 | runtime replay view | `FieldRuntimeReplaySurface` | `Docs/Adequacy.md` | reduced |
-| exported replay bundle | `FieldExportedReplayBundle` | `Docs/403_field_routing.md`, `Docs/Adequacy.md` | reduced tooling surface |
+| exported replay bundle | `FieldExportedReplayBundle` | `Docs/Adequacy.md` | reduced tooling surface |
 | replay-derived fixture vocabulary | `FieldExportedReplayBundle::lean_replay_fixture`, fixture JSON under `crates/field/tests/fixtures/replay/` | `Field/Adequacy/ReplayFixtures.lean`, `Docs/Adequacy.md`, `Docs/Protocol.md` | active parity surface |
-| commitment replay view | `FieldCommitmentReplaySurface` | `Docs/403_field_routing.md`, `Docs/Adequacy.md` | observational |
+| commitment replay view | `FieldCommitmentReplaySurface` | `Docs/Adequacy.md` | observational |
 
 ## Ownership Discipline
 

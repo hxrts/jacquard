@@ -393,7 +393,9 @@ Paper non-claims:
 
 ## Legacy Field Baseline
 
-`docs/406_field_routing.md` is legacy context. It documents the old corridor-envelope Field engine that still exists as a runnable baseline.
+The old corridor-envelope Field engine remains legacy context in crate code and
+tests. It is a runnable baseline, but it is no longer documented as a Jacquard
+guide page.
 
 The legacy baseline may still compile and run for comparison:
 

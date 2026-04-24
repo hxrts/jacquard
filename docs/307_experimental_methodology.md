@@ -40,76 +40,10 @@ The same discipline applies to policy parameters when a comparison covers polici
 
 A simulator run produces a per-run log plus aggregate and breakdown JSON files under the run directory. Diffusion runs add their own per-run log plus diffusion aggregate and boundary summaries. Head-to-head reductions are exported into the generated report directory. Model-lane runs add model artifacts as validation companions rather than scoring inputs.
 
-The `analysis/` Python package reads those artifacts. `data.py` loads them into Polars frames. `scoring.py` derives per-run metrics. `tables.py` produces CSV tables. `plots.py` produces vector plots. `sections.py` and `document.py` compose report sections and lay them out. `report.py` is the entry that assembles the PDF.
+The `analysis/` Python package reads route-visible router artifacts for the
+maintained routing report. `data.py` loads them into Polars frames. `scoring.py`
+derives per-run metrics. `tables.py` produces CSV tables. `plots.py` produces
+vector plots. `sections.py` and `document.py` compose report sections and lay
+them out. `report.py` is the entry that assembles the router PDF.
 
 Report outputs are stable across releases subject to explicit schema versioning. A 3rd party can rely on the artifact shape to build custom reductions or alternate reports without waiting on changes to the included pipeline.
-
-Coded-diffusion observer ambiguity is reported as a measured frontier, not as a formal privacy guarantee. Its independent variables include observer projection, coding rate, fragment dispersion, deterministic forwarding-randomness mode, path-diversity preference, and reproduction target band. Its dependent variables include attacker top-1 accuracy, posterior uncertainty, mutual-information-style trace proxies, ambiguity-cost frontier area, cost, latency, and inference quality.
-
-The coded-diffusion core experiments are simulator-local research fixtures, not
-route-continuity tuning runs. Their central claim is path-free inference from
-partial, independent evidence under deterministic temporal contacts. Exact
-`k`-of-`n` recovery is treated as the set-union threshold case. The anomaly
-localization task is treated as additive integer score-vector merging, where
-the merged statistic directly determines margin, uncertainty, and decision
-quality. The methodology does not claim a new erasure code or arbitrary machine
-learning inference; it claims deterministic transport and merging of supported
-mergeable sufficient statistics, plus measured near-critical cost control and
-measured observer ambiguity proxies.
-
-Active belief diffusion extends that methodology with first-class demand
-summaries. Demand is measured as replay-visible control data, not as evidence.
-The active artifact bundle reports an active belief grid, demand trace rows,
-host/bridge demand replay rows, active-versus-passive rows, a
-no-central-encoder panel, compact second-task rows for set-union,
-majority-threshold, and bounded-histogram tasks, a recoding frontier, bounded
-robustness rows, theorem-assumption rows, large-regime rows, final validation
-rows, trace-validation rows, deterministic stronger-baseline rows, exact
-per-seed summary rows, scaling-boundary rows, and figure sanity rows. Its
-dependent variables include commitment lead time per receiver,
-receiver agreement, belief divergence, collective uncertainty, demand
-satisfaction, demand-response lag, evidence overlap, quality per byte, bytes at
-commitment, duplicate and innovative arrivals, stale-demand ignored count,
-false-confidence count, censored full-recovery status, commitment accuracy, and
-measured R_est.
-
-The active comparison keeps the same equal-payload-byte discipline as the
-passive coded-diffusion baseline. Active comparison is not a
-formula-derived offset from a passive summary. Passive controlled coded
-diffusion, demand disabled, local-only demand, piggybacked demand, stale-demand
-ablation, and full active belief diffusion are separate reduced causal runs over
-the same deterministic event stream and fixed payload budget. Demand is
-generated before forwarding choices, live demand feeds policy scoring through
-demand value, and emitted, received, forwarded, piggybacked, expired,
-ignored-stale, and satisfied demand rows are replay-visible. No-central-encoder
-rows use oracle evaluation only after the run, so the simulator can score the
-hidden target without giving any node a global input during the trace.
-
-The active validation claim is bounded to compact mergeable tasks under the
-modeled temporal-network assumptions. Agreement, divergence, collective
-uncertainty, evidence overlap, commitment, bytes at commitment, and stress
-outcomes are computed from receiver-indexed run state. The methodology supports
-the empirical claim that demand can improve allocation and belief formation
-while preserving the non-evidential safety boundary; it does not claim arbitrary
-machine learning inference, consensus, common knowledge, or production-network
-robustness.
-
-Final proposal validation rows add a multi-seed and multi-regime layer over the
-reduced causal runner. They cover sparse bridge-heavy, clustered
-duplicate-heavy, and semi-realistic mobility regimes, passive and active modes,
-set-union, majority-threshold, and bounded-histogram task rows, and
-deterministic replay assertions. The strong package adds 500-node large-regime
-configuration rows with replay and artifact-sanity flags; the older
-scaling-boundary row remains as a compatibility marker for the scoped package.
-Theorem-assumption rows label which regimes satisfy the finite-horizon
-receiver-arrival, anomaly-margin, false-commitment, and potential-drift
-assumptions and which remain empirical-only.
-
-The strong experiment package also records semi-realistic mobility-contact trace
-validation with canonical preprocessing and replay checks, exact deterministic
-seed summaries instead of floating-point confidence state, and a deterministic
-contact-frequency opportunistic baseline row. Robustness coverage includes
-duplicate spam, selective withholding, biased observations, bridge-node loss,
-stale recoded evidence, correlated observations, adversarial withholding,
-malicious duplicate pressure, delayed demand, and asymmetric receiver
-histories.

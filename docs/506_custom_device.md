@@ -2,7 +2,7 @@
 
 This guide walks through adding a custom node: the device-side profile that advertises capabilities, exposes node state, and emits service descriptors. It targets 3rd parties modeling a device that is not covered by the in-memory node profile, for example a physical BLE peripheral, a constrained IoT endpoint, or a heterogeneous mix of hosts with different service surfaces.
 
-See [Profile Implementations](305_profile_reference.md) for the shared profile boundary. See [Custom Transport](505_custom_transport.md) for the companion link side. See [Reference Client](408_reference_client.md) for the host bridge composition the custom profile plugs into.
+See [Profile Implementations](305_profile_reference.md) for the shared profile boundary. See [Custom Transport](505_custom_transport.md) for the companion link side. See [Reference Client](407_reference_client.md) for the host bridge composition the custom profile plugs into.
 
 ## What A Device Profile Owns
 

@@ -72,7 +72,7 @@ See [Simulator Architecture](306_simulator_architecture.md) for host bridge owne
 
 Mercator shares explicit search goals with [Pathway Routing](404_pathway_routing.md). It differs by retaining bounded alternates and treating stale repair and weakest-flow service as first-class diagnostics.
 
-Mercator shares corridor publication shape with [Field Routing](406_field_routing.md). It differs by using a smaller bounded evidence graph rather than a continuously updated field model and Telltale-backed search substrate.
+Mercator publishes corridor envelopes while using a smaller bounded evidence graph, stale-safe repair state, and bounded custody posture.
 
 Mercator shares custody pressure concerns with [Scatter Routing](405_scatter_routing.md). It differs by remaining route-visible whenever connected corridor support exists.
 

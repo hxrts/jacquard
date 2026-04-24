@@ -63,78 +63,22 @@ class ReportSanityTests(unittest.TestCase):
                 messages,
             )
 
-    def test_accepts_active_belief_final_csvs(self) -> None:
+    def test_detects_field_rows_in_router_analysis(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             artifact_dir = Path(tmp)
             report_dir = artifact_dir / "report"
             report_dir.mkdir()
             _write_large(artifact_dir / "router-tuning-report.pdf", b"%PDF")
-            (report_dir / "active_belief_final_validation.csv").write_text(
-                "seed,scenario_regime,mode,task_kind,fixed_payload_budget_bytes,"
-                "collective_uncertainty_permille,receiver_agreement_permille,"
-                "commitment_lead_time_rounds_max,quality_per_byte_permille,"
-                "deterministic_replay\n"
-                "41,sparse-bridge-heavy,full-active-belief,majority-threshold,"
-                "4096,120,1000,6,4,true\n"
+            (report_dir / "runs.csv").write_text(
+                "run_id,family_id,engine_family,config_id,seed,"
+                "route_present_total_window_permille\n"
+                "r,field-bootstrap,field,field-1,1,900\n"
             )
-            (report_dir / "active_belief_second_tasks.csv").write_text(
-                "seed,mode,task_kind,statistic_kind,receiver_rank,"
-                "recovery_probability_permille,bytes_at_commitment,"
-                "demand_satisfaction_permille,decision_accuracy_permille,"
-                "commitment_lead_time_rounds_max,quality_per_byte_permille\n"
-                "41,full-active-belief,bounded-histogram,bounded-histogram,"
-                "12,1000,384,500,1000,6,4\n"
+            rendered = [issue.render() for issue in validate_report_artifacts(artifact_dir)]
+            self.assertIn(
+                "runs.csv: routing analysis report contains Field rows",
+                rendered,
             )
-            (report_dir / "active_belief_host_bridge_demand.csv").write_text(
-                "seed,mode,execution_surface,bridge_batch_id,ingress_round,"
-                "replay_visible,demand_contribution_count,evidence_validity_changed,"
-                "contribution_identity_created,merge_semantics_changed,"
-                "route_truth_published,duplicate_rank_inflation\n"
-                "41,full-active-belief,host-bridge-replay,410,4,true,0,false,"
-                "false,false,false,false\n"
-            )
-            (report_dir / "active_belief_theorem_assumptions.csv").write_text(
-                "theorem_name,scenario_regime,trace_family,"
-                "finite_horizon_model_valid,contact_dependence_assumption,"
-                "assumption_status,receiver_arrival_bound_permille,"
-                "lower_tail_failure_permille,false_commitment_bound_permille\n"
-                "receiver_arrival_reconstruction_bound,sparse-bridge-heavy,"
-                "synthetic-sparse-bridge,true,adversarial-with-floor,holds,"
-                "760,90,40\n"
-            )
-            (report_dir / "active_belief_large_regime.csv").write_text(
-                "seed,scenario_regime,requested_node_count,executed_node_count,"
-                "deterministic_replay,runtime_budget_stable,artifact_sanity_covered\n"
-                "41,sparse-bridge-heavy,500,500,true,true,true\n"
-            )
-            (report_dir / "active_belief_trace_validation.csv").write_text(
-                "trace_family,external_or_semi_realistic,canonical_preprocessing,"
-                "replay_deterministic,theorem_assumption_status\n"
-                "semi-realistic-mobility-contact,true,true,true,holds\n"
-            )
-            (report_dir / "active_belief_strong_baselines.csv").write_text(
-                "seed,baseline_policy,fixed_payload_budget_bytes,"
-                "decision_accuracy_permille,quality_per_byte_permille,deterministic\n"
-                "41,prophet-contact-frequency,4096,720,175,true\n"
-            )
-            (report_dir / "active_belief_exact_seed_summary.csv").write_text(
-                "seed,scenario_regime,receiver_arrival_probability_permille,"
-                "commitment_accuracy_permille,false_commitment_rate_permille,"
-                "commitment_lead_time_rounds_max,quality_per_byte_permille\n"
-                "41,sparse-bridge-heavy,760,960,40,6,224\n"
-            )
-            (report_dir / "active_belief_scaling_boundary.csv").write_text(
-                "requested_node_count,executed_node_count,documented_boundary,"
-                "boundary_reason\n"
-                "500,100,true,documented boundary\n"
-            )
-            (report_dir / "active_belief_figure_artifacts.csv").write_text(
-                "figure_index,figure_name,artifact_row_count,fixed_budget_label,"
-                "sanity_passed\n"
-                "1,landscape-coming-into-focus,3,equal-payload-bytes,true\n"
-            )
-
-            self.assertEqual([], validate_report_artifacts(artifact_dir))
 
     def test_detects_stale_persistence_without_disruption(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

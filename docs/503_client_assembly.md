@@ -2,7 +2,7 @@
 
 This guide covers using `jacquard-reference-client` as a library in a downstream application, and wrapping it in a small binary for standalone deployment. It also covers the two composition-time swaps a 3rd party is most likely to reach for: a custom `PolicyEngine` and a custom `CommitteeSelector`.
 
-See [Reference Client](408_reference_client.md) for the implementation spec this guide builds on. See [Profile Implementations](305_profile_reference.md) for the profile boundary and [Crate Architecture](999_crate_architecture.md) for the workspace ownership rules.
+See [Reference Client](407_reference_client.md) for the implementation spec this guide builds on. See [Profile Implementations](305_profile_reference.md) for the profile boundary and [Crate Architecture](999_crate_architecture.md) for the workspace ownership rules.
 
 ## Adding The Dependency
 

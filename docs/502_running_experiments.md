@@ -2,7 +2,7 @@
 
 This guide covers two kinds of work. The first half shows how to invoke the in-tree experiment suites through the `tuning_matrix` binary, where to find the artifacts, how to regenerate the report, and what the current corpus says about each engine. The second half shows how to assemble a custom suite programmatically when the in-tree families do not cover a 3rd party's analytical question.
 
-See [Experimental Methodology](307_experimental_methodology.md) for what an experiment is, why the tuning phase runs first, and which variables are independent versus dependent. See [Simulator Architecture](306_simulator_architecture.md) for the harness the suites sit on, [Reference Client](408_reference_client.md) for the host composition, and [Running Simulations](501_running_simulations.md) for the base scenario flow each experiment builds on.
+See [Experimental Methodology](307_experimental_methodology.md) for what an experiment is, why the tuning phase runs first, and which variables are independent versus dependent. See [Simulator Architecture](306_simulator_architecture.md) for the harness the suites sit on, [Reference Client](407_reference_client.md) for the host composition, and [Running Simulations](501_running_simulations.md) for the base scenario flow each experiment builds on.
 
 ## Running The In-Tree Suites
 
@@ -37,7 +37,8 @@ Regenerate the report without rerunning the simulator:
 nix develop --command python3 -m analysis.report artifacts/analysis/local/latest
 ```
 
-The report lands at `artifacts/analysis/{suite}/latest/router-tuning-report.pdf`.
+The route-visible router report lands at
+`artifacts/analysis/{suite}/latest/router-tuning-report.pdf`.
 
 ## Engine Takeaways From The Current Corpus
 
@@ -60,10 +61,6 @@ Babel separates most clearly in the asymmetry-cost-penalty family, where the bid
 The Pathway matrix shows a clear minimum-budget boundary. Budget `1` remains the hard cliff in the maintained service-pressure families. Budgets at and above `2` form the viable floor. `pathway-4-zero` and `pathway-4-hop-lower-bound` lead the balanced default ranking.
 
 The practical interpretation is that `2` is the minimum viable budget floor, `3` to `4` is the sensible default range, and larger budgets need a regime-specific justification.
-
-### Legacy Field
-
-Historical Field corridor-routing sweeps remain useful for baseline inspection, but Field is no longer part of future routing-engine comparison runs. New research-path Field outputs belong to the coded-diffusion artifact namespace and must not be appended to routing-tuning tables as route-quality rows.
 
 ### Mercator
 
@@ -119,61 +116,6 @@ The canonical reference for programmatic suite composition is the `tuning_matrix
 Diffusion suites follow the same shape as tuning suites with a different type family. `DiffusionSuite` assembles runs, `DiffusionPolicyConfig` parameterizes individual runs, and `run_diffusion_suite` executes them. The artifacts written are `diffusion_runs.jsonl` plus the diffusion aggregate and boundary summaries.
 
 The in-tree diffusion catalog is similarly crate-private. The same two workarounds apply: upstream new scenarios into the simulator, or duplicate the suite-assembly flow in a dependent crate.
-
-The coded-diffusion near-critical sweep is currently exposed as simulator-local research fixtures rather than a public tuning-matrix stage. Use the focused simulator tests while developing the surface:
-
-```bash
-cargo test -p jacquard-simulator reproduction_pressure
-cargo test -p jacquard-simulator near_critical_controller
-cargo test -p jacquard-simulator potential_accounting
-cargo test -p jacquard-simulator near_critical_sweep
-cargo test -p jacquard-simulator near_critical_artifacts
-cargo test -p jacquard-simulator near_critical_theory
-```
-
-The sweep covers subcritical, near-critical, and supercritical target bands across low, nominal, and high forwarding budgets. It emits deterministic plot-ready rows for reproduction pressure, controller action, cap state, inference potential, diffusion potential, byte cost, and transmission cost, plus summary maxima for recovery, commitment, duplicate pressure, storage pressure, and potential. These artifacts are intended as the input shape for later report plots; they do not alter simulator state or route-analysis outputs.
-
-The coded-diffusion observer-ambiguity surface is also exposed as focused simulator fixtures rather than a public tuning-matrix stage:
-
-```bash
-cargo test -p jacquard-simulator observer_projection
-cargo test -p jacquard-simulator observer_attacker
-cargo test -p jacquard-simulator observer_metrics
-cargo test -p jacquard-simulator observer_sweep
-cargo test -p jacquard-simulator observer_robustness
-cargo test -p jacquard-simulator observer_artifacts
-```
-
-Observer fixtures build explicit global, regional, endpoint, and blind projections over coded-inference traces. The first attacker infers anomaly region from one projection at a time. Metrics are empirical proxies for attacker advantage, posterior uncertainty, forwarding/contact trace coupling, and ambiguity-cost frontier area; they are not formal privacy measures. The sweep varies coding rate, fragment dispersion, deterministic forwarding-randomness mode, path-diversity preference, reproduction target band, and projection identity. Plot-ready observer rows carry projection identity, attacker target, knob values, attacker result, ambiguity metrics, cost, latency, and quality fields.
-
-The coded-diffusion core-experiment package is exposed through focused simulator
-tests while the report export path remains optional. These tests generate or
-validate the deterministic rows for the paper-facing figures without appending
-them to route-analysis tables:
-
-```bash
-cargo test -p jacquard-simulator core_experiment
-cargo test -p jacquard-simulator experiment_a_landscape
-cargo test -p jacquard-simulator experiment_a2_evidence_modes
-cargo test -p jacquard-simulator experiment_b_path_free_recovery
-cargo test -p jacquard-simulator experiment_c_phase_diagram
-cargo test -p jacquard-simulator experiment_d_coding_vs_replication
-cargo test -p jacquard-simulator experiment_e_observer_frontier
-```
-
-The artifact namespace is `artifacts/coded-inference/core-experiments`.
-Experiment A emits the landscape-over-time rows. Experiment A2 emits
-evidence-origin mode rows. Experiment B emits path-free recovery rows.
-Experiment C emits phase-diagram rows over target band, forwarding budget, and
-coding rate. Experiment D emits the equal-byte coding-versus-replication rows.
-Experiment E emits the observer ambiguity frontier rows. Generated report
-datasets may use the optional CSV names checked by `just report-sanity`:
-`coded_inference_experiment_a_landscape.csv`,
-`coded_inference_experiment_a2_evidence_modes.csv`,
-`coded_inference_experiment_b_path_free_recovery.csv`,
-`coded_inference_experiment_c_phase_diagram.csv`,
-`coded_inference_experiment_d_coding_vs_replication.csv`, and
-`coded_inference_experiment_e_observer_frontier.csv`.
 
 ## Review Guidance
 

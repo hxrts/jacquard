@@ -2,7 +2,7 @@
 
 This guide walks through implementing a custom routing engine from scratch and registering it with the router. The worked example is a minimal no-op engine that declares opaque route visibility and always reports lost reachability. It is short and unhelpful as a routing algorithm, but it exercises every trait a real engine must implement.
 
-See [Routing Engines](303_routing_engines.md) for the engine contract spec. For the in-tree engines that demonstrate specific patterns, see [Pathway Routing](404_pathway_routing.md), [Batman Routing](401_batman_routing.md), [Babel Routing](402_babel_routing.md), [OLSRv2 Routing](403_olsrv2_routing.md), [Scatter Routing](405_scatter_routing.md), and [Field Routing](406_field_routing.md).
+See [Routing Engines](303_routing_engines.md) for the engine contract spec. For the in-tree engines that demonstrate specific patterns, see [Pathway Routing](404_pathway_routing.md), [Batman Routing](401_batman_routing.md), [Babel Routing](402_babel_routing.md), [OLSRv2 Routing](403_olsrv2_routing.md), and [Scatter Routing](405_scatter_routing.md).
 
 ## Required Traits
 
@@ -163,4 +163,4 @@ If the engine ships in its own crate, consider implementing `RoutingEnginePlanne
 
 For contract enforcement, the `toolkit/checks/rust/routing_invariants.rs` policy check validates engine crates against the shared rules. Run `cargo xtask check routing-invariants` during development.
 
-For integration into experiment suites, see [Running Experiments](502_running_experiments.md). For host composition patterns, see [Client Assembly](503_client_assembly.md) and [Reference Client](408_reference_client.md).
+For integration into experiment suites, see [Running Experiments](502_running_experiments.md). For host composition patterns, see [Client Assembly](503_client_assembly.md) and [Reference Client](407_reference_client.md).

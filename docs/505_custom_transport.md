@@ -2,7 +2,7 @@
 
 This guide walks through adding a custom link: the byte-carrying transport surface engines send through, plus the link-level profile that wraps it. It targets 3rd parties replacing the in-memory transport with something runtime-specific, for example a TCP, BLE, or raw LoRa P2P carrier.
 
-See [Profile Implementations](305_profile_reference.md) for the shared profile boundary. See [Reference Client](408_reference_client.md) for the host bridge composition the custom transport plugs into. See [Crate Architecture](999_crate_architecture.md) for the ownership rules the transport layer must respect.
+See [Profile Implementations](305_profile_reference.md) for the shared profile boundary. See [Reference Client](407_reference_client.md) for the host bridge composition the custom transport plugs into. See [Crate Architecture](999_crate_architecture.md) for the ownership rules the transport layer must respect.
 
 ## What A Transport Owns
 
@@ -139,7 +139,7 @@ fn links_from_unicast(evidence: &[UnicastEvidence], sender: NodeId, receiver: No
 
 ## Composing With A Host Bridge
 
-The composed profile plugs into the reference client's `ClientBuilder` or into a custom host bridge. The default builder expects the in-memory network, so a non-default transport requires composing the router and engines directly or forking the builder. See [Reference Client](408_reference_client.md) for the composition the reference client exposes.
+The composed profile plugs into the reference client's `ClientBuilder` or into a custom host bridge. The default builder expects the in-memory network, so a non-default transport requires composing the router and engines directly or forking the builder. See [Reference Client](407_reference_client.md) for the composition the reference client exposes.
 
 The minimum composition wires three things together. First, a router that owns canonical route publication. Second, one or more engines registered on that router, each holding a queue-backed `TransportSenderEffects` handle. Third, a host bridge that owns the `TransportDriver`, drains ingress, stamps `Tick`, and advances the router through synchronous rounds.
 

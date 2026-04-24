@@ -51,6 +51,18 @@ report-sanity artifact_dir='artifacts/analysis/local/latest':
       echo "report-sanity: skipped; {{artifact_dir}}/report does not exist"
     fi
 
+# generate the active-belief paper report and figures
+active-belief-report artifact_dir='artifacts/analysis_2/latest':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop --command python3 -m analysis_2.report "{{artifact_dir}}"
+
+# validate the active-belief paper report and figures
+active-belief-sanity artifact_dir='artifacts/analysis_2/latest':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop --command python3 -m analysis_2.sanity "{{artifact_dir}}"
+
 # run the benchmark-audit regression surface without the full tuning matrix
 benchmark-audit:
     #!/usr/bin/env bash
@@ -64,7 +76,7 @@ benchmark-audit:
     cargo test -p jacquard-simulator adversarial_observation_reports_non_zero_leakage_for_broad_baseline
     cargo test -p jacquard-simulator bounded_state_classifies_regions
     cargo test -p jacquard-simulator energy_starved_relay_separates_conservative_and_broad_profiles
-    nix develop --command python3 -m unittest analysis.tests.test_scoring analysis.tests.test_sanity
+    nix develop --command python3 -m unittest analysis.tests.test_scoring analysis.tests.test_sanity analysis_2.tests.test_sanity
 
 # format code (uses the toolkit-owned nightly rustfmt policy)
 fmt:

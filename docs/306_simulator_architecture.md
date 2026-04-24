@@ -14,7 +14,7 @@ Execution has three modes. `full-stack` runs the maintained comparative families
 
 ## Engine Selection Per Host
 
-The simulator selects engines per host through `EngineLane`. Single-engine variants cover `Pathway`, `BatmanBellman`, `BatmanClassic`, `Babel`, `OlsrV2`, `Scatter`, `Field`, and `Mercator`. Mixed-engine variants include `PathwayAndBatmanBellman`, `PathwayAndBabel`, `PathwayAndOlsrV2`, `PathwayAndField`, `BabelAndBatmanBellman`, `OlsrV2AndBatmanBellman`, `FieldAndBatmanBellman`, `AllEngines`, and `RouteVisibleEngines`. `RouteVisibleEngines` is the routing-comparison lane and excludes Field so the legacy corridor-routing baseline cannot be confused with the coded-diffusion research path.
+The simulator selects engines per host through `EngineLane`. Single-engine variants cover `Pathway`, `BatmanBellman`, `BatmanClassic`, `Babel`, `OlsrV2`, `Scatter`, `Field`, and `Mercator`. Mixed-engine variants include `PathwayAndBatmanBellman`, `PathwayAndBabel`, `PathwayAndOlsrV2`, `PathwayAndField`, `BabelAndBatmanBellman`, `OlsrV2AndBatmanBellman`, `FieldAndBatmanBellman`, `AllEngines`, and `RouteVisibleEngines`. `RouteVisibleEngines` is the routing-comparison lane and excludes Field so the legacy corridor-routing baseline is not appended to route-visible comparison tables.
 
 All engines share one host bridge per node. The bridge owns ingress draining and `Tick` stamping. Engines keep private runtime state below the shared routing boundary.
 

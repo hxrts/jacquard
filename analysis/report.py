@@ -108,7 +108,7 @@ def normalize_failure_summary_count(
     return frame.with_columns(total.cast(pl.UInt32).alias(count_column))
 
 
-def without_field_routing_rows(frame: pl.DataFrame) -> pl.DataFrame:
+def without_field_rows(frame: pl.DataFrame) -> pl.DataFrame:
     if frame.is_empty():
         return frame
     keep = pl.lit(True)
@@ -128,7 +128,15 @@ def without_field_routing_rows(frame: pl.DataFrame) -> pl.DataFrame:
     if "config_id" in frame.columns:
         keep = keep & (
             pl.col("config_id").is_null()
-            | ~pl.col("config_id").str.starts_with("head-to-head-field")
+            | (
+                ~pl.col("config_id").str.starts_with("field")
+                & ~pl.col("config_id").str.starts_with("head-to-head-field")
+            )
+        )
+    if "family_id" in frame.columns:
+        keep = keep & (
+            pl.col("family_id").is_null()
+            | ~pl.col("family_id").str.starts_with("field")
         )
     return frame.filter(keep)
 
@@ -192,9 +200,12 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    routing_runs = without_field_routing_rows(runs)
-    routing_aggregates = without_field_routing_rows(aggregates)
-    routing_breakdowns = without_field_routing_rows(breakdowns)
+    routing_runs = without_field_rows(runs)
+    routing_aggregates = without_field_rows(aggregates)
+    routing_breakdowns = without_field_rows(breakdowns)
+    diffusion_runs = without_field_rows(diffusion_runs)
+    diffusion_aggregates = without_field_rows(diffusion_aggregates)
+    diffusion_boundaries = without_field_rows(diffusion_boundaries)
 
     with tempfile.TemporaryDirectory(
         dir=artifact_dir, prefix=".report-staging-"
@@ -267,9 +278,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         empty_legacy_field_table = pl.DataFrame()
 
-        write_csv(runs, output_report_dir / "runs.csv")
-        write_csv(aggregates, output_report_dir / "aggregates.csv")
-        write_csv(breakdowns, output_report_dir / "breakdowns.csv")
+        write_csv(routing_runs, output_report_dir / "runs.csv")
+        write_csv(routing_aggregates, output_report_dir / "aggregates.csv")
+        write_csv(routing_breakdowns, output_report_dir / "breakdowns.csv")
         write_csv(recommendations, output_report_dir / "recommendations.csv")
         write_csv(
             profile_recommendations, output_report_dir / "profile_recommendations.csv"
