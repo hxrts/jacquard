@@ -8,10 +8,15 @@ use serde::{Deserialize, Serialize};
 
 use super::coded_inference::{CodedArrivalClassification, CodedContactTraceEvent};
 
+mod ablation;
 mod baseline;
 mod reducer;
 mod score;
 
+#[allow(unused_imports)]
+pub(crate) use ablation::{
+    run_local_policy_ablation, LocalPolicyAblationDecisionRecord, LocalPolicyAblationVariant,
+};
 #[allow(unused_imports)]
 pub(crate) use baseline::run_local_evidence_policy_baseline;
 #[allow(unused_imports)]
