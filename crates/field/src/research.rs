@@ -2458,6 +2458,62 @@ mod tests {
     }
 
     #[test]
+    fn monotone_evidence_inclusion_preserves_quality_order() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 2), (2, 0), (3, 4), (4, 0)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+        let receiver_rank = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 4)
+            .expect("receiver rank");
+        let first = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(1, 2, 3),
+            ContributionLedgerId(3),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 4), (4, 0)]),
+            None,
+        )
+        .expect("first update");
+        let second = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(2, 3, 4),
+            ContributionLedgerId(4),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 5), (4, 0)]),
+            None,
+        )
+        .expect("second update");
+
+        let first_outcome =
+            reduce_landscape_updates(&receiver_rank, &landscape, &[first.clone()], Tick(20))
+                .expect("first outcome");
+        let second_outcome = reduce_landscape_updates(
+            &first_outcome.receiver_rank,
+            &first_outcome.landscape,
+            &[second],
+            Tick(21),
+        )
+        .expect("second outcome");
+
+        assert_eq!(
+            first_outcome.landscape.summary.top_hypothesis,
+            AnomalyClusterId(3)
+        );
+        assert_eq!(
+            second_outcome.landscape.summary.top_hypothesis,
+            AnomalyClusterId(3)
+        );
+        assert!(
+            second_outcome.landscape.summary.top_hypothesis_margin
+                >= first_outcome.landscape.summary.top_hypothesis_margin
+        );
+        assert!(
+            second_outcome.landscape.summary.uncertainty_permille
+                <= first_outcome.landscape.summary.uncertainty_permille
+        );
+    }
+
+    #[test]
     fn coded_evidence_origin_modes_are_distinct_and_validated() {
         let source = CodedEvidenceRecord::try_new(source_input()).expect("source-coded record");
         assert_eq!(source.origin_mode, EvidenceOriginMode::SourceCoded);
