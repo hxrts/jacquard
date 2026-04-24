@@ -285,22 +285,22 @@ opportunistic baselines.
 
 | Figure | Name | Proposal role | Source artifact |
 | --- | --- | --- | --- |
-| 1 | Landscape coming into focus | Belief landscape, rank, margin, uncertainty, bytes, duplicates, demand, and `R_est` over time | `coded_inference_experiment_a_landscape.csv` |
-| 2 | Path-free recovery | Recovery or decision when no stable static path exists | `coded_inference_experiment_b_path_free_recovery.csv` |
+| 1 | Landscape coming into focus | Multi-seed belief quality, margin, and uncertainty over time | `active_belief_raw_rounds.csv` |
+| 2 | Path-free recovery | Recovery or decision with explicit no-static-path and time-respecting-journey validation | `active_belief_path_validation.csv` |
 | 3 | Three-mode comparison | Source-coded, distributed-evidence, and recoded/aggregated modes | `coded_inference_experiment_a2_evidence_modes.csv` |
-| 4 | Active belief grid | Receiver agreement, uncertainty, margin, and commitment lead time | `active_belief_final_validation.csv` |
+| 4 | Active belief grid | Receiver agreement, uncertainty, quality, and commitment lead time across active/passive/recoded modes | `active_belief_receiver_runs.csv` |
 | 5 | Task algebra table | Direct statistic decoding across exact, anomaly, majority, and histogram tasks | `active_belief_second_tasks.csv` |
 | 6 | Phase diagram | Quality, cost, duplicate pressure, and `R_est` across control regimes | `coded_inference_experiment_c_phase_diagram.csv` |
-| 7 | Active versus passive | Demand-aware allocation versus passive controlled coded diffusion | `active_belief_final_validation.csv` |
-| 8 | Coding versus replication | Quality or recovery at equal payload-byte budget | `coded_inference_experiment_d_coding_vs_replication.csv` |
-| 9 | Recoding frontier | Forwarding-only versus in-network aggregation | `active_belief_final_validation.csv` |
+| 7 | Active versus passive | Causal demand ablations under equal payload-byte budget | `active_belief_demand_ablation.csv` |
+| 8 | Coding versus replication | Quality-cost curves across payload-byte budgets | `coded_inference_experiment_d_coding_vs_replication.csv` |
+| 9 | Recoding frontier | Quality versus bytes at commitment for forwarding, active demand, and recoding | `active_belief_receiver_runs.csv` |
 | 10 | Robustness boundary | Stress regimes where the primitive holds or stops helping | `active_belief_exact_seed_summary.csv` |
 | 11 | Observer ambiguity frontier | Observer proxy frontier, not a privacy theorem | `coded_inference_experiment_e_observer_frontier.csv` |
 | 12 | Host/bridge demand safety | Demand is first-class but non-evidential across replay surfaces | `active_belief_host_bridge_demand.csv` |
 | 13 | Theorem assumptions by regime | Proof-to-experiment assumption map | `active_belief_theorem_assumptions.csv` |
-| 14 | Large-regime validation | Deterministic 500-node artifact sanity | `active_belief_large_regime.csv` |
+| 14 | Large-regime validation | Runtime, memory, replay agreement, quality, and failure-rate scale hygiene | `active_belief_scale_validation.csv` |
 | 15 | Trace validation | Canonical preprocessing and deterministic replay for traces | `active_belief_trace_validation.csv` |
-| 16 | Opportunistic baseline comparison | Stronger deterministic forwarding baselines | `active_belief_strong_baselines.csv` |
+| 16 | Opportunistic baseline comparison | Multi-seed equal-budget deterministic forwarding baselines | `active_belief_strong_baselines.csv` |
 
 ## Evaluation Structure
 
@@ -316,6 +316,13 @@ The evaluation is claim-by-claim:
 7. Semi-realistic mobility-contact traces are canonically preprocessed and
    replay checked.
 8. Robustness boundaries show where the primitive stops helping.
+
+The generated report includes a figure claim map in
+`active_belief_figure_claim_map.csv`. Main-evidence figures are expected to use
+multi-seed replay rows or baseline distributions. Boundary/safety figures
+separate theorem assumptions and non-evidential demand semantics from
+performance. Appendix/supporting figures cover artifact hygiene or proxy
+measurements and are not used as standalone support for the main thesis.
 
 ## Contributions
 
@@ -333,6 +340,18 @@ The paper contributes:
   observer proxies, and opportunistic baselines,
 - a reproducible paper package with CSV rows, figures, captions, and sanity
   checks.
+
+## Conclusion
+
+Within compact mergeable inference tasks and the finite-horizon replay
+assumptions recorded in the theorem table, the evidence package supports the
+narrowed active-belief thesis: bounded coded evidence can carry audited
+sufficient-statistic contributions through temporal contacts, bounded demand
+can improve allocation under fixed payload-byte budgets, and demand can remain
+first-class in communication without becoming evidential. The supported claim
+is deterministic replay plus theorem-boundary support for the stated regimes.
+The paper does not conclude general AI inference, consensus, privacy, optimal
+control, or production-network robustness.
 
 ## Implementation Roles
 

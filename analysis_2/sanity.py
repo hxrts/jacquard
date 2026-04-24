@@ -11,6 +11,57 @@ REPORT_PDF_NAME = "active-belief-report.pdf"
 MIN_PAPER_PDF_BYTES = 10_000
 
 REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
+    "active_belief_figure_claim_map.csv": (
+        "figure_index", "figure_name", "claim_category", "paper_claim",
+        "source_artifact", "current_row_count", "required_row_count",
+        "required_baselines", "uncertainty_required", "status",
+    ),
+    "active_belief_raw_rounds.csv": (
+        "experiment_id", "scenario_id", "trace_family", "seed", "policy_or_mode",
+        "task_kind", "fixed_budget_label", "fixed_payload_budget_bytes",
+        "statistic_kind", "merge_operation", "no_static_path_in_core_window",
+        "time_respecting_evidence_journey_exists", "round_index",
+        "hypothesis_id", "scaled_score", "receiver_rank",
+        "top_hypothesis_margin", "uncertainty_permille", "byte_count",
+        "duplicate_count", "innovative_arrival_count",
+        "demand_satisfaction_permille", "r_est_permille",
+        "merged_statistic_quality_permille", "canonical_trace_hash",
+        "config_hash", "artifact_hash",
+    ),
+    "active_belief_receiver_runs.csv": (
+        "experiment_id", "scenario_id", "trace_family", "seed", "receiver_id",
+        "mode", "task_kind", "fixed_payload_budget_bytes",
+        "quality_per_byte_permille", "collective_uncertainty_permille",
+        "receiver_agreement_permille", "belief_divergence_permille",
+        "commitment_time_round", "full_recovery_time_round",
+        "commitment_lead_time_rounds", "bytes_at_commitment",
+        "commitment_correct", "deterministic_replay", "canonical_trace_hash",
+        "config_hash", "artifact_hash",
+    ),
+    "active_belief_path_validation.csv": (
+        "experiment_id", "scenario_id", "trace_family", "seed",
+        "policy_or_mode", "fixed_budget_label", "fixed_payload_budget_bytes",
+        "no_static_path_in_core_window", "static_path_absent_round_count",
+        "core_window_round_count", "time_respecting_evidence_journey_exists",
+        "time_respecting_journey_count", "recovery_probability_permille",
+        "path_free_success_permille", "cost_to_recover_bytes", "byte_count",
+        "duplicate_count", "canonical_trace_hash",
+    ),
+    "active_belief_demand_ablation.csv": (
+        "experiment_id", "scenario_id", "trace_family", "seed", "task_kind",
+        "demand_policy", "fixed_payload_budget_bytes",
+        "quality_per_byte_permille", "collective_uncertainty_permille",
+        "receiver_agreement_permille", "demand_satisfaction_permille",
+        "demand_response_lag_rounds",
+        "uncertainty_reduction_after_demand_permille", "bytes_at_commitment",
+        "duplicate_count", "innovative_arrival_count", "deterministic_replay",
+    ),
+    "active_belief_scale_validation.csv": (
+        "seed", "scenario_regime", "node_count", "runtime_ms",
+        "runtime_budget_ms", "memory_kib", "replay_hash_agreement",
+        "quality_per_byte_permille", "failure_rate_permille",
+        "deterministic_replay",
+    ),
     "coded_inference_experiment_a_landscape.csv": (
         "experiment_id", "scenario_id", "seed", "policy_or_mode",
         "fixed_budget_label", "statistic_kind", "merge_operation",
@@ -85,9 +136,10 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
         "decision_accuracy_permille", "quality_per_byte_permille", "deterministic",
     ),
     "active_belief_exact_seed_summary.csv": (
-        "seed", "scenario_regime", "receiver_arrival_probability_permille",
-        "commitment_accuracy_permille", "false_commitment_rate_permille",
-        "commitment_lead_time_rounds_max", "quality_per_byte_permille",
+        "seed", "scenario_regime", "stress_kind", "stress_severity",
+        "receiver_arrival_probability_permille", "commitment_accuracy_permille",
+        "false_commitment_rate_permille", "commitment_lead_time_rounds_max",
+        "quality_per_byte_permille",
     ),
     "active_belief_final_validation.csv": (
         "seed", "scenario_regime", "mode", "task_kind",
@@ -101,7 +153,7 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     ),
     "active_belief_figure_artifacts.csv": (
         "figure_index", "figure_name", "source_artifact", "artifact_row_count",
-        "fixed_budget_label", "sanity_passed",
+        "claim_category", "fixed_budget_label", "sanity_passed",
     ),
 }
 

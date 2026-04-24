@@ -14,20 +14,20 @@ from .sanity import validate_report_artifacts_or_raise
 
 REPORT_PDF_NAME = "active-belief-report.pdf"
 FIGURES = (
-    ("figure_01_landscape_focus", "Landscape coming into focus", "coded_inference_experiment_a_landscape.csv"),
-    ("figure_02_path_free_recovery", "Path-free recovery", "coded_inference_experiment_b_path_free_recovery.csv"),
+    ("figure_01_landscape_focus", "Landscape coming into focus", "active_belief_raw_rounds.csv"),
+    ("figure_02_path_free_recovery", "Path-free recovery", "active_belief_path_validation.csv"),
     ("figure_03_three_mode_comparison", "Three-mode comparison", "coded_inference_experiment_a2_evidence_modes.csv"),
-    ("figure_04_active_belief_grid", "Active belief grid", "active_belief_final_validation.csv"),
+    ("figure_04_active_belief_grid", "Active belief grid", "active_belief_receiver_runs.csv"),
     ("figure_05_task_algebra", "Task algebra table", "active_belief_second_tasks.csv"),
     ("figure_06_phase_diagram", "Phase diagram", "coded_inference_experiment_c_phase_diagram.csv"),
-    ("figure_07_active_vs_passive", "Active versus passive", "active_belief_final_validation.csv"),
+    ("figure_07_active_vs_passive", "Active versus passive", "active_belief_demand_ablation.csv"),
     ("figure_08_coding_vs_replication", "Coding versus replication", "coded_inference_experiment_d_coding_vs_replication.csv"),
-    ("figure_09_recoding_frontier", "Recoding frontier", "active_belief_final_validation.csv"),
+    ("figure_09_recoding_frontier", "Recoding frontier", "active_belief_receiver_runs.csv"),
     ("figure_10_robustness_boundary", "Robustness boundary", "active_belief_exact_seed_summary.csv"),
     ("figure_11_observer_ambiguity", "Observer ambiguity frontier", "coded_inference_experiment_e_observer_frontier.csv"),
     ("figure_12_host_bridge_demand", "Host/bridge demand safety", "active_belief_host_bridge_demand.csv"),
     ("figure_13_theorem_assumptions", "Theorem assumptions by regime", "active_belief_theorem_assumptions.csv"),
-    ("figure_14_large_regime", "Large-regime validation", "active_belief_large_regime.csv"),
+    ("figure_14_large_regime", "Large-regime validation", "active_belief_scale_validation.csv"),
     ("figure_15_trace_validation", "Trace validation", "active_belief_trace_validation.csv"),
     ("figure_16_strong_baselines", "Opportunistic baseline comparison", "active_belief_strong_baselines.csv"),
 )
@@ -63,6 +63,7 @@ def build_figures(
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     figure_rows: list[dict[str, object]] = []
     figure_specs: list[dict[str, object]] = []
+    claim_categories = figure_claim_categories(datasets)
     for index, (figure_id, title, dataset_name) in enumerate(FIGURES, start=1):
         values, labels = save_active_belief_plot_artifact(
             report_dir,
@@ -78,6 +79,7 @@ def build_figures(
                 "figure_name": title,
                 "source_artifact": dataset_name,
                 "artifact_row_count": len(datasets[dataset_name]),
+                "claim_category": claim_categories.get(index, "main-evidence"),
                 "fixed_budget_label": "equal-payload-bytes",
                 "sanity_passed": True,
             }
@@ -96,60 +98,67 @@ def build_figures(
     return figure_rows, figure_specs
 
 
+def figure_claim_categories(datasets: dict[str, list[dict[str, object]]]) -> dict[int, str]:
+    categories: dict[int, str] = {}
+    for row in datasets.get("active_belief_figure_claim_map.csv", []):
+        categories[int(row["figure_index"])] = str(row["claim_category"])
+    return categories
+
+
 def figure_caption(figure_id: str, dataset_name: str) -> str:
     descriptions = {
         "figure_01_landscape_focus": (
-            "Read this as the motivating belief-formation trace: higher merged-statistic quality means the receiver's compact evidence ledger is turning intermittent contacts into a sharper task belief. The significance is that useful belief improves without treating route availability as the measured objective."
+            "Main evidence. Median lines and interquartile bands summarize multi-seed replay rows for belief quality, margin, and uncertainty over temporal contact. This supports landscape sharpening under fixed payload-byte accounting; it does not by itself prove demand causality."
         ),
         "figure_02_path_free_recovery": (
-            "This plot isolates the path-free condition. The important reading is whether reconstruction or useful inference succeeds even when the core window has no static end-to-end path, which is the main separation from ordinary route-continuity claims."
+            "Main evidence. Each distribution uses rows whose core windows have no instantaneous static source-to-receiver path and whose successful runs record time-respecting evidence journeys. This supports the path-free inference claim under the recorded trace families."
         ),
         "figure_03_three_mode_comparison": (
-            "The three points compare source-coded evidence, distributed local evidence, and recoded aggregate evidence under the same accounting surface. The significance is that active belief diffusion is not just payload recovery; it also covers mergeable local observations and safe aggregation."
+            "Main evidence. Separate normalized panels compare source-coded threshold evidence, distributed local evidence, and recoded aggregate evidence without mixing count and quality units on one axis. This supports task-interface breadth, not universal ML inference."
         ),
         "figure_04_active_belief_grid": (
-            "This grid-level summary should be read as a compact view of receiver agreement, uncertainty, and quality per byte. It shows whether demand-aware allocation improves the collective belief statistic rather than merely moving more bytes."
+            "Main evidence. Receiver-run summaries compare active, passive, and recoded modes for agreement, uncertainty, and commitment lead time. The figure supports collective belief improvement under the replayed regimes."
         ),
         "figure_05_task_algebra": (
-            "This figure summarizes breadth across compact mergeable tasks. The key point is that the claim is not tied to one anomaly-localization fixture: exact threshold, vote, and histogram-style statistics share the same bounded merge-and-commit discipline."
+            "Main evidence. Per-task baseline rows show that anomaly, majority, histogram, and set-union tasks share the direct statistic decoding surface. The result is restricted to compact mergeable tasks."
         ),
         "figure_06_phase_diagram": (
-            "Read the phase diagram as the cost-control boundary: subcritical pressure under-delivers, supercritical pressure wastes budget, and the useful region is where quality rises without runaway duplicate pressure."
+            "Main evidence. Small multiples show quality, duplicate pressure, byte cost, and measured R_est across reproduction bands. The useful region is where quality improves without runaway duplicate or byte pressure."
         ),
         "figure_07_active_vs_passive": (
-            "This comparison is the causal active-demand test. Under equal payload bytes, the active mode should improve quality per byte over passive controlled coded diffusion while keeping demand non-evidential."
+            "Main evidence. Causal ablation distributions isolate propagated demand against no-demand, local-only, stale-demand, and removed-scoring-term policies under equal payload-byte budgets."
         ),
         "figure_08_coding_vs_replication": (
-            "This plot contrasts coded contribution movement with plain replication under the fixed byte budget. The significance is a fair-cost check: any claimed benefit must appear as better quality or lower cost at the same payload budget."
+            "Main evidence. Quality-cost curves compare coded evidence policies with uncoded replication across payload-byte budgets. This is the fair-cost check for the coding benefit."
         ),
         "figure_09_recoding_frontier": (
-            "Read this as the aggregation frontier. Gains are meaningful only when recoding preserves contribution lineage, so the plot should be interpreted together with duplicate non-inflation and recoding-soundness rows."
+            "Main evidence. The frontier plots quality against bytes at commitment for passive, active, and recoded modes. Recoding gains should be read together with duplicate non-inflation and demand-safety rows."
         ),
         "figure_10_robustness_boundary": (
-            "This boundary plot marks where the reduced thesis still holds and where it becomes empirical-only or fails. The important use is negative: it keeps the paper from overstating robustness beyond the modeled stress set."
+            "Main evidence. Split stress panels show commitment accuracy and false-commitment rate by stress severity. The figure identifies modeled robustness boundaries and should not be read as arbitrary-adversary robustness."
         ),
         "figure_11_observer_ambiguity": (
-            "This plot reports observer ambiguity proxies, not formal privacy. Higher uncertainty or lower attacker advantage is evidence about the measured projection surface, but the caption boundary prevents reading it as a privacy theorem."
+            "Supporting proxy. Observer ambiguity is a measured projection frontier only. It is not a privacy theorem and is not required for the main active-belief thesis."
         ),
         "figure_12_host_bridge_demand": (
-            "This is the safety-surface plot for first-class demand messages. Demand may change priority, custody, and allocation, but the rows should show that it never validates evidence, creates contribution identity, alters merge semantics, or publishes route truth."
+            "Boundary/safety evidence. Host/bridge replay rows show that first-class demand never validates evidence, creates contribution identity, alters merge semantics, publishes route truth, or inflates duplicate rank."
         ),
         "figure_13_theorem_assumptions": (
-            "Use this figure as the proof-to-experiment map. Rows with satisfied assumptions can be read as instances of the Lean-backed boundary; rows outside those assumptions are empirical evidence only."
+            "Boundary/safety evidence. This is the proof-to-experiment map. Rows marked holds are inside the theorem-backed boundary; empirical-only rows are reported evidence, not proof instances."
         ),
         "figure_14_large_regime": (
-            "This plot checks scale hygiene rather than claiming production deployment. The important signal is deterministic replay and stable artifact generation at the stated large-regime size."
+            "Supporting scale hygiene. Runtime, memory, replay agreement, quality, and failure-rate rows check deterministic large-regime artifact generation. This is not a production deployment claim."
         ),
         "figure_15_trace_validation": (
-            "This trace-validation figure shows whether synthetic and semi-realistic mobility-contact inputs were canonically preprocessed and replayed. It supports artifact credibility, not a universal mobility claim."
+            "Supporting artifact hygiene. Trace validation shows canonical preprocessing and deterministic replay for synthetic and semi-realistic inputs. It supports artifact credibility, not a universal mobility claim."
         ),
         "figure_16_strong_baselines": (
-            "This baseline comparison positions active belief diffusion against deterministic opportunistic forwarding references. The significance is bounded: it checks the stronger paper package against explicit baselines without claiming a complete DTN survey."
+            "Main evidence. Multi-seed equal-budget distributions compare active belief diffusion with deterministic opportunistic forwarding baselines. The scope is the recorded baseline set, not a complete DTN survey."
         ),
     }
     return (
         f"{descriptions[figure_id]} Source: {dataset_name}. Fixed payload-byte budget, "
-        "deterministic replay, and theorem-assumption status are recorded in the corresponding CSV rows."
+        "seed set, trace family, deterministic replay status, and theorem-assumption status are recorded in the report CSV rows."
     )
 
 
