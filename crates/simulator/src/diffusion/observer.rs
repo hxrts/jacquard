@@ -3,12 +3,18 @@
 #![allow(dead_code)]
 
 mod attacker;
+mod metrics;
 mod projection;
 
 #[allow(unused_imports)]
 pub(crate) use attacker::{
     run_observer_attacker, ObserverAttackerConfig, ObserverAttackerHypothesisScore,
     ObserverAttackerResult, ObserverAttackerTarget,
+};
+#[allow(unused_imports)]
+pub(crate) use metrics::{
+    ambiguity_cost_frontier_area, observer_metrics_from_result, ObserverAmbiguityMetrics,
+    ObserverCostPoint,
 };
 #[allow(unused_imports)]
 pub(crate) use projection::{
