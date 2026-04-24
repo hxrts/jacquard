@@ -7,7 +7,10 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    baselines::{comparison::run_equal_budget_baseline_comparison, BaselineContractError},
+    baselines::{
+        comparison::run_equal_budget_baseline_comparison, BaselineContractError, BaselinePolicyId,
+        BaselineRunSummary,
+    },
     catalog::scenarios::build_coded_inference_readiness_scenario,
     coded_inference::{
         build_coded_inference_readiness_log, summarize_coded_inference_readiness_log,
@@ -124,6 +127,9 @@ pub(crate) struct CoreExperimentArtifactRow {
     pub coding_k: u32,
     pub coding_n: u32,
     pub duplicate_rate_permille: u32,
+    pub fixed_payload_budget_bytes: u32,
+    pub equal_quality_cost_reduction_permille: u32,
+    pub equal_cost_quality_improvement_permille: u32,
     pub byte_count: u32,
     pub duplicate_count: u32,
     pub latency_rounds: u32,
@@ -318,6 +324,9 @@ pub(crate) fn experiment_a_landscape_rows(
             coding_k: 0,
             coding_n: 0,
             duplicate_rate_permille: summary.duplicate_rate_permille,
+            fixed_payload_budget_bytes: summary.fixed_payload_budget_bytes,
+            equal_quality_cost_reduction_permille: 0,
+            equal_cost_quality_improvement_permille: 0,
             byte_count: summary.bytes_transmitted,
             duplicate_count: summary.duplicate_arrival_count,
             latency_rounds: summary
@@ -418,6 +427,9 @@ pub(crate) fn experiment_b_path_free_recovery_rows(
                 coding_k: 0,
                 coding_n: 0,
                 duplicate_rate_permille: summary.duplicate_rate_permille,
+                fixed_payload_budget_bytes: summary.fixed_payload_budget_bytes,
+                equal_quality_cost_reduction_permille: 0,
+                equal_cost_quality_improvement_permille: 0,
                 byte_count: summary.bytes_transmitted,
                 duplicate_count: summary.duplicate_arrival_count,
                 latency_rounds: summary
@@ -466,6 +478,99 @@ pub(crate) fn experiment_c_phase_diagram_rows(seed: u64) -> Vec<CoreExperimentAr
     rows
 }
 
+pub(crate) fn experiment_d_coding_vs_replication_rows(
+    seed: u64,
+) -> Result<Vec<CoreExperimentArtifactRow>, BaselineContractError> {
+    let comparison = run_equal_budget_baseline_comparison(seed)?;
+    let reference = comparison
+        .summaries
+        .iter()
+        .find(|summary| summary.policy_id == BaselinePolicyId::ControlledCodedDiffusion);
+    let path_evidence = core_path_evidence(&deterministic_core_fixture_edges(), 1, 5);
+    let mut rows = comparison
+        .summaries
+        .iter()
+        .enumerate()
+        .map(|(index, summary)| {
+            experiment_d_row(
+                comparison.seed,
+                &path_evidence,
+                u32::try_from(index).unwrap_or(u32::MAX),
+                summary,
+                reference,
+            )
+        })
+        .collect::<Vec<_>>();
+    sort_core_experiment_rows(&mut rows);
+    Ok(rows)
+}
+
+fn experiment_d_row(
+    seed: u64,
+    path_evidence: &CoreExperimentPathEvidence,
+    ordering_key: u32,
+    summary: &BaselineRunSummary,
+    reference: Option<&BaselineRunSummary>,
+) -> CoreExperimentArtifactRow {
+    let reference_quality = reference
+        .map(decision_or_recovery_quality_permille)
+        .unwrap_or(0);
+    let summary_quality = decision_or_recovery_quality_permille(summary);
+    CoreExperimentArtifactRow {
+        identity: core_experiment_identity(
+            CoreExperimentId::CodingVersusReplication,
+            EXPERIMENT_A_SCENARIO_ID,
+            seed,
+            summary.policy_id.as_str(),
+        ),
+        mergeable_statistic: baseline_policy_descriptor(summary.policy_id),
+        path_evidence: path_evidence.clone(),
+        round_index: summary
+            .commitment_round
+            .or(summary.reconstruction_round)
+            .unwrap_or(0),
+        ordering_key,
+        hidden_hypothesis_id: 0,
+        hypothesis_id: 0,
+        top_hypothesis_id: 0,
+        scaled_score: summary.top_hypothesis_margin,
+        energy_gap: summary.top_hypothesis_margin,
+        available_evidence_count: summary.forwarding_events,
+        useful_contribution_count: summary.receiver_rank,
+        recovery_probability_permille: summary.recovery_probability_permille,
+        path_free_success_permille: path_free_success_permille(
+            path_evidence,
+            summary.recovery_probability_permille,
+        ),
+        cost_to_recover_bytes: summary.bytes_transmitted,
+        reproduction_target_low_permille: summary.target_reproduction_min_permille.unwrap_or(0),
+        reproduction_target_high_permille: summary.target_reproduction_max_permille.unwrap_or(0),
+        r_est_permille: summary.measured_reproduction_permille.unwrap_or(0),
+        forwarding_budget: summary.forwarding_events,
+        coding_k: summary.receiver_rank,
+        coding_n: summary.forwarding_events.max(summary.receiver_rank),
+        duplicate_rate_permille: summary.duplicate_rate_permille,
+        fixed_payload_budget_bytes: summary.fixed_payload_budget_bytes,
+        equal_quality_cost_reduction_permille: equal_quality_cost_reduction_permille(
+            summary, reference,
+        ),
+        equal_cost_quality_improvement_permille: reference_quality.saturating_sub(summary_quality),
+        byte_count: summary.bytes_transmitted,
+        duplicate_count: summary.duplicate_arrival_count,
+        latency_rounds: summary
+            .commitment_round
+            .or(summary.reconstruction_round)
+            .unwrap_or(0),
+        storage_pressure_bytes: summary.peak_stored_payload_bytes_per_node,
+        receiver_rank: summary.receiver_rank,
+        top_hypothesis_margin: summary.top_hypothesis_margin,
+        uncertainty_permille: 1000_u32.saturating_sub(summary_quality),
+        quality_permille: summary_quality,
+        merged_statistic_quality_permille: summary_quality,
+        observer_advantage_permille: 0,
+    }
+}
+
 fn experiment_c_row(
     artifact: &NearCriticalSweepArtifact,
     path_evidence: &CoreExperimentPathEvidence,
@@ -507,6 +612,9 @@ fn experiment_c_row(
         coding_k,
         coding_n,
         duplicate_rate_permille: artifact.duplicate_pressure,
+        fixed_payload_budget_bytes: artifact.cell.payload_byte_cap,
+        equal_quality_cost_reduction_permille: 0,
+        equal_cost_quality_improvement_permille: 0,
         byte_count: artifact.byte_cost,
         duplicate_count: artifact.duplicate_pressure,
         latency_rounds: artifact.transmission_cost,
@@ -555,6 +663,9 @@ fn experiment_a_landscape_event_row(
         coding_k: 0,
         coding_n: 0,
         duplicate_rate_permille: 0,
+        fixed_payload_budget_bytes: 0,
+        equal_quality_cost_reduction_permille: 0,
+        equal_cost_quality_improvement_permille: 0,
         byte_count: cumulative_payload_bytes(log, event.round_index),
         duplicate_count: duplicate_arrivals_at_or_before(log, event.round_index),
         latency_rounds: event.round_index,
@@ -602,6 +713,9 @@ fn experiment_a_oracle_row(
         coding_k: summary.coded_fragment_count,
         coding_n: summary.coded_fragment_count,
         duplicate_rate_permille: 0,
+        fixed_payload_budget_bytes: summary.uncoded_fixed_payload_budget_bytes,
+        equal_quality_cost_reduction_permille: 0,
+        equal_cost_quality_improvement_permille: 0,
         byte_count: summary.uncoded_fixed_payload_budget_bytes,
         duplicate_count: 0,
         latency_rounds: final_round,
@@ -657,6 +771,9 @@ fn origin_mode_row(
         coding_k: 0,
         coding_n: 0,
         duplicate_rate_permille: 0,
+        fixed_payload_budget_bytes: 0,
+        equal_quality_cost_reduction_permille: 0,
+        equal_cost_quality_improvement_permille: 0,
         byte_count: accumulator.byte_count,
         duplicate_count: accumulator.duplicate_count,
         latency_rounds: accumulator.latest_arrival_round,
@@ -825,6 +942,42 @@ fn controller_mode_order(mode: ControllerModeKind) -> u32 {
         ControllerModeKind::Full => 0,
         ControllerModeKind::Disabled => 1,
     }
+}
+
+fn baseline_policy_descriptor(policy_id: BaselinePolicyId) -> MergeableStatisticDescriptor {
+    match policy_id {
+        BaselinePolicyId::ControlledCodedDiffusion
+        | BaselinePolicyId::UncontrolledCodedDiffusion
+        | BaselinePolicyId::LocalEvidencePolicy => additive_score_vector_descriptor(),
+        BaselinePolicyId::UncodedReplication
+        | BaselinePolicyId::EpidemicForwarding
+        | BaselinePolicyId::SprayAndWait => set_union_rank_descriptor(),
+    }
+}
+
+fn decision_or_recovery_quality_permille(summary: &BaselineRunSummary) -> u32 {
+    summary
+        .decision_accuracy_permille
+        .max(summary.recovery_probability_permille)
+}
+
+fn equal_quality_cost_reduction_permille(
+    summary: &BaselineRunSummary,
+    reference: Option<&BaselineRunSummary>,
+) -> u32 {
+    let Some(reference) = reference else {
+        return 0;
+    };
+    let summary_quality = decision_or_recovery_quality_permille(summary);
+    let reference_quality = decision_or_recovery_quality_permille(reference);
+    if reference_quality < summary_quality || summary.bytes_transmitted == 0 {
+        return 0;
+    }
+    summary
+        .bytes_transmitted
+        .saturating_sub(reference.bytes_transmitted)
+        .saturating_mul(1000)
+        / summary.bytes_transmitted
 }
 
 fn cumulative_payload_bytes(log: &CodedInferenceReadinessLog, round_index: u32) -> u32 {
@@ -1006,6 +1159,9 @@ mod tests {
             coding_k: 0,
             coding_n: 0,
             duplicate_rate_permille: 0,
+            fixed_payload_budget_bytes: 64,
+            equal_quality_cost_reduction_permille: 0,
+            equal_cost_quality_improvement_permille: 0,
             byte_count: 64,
             duplicate_count: 1,
             latency_rounds: 4,
@@ -1364,5 +1520,73 @@ mod tests {
             .iter()
             .filter(|row| row.identity.policy_or_mode.contains("supercritical"))
             .any(|row| row.quality_permille == 1000 && row.byte_count >= 128));
+    }
+
+    #[test]
+    fn experiment_d_coding_vs_replication_includes_reviewer_roster() {
+        let rows = experiment_d_coding_vs_replication_rows(41).expect("rows");
+
+        for policy in [
+            "uncoded-replication",
+            "epidemic-forwarding",
+            "uncontrolled-coded-diffusion",
+            "controlled-coded-diffusion",
+        ] {
+            assert!(rows.iter().any(|row| row.identity.policy_or_mode == policy));
+        }
+    }
+
+    #[test]
+    fn experiment_d_coding_vs_replication_preserves_equal_budget_metadata() {
+        let rows = experiment_d_coding_vs_replication_rows(41).expect("rows");
+        let labels = rows
+            .iter()
+            .map(|row| row.identity.fixed_budget_label.as_str())
+            .collect::<BTreeSet<_>>();
+        let payload_budgets = rows
+            .iter()
+            .map(|row| row.fixed_payload_budget_bytes)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(labels.len(), 1);
+        assert_eq!(labels.first().copied(), Some("equal-payload-bytes"));
+        assert_eq!(payload_budgets.len(), 1);
+        assert_eq!(payload_budgets.first().copied(), Some(4096));
+    }
+
+    #[test]
+    fn experiment_d_coding_vs_replication_does_not_mix_secondary_budgets() {
+        let rows = experiment_d_coding_vs_replication_rows(41).expect("rows");
+
+        assert!(rows.iter().all(|row| {
+            row.identity.fixed_budget_label == "equal-payload-bytes"
+                && row.fixed_payload_budget_bytes == 4096
+        }));
+        assert!(rows
+            .iter()
+            .all(|row| row.byte_count <= row.fixed_payload_budget_bytes));
+    }
+
+    #[test]
+    fn experiment_d_coding_vs_replication_exposes_cost_and_quality_surfaces() {
+        let rows = experiment_d_coding_vs_replication_rows(41).expect("rows");
+
+        assert!(rows.iter().all(|row| {
+            row.equal_quality_cost_reduction_permille <= 1000
+                && row.equal_cost_quality_improvement_permille <= 1000
+        }));
+        assert!(rows.iter().any(|row| {
+            row.equal_quality_cost_reduction_permille > 0
+                || row.equal_cost_quality_improvement_permille > 0
+        }));
+        assert!(rows.iter().any(|row| {
+            row.identity.policy_or_mode == "controlled-coded-diffusion"
+                && row.mergeable_statistic.statistic_kind
+                    == MergeableStatisticKind::AdditiveScoreVector
+        }));
+        assert!(rows.iter().any(|row| {
+            row.identity.policy_or_mode == "uncoded-replication"
+                && row.mergeable_statistic.statistic_kind == MergeableStatisticKind::SetUnionRank
+        }));
     }
 }
