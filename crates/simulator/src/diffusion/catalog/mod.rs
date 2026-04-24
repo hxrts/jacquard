@@ -6,8 +6,10 @@ use super::model::{
 };
 
 pub(super) use super::model::{
-    DiffusionMessageMode, DiffusionMobilityProfile, DiffusionNodeSpec, DiffusionRegimeDescriptor,
-    DiffusionTransportKind,
+    CodedContributionValidityRule, CodedEvidenceOriginMode, CodedEvidenceTransformKind,
+    CodedInferenceReadinessScenario, CodedInferenceSpec, CodedLocalObservationSpec,
+    CodedRecodingRuleSpec, DiffusionMessageMode, DiffusionMobilityProfile, DiffusionNodeSpec,
+    DiffusionRegimeDescriptor, DiffusionTransportKind,
 };
 
 pub(super) mod scenarios;
