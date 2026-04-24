@@ -8,6 +8,14 @@ use serde::{Deserialize, Serialize};
 
 use super::coded_inference::{CodedArrivalClassification, CodedContactTraceEvent};
 
+mod score;
+
+#[allow(unused_imports)]
+pub(crate) use score::{
+    compare_scored_candidates, local_policy_score_from_input, LocalPolicyScoreBreakdown,
+    LocalPolicyScoreCandidate, LocalPolicyScoreInput,
+};
+
 const LOCAL_POLICY_PEER_LIMIT: usize = 128;
 const LOCAL_POLICY_RECENT_WINDOW_MAX: usize = 16;
 const LOCAL_POLICY_CLUSTER_DIVERSITY_CAP: u32 = 4;
