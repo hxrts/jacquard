@@ -84,7 +84,18 @@ The initial Rust research boundary is `crates/field/src/research.rs`. It defines
 - `EvidenceOriginUpdateCounts`
 - `ReceiverInferenceQualitySummary`
 
-The Lean theorem boundary is `verification/Field/CodedDiffusion.lean`, imported as `Field.CodedDiffusion`. It now owns the Phase 1 proof-facing core for k-of-n reconstruction, duplicate non-inflation, innovative rank growth, reconstruction monotonicity, parent-contribution recoding soundness, recoded duplicate non-inflation, observer projection preservation, rank-deficit and duplicate-pressure accounting, and finite deterministic work recurrence. Probability-heavy anomaly-margin and full observer-ambiguity claims remain measured experimental claims unless a later formal privacy theorem is actually proved.
+The Lean theorem boundary is split across `verification/Field/CodedDiffusion.lean`
+and `verification/Field/CodedDiffusionStrong.lean`, imported as
+`Field.CodedDiffusion` and `Field.CodedDiffusionStrong`. The core file owns the
+proof-facing surface for k-of-n reconstruction, duplicate non-inflation,
+innovative rank growth, reconstruction monotonicity, parent-contribution
+recoding soundness, recoded duplicate non-inflation, observer projection
+preservation, rank-deficit and duplicate-pressure accounting, and finite
+deterministic work recurrence. The strong file owns the assumption-explicit
+finite-horizon receiver-arrival, useful-inference arrival, anomaly-margin
+lower-tail, guarded false-commitment, and inference-potential drift claims. Full
+observer-ambiguity and privacy claims remain measured experimental claims
+unless a separate formal privacy theorem is actually proved.
 
 The Phase 2 anomaly-localization surface is now implemented on top of the Phase 1 contribution gate. Locally generated evidence carries `LocalObservationId`, recoded aggregate evidence carries parent contribution lineage plus an aggregate-with-local-observation ledger path, and `ReceiverRankState` exposes canonical accepted contribution ids. `EvidenceVectorRecord` attaches one deterministic integer score vector to one `CodedEvidenceId` plus `ContributionLedgerId` for one `AnomalyLandscape`. The pure `reduce_landscape_updates` reducer canonicalizes contribution order, applies innovative vectors once with saturating integer arithmetic, leaves duplicate arrivals quality-neutral, and emits `LandscapeUpdateEvent` records for replay. `DecisionCommitmentState` records a separate typed `Tick` when the top-hypothesis margin and minimum independent-evidence guard first pass; this remains distinct from exact k-of-n reconstruction. `ReceiverInferenceQualitySummary` reports receiver rank, reconstruction tick, commitment tick, top/runner-up hypotheses, margin, uncertainty, energy gap, innovative and duplicate update counts, and source/local/recoded origin counts.
 
