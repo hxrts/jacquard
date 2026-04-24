@@ -49,6 +49,13 @@ structure ReceiverBeliefState where
   topHypothesis? : Option HypothesisId
   deriving Inhabited, Repr, DecidableEq, BEq
 
+/-- A guarded local decision emitted from an audited receiver statistic. -/
+structure GuardedCommitment where
+  receiverId : ReceiverId
+  hypothesis : HypothesisId
+  guardPassed : Bool
+  deriving Inhabited, Repr, DecidableEq, BEq
+
 /-! ## Bounded Demand Summaries -/
 
 /-- One bounded request for evidence that may improve a receiver landscape. -/
@@ -214,13 +221,6 @@ theorem commitment_lead_time_soundness
   rfl
 
 /-! ## Multi-Receiver Compatibility -/
-
-/-- A guarded local decision emitted from an audited receiver statistic. -/
-structure GuardedCommitment where
-  receiverId : ReceiverId
-  hypothesis : HypothesisId
-  guardPassed : Bool
-  deriving Inhabited, Repr, DecidableEq, BEq
 
 /-- Compatibility is agreement on the guarded hypothesis, not consensus. -/
 def compatibleCommitments

@@ -758,6 +758,96 @@ pub struct AnomalyLandscapeSummary {
     pub energy_gap: i32,
 }
 
+/// Proof-facing merged statistic for the additive score-vector task family.
+#[cfg_attr(not(test), allow(dead_code))]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct AdditiveScoreStatistic {
+    /// Highest-scoring hypothesis after deterministic tie-breaking.
+    pub top_hypothesis: AnomalyClusterId,
+    /// Runner-up hypothesis after deterministic tie-breaking.
+    pub runner_up_hypothesis: AnomalyClusterId,
+    /// Guard-facing top-vs-runner-up margin.
+    pub top_margin: i32,
+    /// Independent evidence count represented by the statistic.
+    pub evidence_count: u16,
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+impl AdditiveScoreStatistic {
+    /// Build the theorem-facing statistic from replay-visible summary data.
+    #[must_use]
+    pub(crate) fn from_summary(summary: AnomalyLandscapeSummary, evidence_count: u16) -> Self {
+        Self {
+            top_hypothesis: summary.top_hypothesis,
+            runner_up_hypothesis: summary.runner_up_hypothesis,
+            top_margin: summary.top_hypothesis_margin,
+            evidence_count,
+        }
+    }
+
+    /// Deterministic task decision read directly from the merged statistic.
+    #[must_use]
+    pub(crate) fn decision(self) -> AnomalyClusterId {
+        self.top_hypothesis
+    }
+
+    /// Whether the declared commitment guard passes on this statistic.
+    #[must_use]
+    pub(crate) fn guard_passes(self, guard: AnomalyDecisionGuard) -> bool {
+        self.top_margin >= guard.margin_threshold
+            && self.evidence_count >= guard.minimum_independent_evidence
+    }
+
+    /// Receiver-quality preorder used by the active theorem correspondence.
+    #[must_use]
+    pub(crate) fn quality_order_precedes(self, after: Self) -> bool {
+        self.top_margin <= after.top_margin && self.evidence_count <= after.evidence_count
+    }
+}
+
+/// Explicit witness that two receivers saw different partial evidence histories.
+#[cfg_attr(not(test), allow(dead_code))]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct PartialHistoryWitness {
+    /// Accepted evidence count for the left receiver.
+    pub left_accepted_count: u16,
+    /// Accepted evidence count for the right receiver.
+    pub right_accepted_count: u16,
+    /// Shared accepted evidence count.
+    pub shared_accepted_count: u16,
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+impl PartialHistoryWitness {
+    /// Whether shared evidence stays within both receiver-local counts.
+    #[must_use]
+    pub(crate) fn is_valid(self) -> bool {
+        self.shared_accepted_count <= self.left_accepted_count
+            && self.shared_accepted_count <= self.right_accepted_count
+    }
+
+    /// Whether the two receivers need not have identical evidence histories.
+    #[must_use]
+    pub(crate) fn is_nonidentical(self) -> bool {
+        self.shared_accepted_count < self.left_accepted_count
+            || self.shared_accepted_count < self.right_accepted_count
+    }
+
+    /// Whether the witness is compatible with two theorem-facing statistics.
+    #[must_use]
+    pub(crate) fn supports_compatible_partial_histories(
+        self,
+        left: AdditiveScoreStatistic,
+        right: AdditiveScoreStatistic,
+    ) -> bool {
+        self.is_valid()
+            && self.is_nonidentical()
+            && self.left_accepted_count == left.evidence_count
+            && self.right_accepted_count == right.evidence_count
+            && left.decision() == right.decision()
+    }
+}
+
 /// Receiver-local anomaly-localization landscape.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AnomalyLandscape {
@@ -943,6 +1033,22 @@ impl DecisionCommitmentState {
             return Err(DecisionCommitmentError::TargetMismatch);
         }
         Ok(())
+    }
+}
+
+/// Commitment lead time between guarded decision and exact recovery.
+#[cfg_attr(not(test), allow(dead_code))]
+#[must_use]
+pub(crate) fn commitment_lead_time_rounds(
+    commitment_tick: Option<Tick>,
+    full_recovery_tick: Option<Tick>,
+) -> Option<u32> {
+    // Lead time exists only when both events are observed in the replay-visible state.
+    match (commitment_tick, full_recovery_tick) {
+        (Some(commitment), Some(recovery)) => {
+            Some(u32::try_from(recovery.0.saturating_sub(commitment.0)).unwrap_or(u32::MAX))
+        }
+        _ => None,
     }
 }
 
@@ -1420,6 +1526,16 @@ pub struct ReceiverBeliefCompatibilitySummary {
     pub agreement_permille: u16,
     /// Fixed-denominator divergence proxy.
     pub belief_divergence_permille: u16,
+}
+
+impl ReceiverBeliefCompatibilitySummary {
+    /// Whether the represented receivers have compatible guarded commitments.
+    #[must_use]
+    pub fn has_compatible_guarded_commitments(self) -> bool {
+        self.committed_receiver_count > 0
+            && self.agreeing_receiver_count == self.committed_receiver_count
+            && self.belief_divergence_permille == 0
+    }
 }
 
 /// Apply an evidence message under demand-aware policy without letting demand
@@ -2231,6 +2347,24 @@ mod tests {
         }
     }
 
+    fn theorem_statistic(
+        top_hypothesis: u16,
+        runner_up_hypothesis: u16,
+        top_margin: i32,
+        evidence_count: u16,
+    ) -> AdditiveScoreStatistic {
+        AdditiveScoreStatistic::from_summary(
+            AnomalyLandscapeSummary {
+                top_hypothesis: AnomalyClusterId(top_hypothesis),
+                runner_up_hypothesis: AnomalyClusterId(runner_up_hypothesis),
+                top_hypothesis_margin: top_margin,
+                uncertainty_permille: 0,
+                energy_gap: top_margin,
+            },
+            evidence_count,
+        )
+    }
+
     fn record_evidence_contributions(
         state: &mut ReceiverRankState,
         evidence: &CodedEvidenceRecord,
@@ -2450,6 +2584,63 @@ mod tests {
             generated,
             Err(ActiveDemandGenerationError::DuplicateMissingContribution)
         );
+    }
+
+    #[test]
+    fn theorem_statistic_decodes_guard_and_quality_order() {
+        let before = theorem_statistic(3, 1, 12, 2);
+        let after = theorem_statistic(3, 1, 18, 3);
+        let guard = AnomalyDecisionGuard::try_new(12, 2).expect("decision guard");
+
+        assert_eq!(before.decision(), AnomalyClusterId(3));
+        assert!(before.guard_passes(guard));
+        assert!(before.quality_order_precedes(after));
+        assert!(!after.quality_order_precedes(before));
+    }
+
+    #[test]
+    fn partial_history_witness_tracks_nonidentical_compatible_histories() {
+        let left = theorem_statistic(3, 1, 14, 4);
+        let right = theorem_statistic(3, 2, 12, 3);
+        let witness = PartialHistoryWitness {
+            left_accepted_count: 4,
+            right_accepted_count: 3,
+            shared_accepted_count: 2,
+        };
+
+        assert!(witness.is_valid());
+        assert!(witness.is_nonidentical());
+        assert!(witness.supports_compatible_partial_histories(left, right));
+    }
+
+    #[test]
+    fn commitment_lead_time_rounds_handles_observed_and_censored_cases() {
+        assert_eq!(
+            commitment_lead_time_rounds(Some(Tick(8)), Some(Tick(11))),
+            Some(3)
+        );
+        assert_eq!(commitment_lead_time_rounds(Some(Tick(8)), None), None);
+        assert_eq!(commitment_lead_time_rounds(None, Some(Tick(11))), None);
+    }
+
+    #[test]
+    fn compatibility_summary_flags_fully_aligned_guarded_receivers() {
+        let compatible = ReceiverBeliefCompatibilitySummary {
+            task_id: InferenceTaskId(20),
+            receiver_count: 3,
+            committed_receiver_count: 2,
+            agreeing_receiver_count: 2,
+            agreement_permille: 1000,
+            belief_divergence_permille: 0,
+        };
+        let incompatible = ReceiverBeliefCompatibilitySummary {
+            agreeing_receiver_count: 1,
+            belief_divergence_permille: 250,
+            ..compatible
+        };
+
+        assert!(compatible.has_compatible_guarded_commitments());
+        assert!(!incompatible.has_compatible_guarded_commitments());
     }
 
     fn anomaly_hypotheses() -> AnomalyHypothesisSet {

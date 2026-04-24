@@ -1,6 +1,7 @@
 import Field.CodedDiffusion
 import Field.CodedDiffusionStrong
 import Field.ActiveBelief
+import Field.ActiveBeliefStrong
 import Field.LocalModel
 import Field.PrivateProtocol
 import Field.Boundary
