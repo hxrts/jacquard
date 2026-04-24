@@ -4448,7 +4448,7 @@ mod tests {
     }
 
     #[test]
-    fn head_to_head_field_corridor_uncertainty_survives_initial_uncertainty_window() {
+    fn head_to_head_field_continuity_uncertainty_survives_initial_uncertainty_window() {
         let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
         let (scenario, environment) =
             build_comparison_corridor_continuity_uncertainty(&parameters, SimulationSeed(41));

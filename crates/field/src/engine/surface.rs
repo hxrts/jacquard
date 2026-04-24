@@ -398,9 +398,9 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 .map(|entry| entry.state.continuation_shift_count)
                 .max()
                 .unwrap_or(0),
-            corridor_narrow_count: recovery_entries
+            continuity_narrow_count: recovery_entries
                 .iter()
-                .map(|entry| entry.state.corridor_narrow_count)
+                .map(|entry| entry.state.continuity_narrow_count)
                 .max()
                 .unwrap_or(0),
             checkpoint_capture_count: recovery_entries

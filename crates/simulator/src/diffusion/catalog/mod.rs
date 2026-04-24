@@ -228,7 +228,7 @@ fn transition_diffusion_profiles(smoke: bool) -> Vec<DiffusionPolicyConfig> {
                     40,
                     120,
                     110,
-                    DiffusionForwardingStyle::CorridorAware,
+                    DiffusionForwardingStyle::ContinuityBiased,
                 ),
             ),
         ]);
@@ -488,7 +488,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
                 80,
                 110,
                 130,
-                DiffusionForwardingStyle::CorridorAware,
+                DiffusionForwardingStyle::ContinuityBiased,
             ),
         ),
         "field" => diffusion_policy_profile(
@@ -504,7 +504,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
                 40,
                 180,
                 150,
-                DiffusionForwardingStyle::CorridorAware,
+                DiffusionForwardingStyle::ContinuityBiased,
             ),
         ),
         "field-continuity" => diffusion_policy_profile(
@@ -520,7 +520,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
                 140,
                 140,
                 120,
-                DiffusionForwardingStyle::CorridorAware,
+                DiffusionForwardingStyle::ContinuityBiased,
             ),
         ),
         "field-scarcity" => diffusion_policy_profile(
@@ -536,7 +536,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
                 -90,
                 320,
                 260,
-                DiffusionForwardingStyle::CorridorAware,
+                DiffusionForwardingStyle::ContinuityBiased,
             ),
         ),
         "field-congestion" => diffusion_policy_profile(
@@ -552,7 +552,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
                 -120,
                 360,
                 240,
-                DiffusionForwardingStyle::CorridorAware,
+                DiffusionForwardingStyle::ContinuityBiased,
             ),
         ),
         "field-privacy" => diffusion_policy_profile(
@@ -568,7 +568,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
                 -40,
                 260,
                 220,
-                DiffusionForwardingStyle::CorridorAware,
+                DiffusionForwardingStyle::ContinuityBiased,
             ),
         ),
         "pathway-batman-bellman" => diffusion_policy_profile(

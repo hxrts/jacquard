@@ -1,3 +1,5 @@
+//! Baseline-only legacy route runtime test helpers for `jacquard-field`.
+
 use std::collections::BTreeMap;
 
 use jacquard_core::{

@@ -278,7 +278,7 @@ pub(super) fn apply_forwarding_style_score(
                 score = score.saturating_add(80);
             }
         }
-        DiffusionForwardingStyle::CorridorAware => {
+        DiffusionForwardingStyle::ContinuityBiased => {
             if bridge_candidate {
                 score = score.saturating_add(110);
             }

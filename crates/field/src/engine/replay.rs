@@ -118,7 +118,7 @@ pub struct FieldRouterAnalysisSnapshot {
     pub protocol_reconfiguration_count: usize,
     pub route_bound_reconfiguration_count: usize,
     pub continuation_shift_count: u32,
-    pub corridor_narrow_count: u32,
+    pub continuity_narrow_count: u32,
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub reconfiguration_causes: Vec<String>,
@@ -277,7 +277,7 @@ pub struct FieldExportedRecoveryEntry {
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub continuation_shift_count: u32,
-    pub corridor_narrow_count: u32,
+    pub continuity_narrow_count: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -335,7 +335,7 @@ pub struct FieldLeanRecoveryFixture {
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub continuation_shift_count: u32,
-    pub corridor_narrow_count: u32,
+    pub continuity_narrow_count: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -738,7 +738,7 @@ impl FieldExportedReplayBundle {
                 checkpoint_capture_count: entry.checkpoint_capture_count,
                 checkpoint_restore_count: entry.checkpoint_restore_count,
                 continuation_shift_count: entry.continuation_shift_count,
-                corridor_narrow_count: entry.corridor_narrow_count,
+                continuity_narrow_count: entry.continuity_narrow_count,
             });
         FieldLeanReplayFixture {
             scenario: scenario.into(),
@@ -1004,7 +1004,7 @@ fn exported_recovery_replay(replay: &FieldRecoveryReplaySurface) -> FieldExporte
                 checkpoint_capture_count: entry.state.checkpoint_capture_count,
                 checkpoint_restore_count: entry.state.checkpoint_restore_count,
                 continuation_shift_count: entry.state.continuation_shift_count,
-                corridor_narrow_count: entry.state.corridor_narrow_count,
+                continuity_narrow_count: entry.state.continuity_narrow_count,
             })
             .collect(),
     }

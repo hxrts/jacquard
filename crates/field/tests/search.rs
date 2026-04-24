@@ -1,4 +1,5 @@
-//! Search and evidence integration tests for `jacquard-field`.
+//! Baseline-only legacy route-search and evidence integration tests for
+//! `jacquard-field`.
 
 use std::collections::BTreeMap;
 

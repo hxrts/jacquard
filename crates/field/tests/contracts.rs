@@ -1,4 +1,4 @@
-//! Framework routing trait contract tests for the field engine.
+//! Baseline-only framework routing trait contract tests for the field engine.
 //!
 //! These tests verify that `FieldEngine` correctly implements the shared
 //! `RoutingEngine` and `RoutingEnginePlanner` trait surfaces. A minimal

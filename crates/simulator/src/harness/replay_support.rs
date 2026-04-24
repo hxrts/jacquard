@@ -101,7 +101,7 @@ pub(super) fn summarize_field_replay(router: &ReferenceRouter) -> Option<FieldRe
         protocol_reconfiguration_count: snapshot.protocol_reconfiguration_count,
         route_bound_reconfiguration_count: snapshot.route_bound_reconfiguration_count,
         continuation_shift_count: snapshot.continuation_shift_count,
-        corridor_narrow_count: snapshot.corridor_narrow_count,
+        continuity_narrow_count: snapshot.continuity_narrow_count,
         checkpoint_capture_count: snapshot.checkpoint_capture_count,
         checkpoint_restore_count: snapshot.checkpoint_restore_count,
         reconfiguration_causes: snapshot.reconfiguration_causes,

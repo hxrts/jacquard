@@ -27,7 +27,8 @@ pub enum DiffusionForwardingStyle {
     BalancedDistanceVector,
     FreshnessAware,
     ServiceDirected,
-    CorridorAware,
+    #[serde(alias = "CorridorAware")]
+    ContinuityBiased,
     Composite,
 }
 
@@ -198,7 +199,7 @@ pub struct DiffusionRunSummary {
     pub energy_per_delivered_message: Option<u32>,
     pub storage_utilization_permille: u32,
     pub estimated_reproduction_permille: u32,
-    pub corridor_persistence_permille: u32,
+    pub continuity_persistence_permille: u32,
     pub decision_churn_count: u32,
     pub observer_leakage_permille: u32,
     pub bounded_state: String,
@@ -256,7 +257,7 @@ pub struct DiffusionAggregateSummary {
     pub energy_per_delivered_message_mean: Option<u32>,
     pub storage_utilization_permille_mean: u32,
     pub estimated_reproduction_permille_mean: u32,
-    pub corridor_persistence_permille_mean: u32,
+    pub continuity_persistence_permille_mean: u32,
     pub decision_churn_count_mean: u32,
     pub observer_leakage_permille_mean: u32,
     pub message_persistence_rounds_mean: u32,
@@ -322,5 +323,25 @@ impl DiffusionSuite {
     #[must_use]
     pub fn suite_id(&self) -> &str {
         &self.suite_id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn diffusion_research_names_stay_continuity_facing() {
+        let source = include_str!("model.rs");
+        for forbidden in [
+            concat!("pub ", "cor", "ridor_"),
+            concat!("recent_", "cor", "ridor"),
+            concat!("::", "Cor", "ridorAware"),
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "diffusion research model exposes legacy token `{forbidden}`"
+            );
+        }
+        assert!(source.contains("ContinuityBiased"));
+        assert!(source.contains("continuity_persistence_permille"));
     }
 }

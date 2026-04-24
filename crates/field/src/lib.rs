@@ -67,7 +67,59 @@ pub use choreography::{
     FieldProtocolReconfiguration, FieldProtocolReconfigurationCause, FieldProtocolSessionKey,
     FieldRoundDisposition,
 };
-pub use engine::{
+pub use research::{
+    CodingWindow, DiffusionFragmentId, DiffusionMessageId, DiffusionPressure, FragmentArrivalClass,
+    FragmentCustody, ReceiverRankState, ReconstructionQuorum,
+};
+
+/// Baseline-only corridor-routing compatibility exports.
+///
+/// New coded-diffusion research work should use the reconstruction vocabulary
+/// exported from `crate::research` and the root diffusion types. These exports
+/// remain available while downstream simulator, reference-client, replay, and
+/// comparison fixtures are converted phase by phase.
+pub mod baseline {
+    pub use crate::engine::{
+        FieldCommitmentReplayEntry, FieldCommitmentReplaySurface, FieldEngine,
+        FieldExportedPolicyEvent, FieldExportedProtocolArtifact,
+        FieldExportedProtocolReconfiguration, FieldExportedProtocolReplay,
+        FieldExportedRecoveryEntry, FieldExportedRecoveryReplay, FieldExportedReplayBundle,
+        FieldExportedRuntimeRoundArtifact, FieldExportedRuntimeRouteArtifact,
+        FieldExportedRuntimeSearchReplay, FieldExportedSearchEpoch,
+        FieldExportedSearchExecutionPolicy, FieldExportedSearchProjection,
+        FieldExportedSearchQuery, FieldExportedSearchReconfiguration, FieldExportedSelectedResult,
+        FieldForwardSummaryObservation, FieldLeanProtocolFixture, FieldLeanRecoveryFixture,
+        FieldLeanReplayFixture, FieldLeanRuntimeLinkageFixture, FieldLeanSearchFixture,
+        FieldPolicyEvent, FieldPolicyGate, FieldPolicyReason, FieldProtocolReplaySurface,
+        FieldRecoveryReplayEntry, FieldRecoveryReplaySurface, FieldReducedObjectiveClass,
+        FieldReducedProtocolArtifact, FieldReducedProtocolReconfiguration,
+        FieldReducedProtocolReplay, FieldReducedProtocolSession, FieldReducedQueryKind,
+        FieldReducedRuntimeSearchReplay, FieldReducedSearchExecutionPolicy,
+        FieldReducedSearchProjection, FieldReducedSearchQuery, FieldReducedSelectedResult,
+        FieldReplaySnapshot, FieldReplaySurfaceClass, FieldRouterAnalysisRouteSummary,
+        FieldRouterAnalysisSnapshot, FieldRuntimeReplaySurface, FieldRuntimeRoundArtifact,
+        FieldRuntimeRouteArtifact, FieldSearchReplaySurface, FIELD_CAPABILITIES, FIELD_ENGINE_ID,
+        FIELD_POLICY_EVENT_RETENTION_MAX, FIELD_REPLAY_SURFACE_VERSION,
+        FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
+    };
+    pub use crate::planner_model::{
+        selected_neighbor_from_backend_route_id, FieldPlannerModel, FieldPlannerSeed,
+    };
+    pub use crate::recovery::{
+        FieldBootstrapTransition, FieldPromotionBlocker, FieldPromotionDecision,
+        FieldRouteRecoveryOutcome, FieldRouteRecoveryState, FieldRouteRecoveryTrigger,
+    };
+    pub use crate::route::FieldBootstrapClass;
+    pub use crate::search::{
+        FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchConfigError, FieldSearchEdgeMeta,
+        FieldSearchEpoch, FieldSearchHeuristicMode, FieldSearchPlanningFailure,
+        FieldSearchReconfiguration, FieldSearchRun, FieldSearchSnapshotId,
+        FieldSearchTransitionClass, FieldSelectedContinuation,
+    };
+}
+
+pub use baseline::{
+    selected_neighbor_from_backend_route_id, FieldBootstrapClass, FieldBootstrapTransition,
     FieldCommitmentReplayEntry, FieldCommitmentReplaySurface, FieldEngine,
     FieldExportedPolicyEvent, FieldExportedProtocolArtifact, FieldExportedProtocolReconfiguration,
     FieldExportedProtocolReplay, FieldExportedRecoveryEntry, FieldExportedRecoveryReplay,
@@ -77,32 +129,20 @@ pub use engine::{
     FieldExportedSearchReconfiguration, FieldExportedSelectedResult,
     FieldForwardSummaryObservation, FieldLeanProtocolFixture, FieldLeanRecoveryFixture,
     FieldLeanReplayFixture, FieldLeanRuntimeLinkageFixture, FieldLeanSearchFixture,
-    FieldPolicyEvent, FieldPolicyGate, FieldPolicyReason, FieldProtocolReplaySurface,
-    FieldRecoveryReplayEntry, FieldRecoveryReplaySurface, FieldReducedObjectiveClass,
-    FieldReducedProtocolArtifact, FieldReducedProtocolReconfiguration, FieldReducedProtocolReplay,
-    FieldReducedProtocolSession, FieldReducedQueryKind, FieldReducedRuntimeSearchReplay,
-    FieldReducedSearchExecutionPolicy, FieldReducedSearchProjection, FieldReducedSearchQuery,
-    FieldReducedSelectedResult, FieldReplaySnapshot, FieldReplaySurfaceClass,
-    FieldRouterAnalysisRouteSummary, FieldRouterAnalysisSnapshot, FieldRuntimeReplaySurface,
-    FieldRuntimeRoundArtifact, FieldRuntimeRouteArtifact, FieldSearchReplaySurface,
-    FIELD_CAPABILITIES, FIELD_ENGINE_ID, FIELD_POLICY_EVENT_RETENTION_MAX,
-    FIELD_REPLAY_SURFACE_VERSION, FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
-};
-pub use planner_model::{
-    selected_neighbor_from_backend_route_id, FieldPlannerModel, FieldPlannerSeed,
-};
-pub use recovery::{
-    FieldBootstrapTransition, FieldPromotionBlocker, FieldPromotionDecision,
-    FieldRouteRecoveryOutcome, FieldRouteRecoveryState, FieldRouteRecoveryTrigger,
-};
-pub use research::{
-    CodingWindow, DiffusionFragmentId, DiffusionMessageId, DiffusionPressure, FragmentArrivalClass,
-    FragmentCustody, ReceiverRankState, ReconstructionQuorum,
-};
-pub use route::FieldBootstrapClass;
-pub use search::{
-    FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchConfigError, FieldSearchEdgeMeta,
+    FieldPlannerModel, FieldPlannerSearchRecord, FieldPlannerSeed, FieldPolicyEvent,
+    FieldPolicyGate, FieldPolicyReason, FieldPromotionBlocker, FieldPromotionDecision,
+    FieldProtocolReplaySurface, FieldRecoveryReplayEntry, FieldRecoveryReplaySurface,
+    FieldReducedObjectiveClass, FieldReducedProtocolArtifact, FieldReducedProtocolReconfiguration,
+    FieldReducedProtocolReplay, FieldReducedProtocolSession, FieldReducedQueryKind,
+    FieldReducedRuntimeSearchReplay, FieldReducedSearchExecutionPolicy,
+    FieldReducedSearchProjection, FieldReducedSearchQuery, FieldReducedSelectedResult,
+    FieldReplaySnapshot, FieldReplaySurfaceClass, FieldRouteRecoveryOutcome,
+    FieldRouteRecoveryState, FieldRouteRecoveryTrigger, FieldRouterAnalysisRouteSummary,
+    FieldRouterAnalysisSnapshot, FieldRuntimeReplaySurface, FieldRuntimeRoundArtifact,
+    FieldRuntimeRouteArtifact, FieldSearchConfig, FieldSearchConfigError, FieldSearchEdgeMeta,
     FieldSearchEpoch, FieldSearchHeuristicMode, FieldSearchPlanningFailure,
-    FieldSearchReconfiguration, FieldSearchRun, FieldSearchSnapshotId, FieldSearchTransitionClass,
-    FieldSelectedContinuation,
+    FieldSearchReconfiguration, FieldSearchReplaySurface, FieldSearchRun, FieldSearchSnapshotId,
+    FieldSearchTransitionClass, FieldSelectedContinuation, FIELD_CAPABILITIES, FIELD_ENGINE_ID,
+    FIELD_POLICY_EVENT_RETENTION_MAX, FIELD_REPLAY_SURFACE_VERSION,
+    FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
 };

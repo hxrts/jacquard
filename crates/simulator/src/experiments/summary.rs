@@ -477,7 +477,7 @@ pub(super) fn summarize_run(
     let mut field_protocol_reconfiguration_count = 0u32;
     let mut field_route_bound_reconfiguration_count = 0u32;
     let mut field_continuation_shift_count = 0u32;
-    let mut field_corridor_narrow_count = 0u32;
+    let mut field_continuity_narrow_count = 0u32;
     let mut field_checkpoint_restore_count = 0u32;
     for round in &reduced.rounds {
         let scatter_routes = round
@@ -685,10 +685,10 @@ pub(super) fn summarize_run(
                 .max()
                 .unwrap_or(0),
         );
-        field_corridor_narrow_count = field_corridor_narrow_count.max(
+        field_continuity_narrow_count = field_continuity_narrow_count.max(
             field_replays
                 .iter()
-                .map(|summary| summary.corridor_narrow_count)
+                .map(|summary| summary.continuity_narrow_count)
                 .max()
                 .unwrap_or(0),
         );
@@ -880,7 +880,7 @@ pub(super) fn summarize_run(
         field_protocol_reconfiguration_count,
         field_route_bound_reconfiguration_count,
         field_continuation_shift_count,
-        field_corridor_narrow_count,
+        field_continuity_narrow_count,
         field_checkpoint_restore_count,
         no_route_rounds: u32::try_from(no_route_rounds).unwrap_or(u32::MAX),
         dominant_engine: dominant_engine(&engine_round_counts),
@@ -1162,8 +1162,8 @@ pub fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateS
             );
             let field_continuation_shift_count_mean =
                 average_u32(group.iter().map(|run| run.field_continuation_shift_count));
-            let field_corridor_narrow_count_mean =
-                average_u32(group.iter().map(|run| run.field_corridor_narrow_count));
+            let field_continuity_narrow_count_mean =
+                average_u32(group.iter().map(|run| run.field_continuity_narrow_count));
             let field_checkpoint_restore_count_mean =
                 average_u32(group.iter().map(|run| run.field_checkpoint_restore_count));
             let no_candidate_count_mean =
@@ -1298,7 +1298,7 @@ pub fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateS
                 field_protocol_reconfiguration_count_mean,
                 field_route_bound_reconfiguration_count_mean,
                 field_continuation_shift_count_mean,
-                field_corridor_narrow_count_mean,
+                field_continuity_narrow_count_mean,
                 field_checkpoint_restore_count_mean,
                 stability_first_mean,
                 stability_last_mean,

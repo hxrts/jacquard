@@ -632,7 +632,7 @@ mod tests {
             lora_bias_permille: 40,
             spread_restraint_permille: 80,
             energy_guard_permille: 90,
-            forwarding_style: DiffusionForwardingStyle::CorridorAware,
+            forwarding_style: DiffusionForwardingStyle::ContinuityBiased,
         };
         let summary = simulate_diffusion_run(&DiffusionRunSpec {
             suite_id: "test".to_string(),

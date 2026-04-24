@@ -532,7 +532,7 @@ pub(crate) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
         u32::try_from((u64::from(total_transmissions) * 1000) / u64::from(holders_before_contact))
             .unwrap_or(u32::MAX)
     };
-    let corridor_persistence_permille = if total_transmissions == 0 {
+    let continuity_persistence_permille = if total_transmissions == 0 {
         0
     } else {
         edge_flows
@@ -600,7 +600,7 @@ pub(crate) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
         energy_per_delivered_message,
         storage_utilization_permille,
         estimated_reproduction_permille,
-        corridor_persistence_permille,
+        continuity_persistence_permille,
         decision_churn_count,
         observer_leakage_permille,
         bounded_state,
@@ -755,8 +755,8 @@ pub(crate) fn aggregate_diffusion_runs(
             estimated_reproduction_permille_mean: mean_u32(
                 group.iter().map(|row| row.estimated_reproduction_permille),
             ),
-            corridor_persistence_permille_mean: mean_u32(
-                group.iter().map(|row| row.corridor_persistence_permille),
+            continuity_persistence_permille_mean: mean_u32(
+                group.iter().map(|row| row.continuity_persistence_permille),
             ),
             decision_churn_count_mean: mean_u32(group.iter().map(|row| row.decision_churn_count)),
             observer_leakage_permille_mean: mean_u32(
@@ -935,7 +935,7 @@ pub(super) fn record_field_forward(
             .recent_cluster_forward_round
             .insert(features.to_cluster_id, round);
         suppression_state
-            .recent_corridor_forward_round
+            .recent_cluster_pair_forward_round
             .insert((features.from_cluster_id, features.to_cluster_id), round);
         if features.same_cluster {
             suppression_state

@@ -22,7 +22,7 @@ pub enum FieldRouteRecoveryOutcome {
     CheckpointRestored,
     FreshSessionInstalled,
     ContinuationRetained,
-    CorridorNarrowed,
+    ContinuityNarrowed,
     NoCheckpointAvailable,
     RecoveryFailed,
 }
@@ -85,7 +85,7 @@ pub struct FieldRouteRecoveryState {
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub continuation_shift_count: u32,
-    pub corridor_narrow_count: u32,
+    pub continuity_narrow_count: u32,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -171,12 +171,12 @@ impl StoredFieldRouteRecovery {
         self.state.bootstrap_active = true;
         self.state.continuity_band = Some(FieldContinuityBand::Bootstrap);
         self.state.last_trigger = Some(FieldRouteRecoveryTrigger::EnvelopeNarrowing);
-        self.state.last_outcome = Some(FieldRouteRecoveryOutcome::CorridorNarrowed);
+        self.state.last_outcome = Some(FieldRouteRecoveryOutcome::ContinuityNarrowed);
         self.state.last_bootstrap_transition = Some(FieldBootstrapTransition::Narrowed);
         self.state.last_promotion_decision = Some(FieldPromotionDecision::Narrow);
         self.state.last_promotion_blocker = Some(blocker);
         self.state.bootstrap_narrow_count = self.state.bootstrap_narrow_count.saturating_add(1);
-        self.state.corridor_narrow_count = self.state.corridor_narrow_count.saturating_add(1);
+        self.state.continuity_narrow_count = self.state.continuity_narrow_count.saturating_add(1);
     }
 
     pub(crate) fn note_bootstrap_upgraded(&mut self) {
@@ -218,10 +218,10 @@ impl StoredFieldRouteRecovery {
         self.state.continuation_shift_count = self.state.continuation_shift_count.saturating_add(1);
     }
 
-    pub(crate) fn note_corridor_narrowed(&mut self) {
+    pub(crate) fn note_continuity_narrowed(&mut self) {
         self.state.last_trigger = Some(FieldRouteRecoveryTrigger::EnvelopeNarrowing);
-        self.state.last_outcome = Some(FieldRouteRecoveryOutcome::CorridorNarrowed);
-        self.state.corridor_narrow_count = self.state.corridor_narrow_count.saturating_add(1);
+        self.state.last_outcome = Some(FieldRouteRecoveryOutcome::ContinuityNarrowed);
+        self.state.continuity_narrow_count = self.state.continuity_narrow_count.saturating_add(1);
     }
 
     pub(crate) fn note_no_checkpoint_available(&mut self) {

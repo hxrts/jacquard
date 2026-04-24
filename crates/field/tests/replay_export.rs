@@ -1,4 +1,5 @@
-//! Stable exported replay fixture tests for `jacquard-field`.
+//! Baseline-only stable exported route replay fixture tests for
+//! `jacquard-field`.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;

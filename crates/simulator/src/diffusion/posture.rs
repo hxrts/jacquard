@@ -673,7 +673,7 @@ pub(super) fn posture_suppresses_reused_cluster_forward(posture: DiffusionFieldP
     )
 }
 
-pub(super) fn posture_suppresses_reused_corridor_forward(posture: DiffusionFieldPosture) -> bool {
+pub(super) fn posture_suppresses_reused_pair_forward(posture: DiffusionFieldPosture) -> bool {
     matches!(
         posture,
         DiffusionFieldPosture::ClusterSeeding | DiffusionFieldPosture::DuplicateSuppressed
@@ -724,7 +724,7 @@ fn suppress_recent_forward_reuse(
             })
         {
             increment_same_cluster_suppression(metrics);
-            if posture_suppresses_reused_corridor_forward(posture) {
+            if posture_suppresses_reused_pair_forward(posture) {
                 increment_redundant_suppression(metrics);
             }
             return true;
@@ -732,11 +732,11 @@ fn suppress_recent_forward_reuse(
         return false;
     }
     if suppression_state
-        .recent_corridor_forward_round
+        .recent_cluster_pair_forward_round
         .get(&(features.from_cluster_id, features.to_cluster_id))
         .is_some_and(|last_round| {
             within_cooldown(round, *last_round, cooldown_rounds)
-                && posture_suppresses_reused_corridor_forward(posture)
+                && posture_suppresses_reused_pair_forward(posture)
                 && !features.protected_opportunity
         })
     {

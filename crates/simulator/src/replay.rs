@@ -89,7 +89,7 @@ pub struct FieldReplaySummary {
     pub protocol_reconfiguration_count: usize,
     pub route_bound_reconfiguration_count: usize,
     pub continuation_shift_count: u32,
-    pub corridor_narrow_count: u32,
+    pub continuity_narrow_count: u32,
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub reconfiguration_causes: Vec<String>,

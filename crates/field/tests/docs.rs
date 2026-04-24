@@ -109,3 +109,15 @@ fn field_docs_mark_corridor_routing_as_baseline_only_for_research() {
     assert!(field_routing.contains("baseline-only"));
     assert!(field_routing.contains("not the active coded-diffusion research objective"));
 }
+
+#[test]
+fn field_route_exports_are_grouped_under_baseline_boundary() {
+    let crate_docs = repo_text("crates/field/src/lib.rs");
+
+    assert!(crate_docs.contains("pub mod baseline"));
+    assert!(crate_docs.contains("Baseline-only corridor-routing compatibility exports"));
+    assert!(crate_docs.contains("FieldSearchConfig"));
+    assert!(crate_docs.contains("FieldRuntimeRouteArtifact"));
+    assert!(crate_docs.contains("FieldRouteRecoveryState"));
+    assert!(crate_docs.contains("New coded-diffusion research work should use"));
+}

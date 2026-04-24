@@ -90,7 +90,7 @@ pub(super) struct FieldExecutionMetrics {
 pub(super) struct FieldSuppressionState {
     pub recent_cluster_forward_round: BTreeMap<u8, u32>,
     pub recent_same_cluster_forward_round: BTreeMap<u8, u32>,
-    pub recent_corridor_forward_round: BTreeMap<(u8, u8), u32>,
+    pub recent_cluster_pair_forward_round: BTreeMap<(u8, u8), u32>,
 }
 
 #[derive(Clone, Copy, Debug)]

@@ -628,7 +628,7 @@
         "checkpoint_capture_count": 0,
         "checkpoint_restore_count": 0,
         "continuation_shift_count": 0,
-        "corridor_narrow_count": 0
+        "continuity_narrow_count": 0
       }
     ]
   }

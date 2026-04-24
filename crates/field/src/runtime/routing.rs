@@ -672,7 +672,7 @@ fn reduce_transition(
             if let Some(first) = active.continuation_neighbors.first().copied() {
                 active.selected_neighbor = first;
             }
-            active.recovery.note_corridor_narrowed();
+            active.recovery.note_continuity_narrowed();
             active.recovery.note_bootstrap_narrowed(blocker);
             maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
                 trigger,
@@ -783,7 +783,7 @@ fn finalize_transition(
                 next_active_route.continuity_band = FieldContinuityBand::DegradedSteady;
                 next_active_route.witness_detail.continuity_band =
                     FieldContinuityBand::DegradedSteady;
-                next_active_route.recovery.note_corridor_narrowed();
+                next_active_route.recovery.note_continuity_narrowed();
             } else {
                 next_active_route
                     .recovery
@@ -940,7 +940,7 @@ fn finalize_transition(
                     next_active_route
                         .recovery
                         .note_bootstrap_narrowed(FieldPromotionBlocker::Freshness);
-                    next_active_route.recovery.note_corridor_narrowed();
+                    next_active_route.recovery.note_continuity_narrowed();
                 } else if next_active_route.recovery.state.last_bootstrap_transition
                     != Some(crate::FieldBootstrapTransition::Withdrawn)
                 {
