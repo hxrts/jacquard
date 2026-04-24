@@ -124,7 +124,78 @@ This map describes the current organization of `verification/Field`.
     - commitment lead time is a replay metric over logged events, not a correctness theorem
     - active demand is not claimed optimal under arbitrary mobility or adversarial traces
   - Rust alignment target:
-    - `DemandSummary`, `DemandEntry`, receiver-indexed belief summaries, commitment lead-time rows, receiver agreement rows, demand satisfaction rows, and stale-demand rejection counters should be mirrored by Phase 9 Rust/replay artifacts before Phase 10 experiments expand.
+    - `DemandSummary`, `DemandEntry`, receiver-indexed belief summaries, commitment lead-time rows, receiver agreement rows, demand satisfaction rows, and stale-demand rejection counters are mirrored by the Phase 9 Rust/replay artifacts listed below.
+
+### Phase 11 Rust Correspondence Freeze
+
+The active belief theorem statements intended for the paper are frozen to the
+following non-optimality, non-consensus claims:
+
+- bounded first-class demand communication:
+  `demand_bounded_by_entry_cap`, `demand_bounded_by_byte_cap`,
+  `valid_demand_is_live`
+- semantic separation of demand from evidence:
+  `demand_message_carries_no_contribution`,
+  `evidence_message_carries_contribution`,
+  `demand_cannot_validate_invalid_evidence`,
+  `demand_accepts_only_through_valid_evidence`,
+  `demand_priority_does_not_change_acceptance`
+- duplicate and stale-demand safety:
+  `demand_duplicate_non_inflation`,
+  `expired_demand_does_not_accept_invalid_evidence`
+- replay metrics and compatibility:
+  `commitment_lead_time_soundness`,
+  `same_guarded_basin_compatible`,
+  `compatible_commitments_have_same_hypothesis`
+
+Rust/replay correspondence:
+
+- `crates/field/src/research.rs`
+  - `ActiveBeliefMessage` mirrors `ActiveMessage`; `DemandSummary` variants
+    return an empty contribution slice, while `CodedEvidence` exposes
+    `contribution_ledger_ids`.
+  - `ActiveDemandSummary`, `ActiveDemandEntry`, `ActiveDemandSummaryInput`,
+    and `ACTIVE_DEMAND_ENTRY_COUNT_MAX` mirror `DemandSummary`,
+    `DemandEntry`, and boundedness obligations. Rust uses explicit
+    `encoded_bytes`, `byte_cap`, `DurationMs`, `issued_at_tick`, and
+    `expires_at_tick`; Lean abstracts byte accounting to the Phase 8 proof
+    cap.
+  - `ReceiverIndexedBeliefState` and `ReceiverInferenceQualitySummary` mirror
+    `ReceiverBeliefState` and `QualitySummary` for replay-visible
+    receiver-indexed statistics.
+  - `generate_active_demand_summary` mirrors demand generation from
+    uncertainty, margin, missing contribution ids, and coverage gap. It only
+    builds demand summaries; it does not mutate rank or evidence validity.
+  - `record_active_evidence_arrival` mirrors `demandAwareAccept` through the
+    ordinary contribution gate and preserves duplicate non-inflation.
+  - `ActiveDemandPropagationMode::{None, LocalOnly, PiggybackedPeerDemand}`
+    names the Phase 10 communication modes without adding transport or router
+    semantics.
+- `crates/simulator/src/diffusion/coded_inference.rs`
+  - `CodedDemandSummaryEvent` is the replay row for demand emitted, demand
+    received, demand satisfied, demand response lag, and stale-demand ignore
+    counters.
+  - `CodedInferenceReadinessSummary` exports commitment lead time, receiver
+    agreement, belief divergence, collective uncertainty, evidence overlap,
+    demand satisfaction, and active reproduction metrics.
+- `crates/simulator/src/diffusion/local_policy/*.rs`
+  - `demand_value` is an explicit priority term in `LocalPolicyScoreInput` and
+    `LocalPolicyScoreBreakdown`. The `NoDemandValue` ablation demonstrates
+    demand affects allocation priority, not evidence validity or contribution
+    identity.
+- `crates/simulator/src/diffusion/core_experiment.rs`
+  - `ActiveBeliefExperimentArtifacts` exports the Phase 10 active belief grid,
+    active-versus-passive rows, no-central-encoder panel, second compact
+    mergeable task row, recoding frontier, and bounded robustness rows.
+  - `ActiveRobustnessRow.false_confidence_permille` is the replay-visible
+    stress-test rejection counter. It is an experiment metric, not a Lean
+    theorem of adversarial robustness.
+
+Paper non-claims remain in force: no theorem here asserts consensus, common
+knowledge, optimal active policy, privacy, globally identical receiver beliefs,
+or robustness against arbitrary adaptive adversaries. Telltale is an
+implementation/protocol-support dependency for Jacquard; the active belief
+diffusion result is stated over the reduced proof-facing objects above.
 
 ### Phase 8 Theorem Dependency Table
 

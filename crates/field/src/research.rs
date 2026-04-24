@@ -1160,7 +1160,7 @@ pub enum ActiveDemandPropagationMode {
     /// Demand summaries are exchanged only with local contacts.
     LocalOnly,
     /// Demand summaries can be carried alongside coded evidence.
-    PiggybackedEvidence,
+    PiggybackedPeerDemand,
 }
 
 /// Receiver-indexed belief summaries for one active belief diffusion task.
