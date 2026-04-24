@@ -10,6 +10,12 @@ This map describes the current organization of `verification/Field`.
   - strong coded-diffusion theorem path for finite-horizon probability assumptions, receiver-arrival bounds, useful-inference arrival bounds, anomaly-margin bounds, guarded false-commitment bounds, and inference-potential drift
 - `Field/ActiveBelief.lean`
   - active belief diffusion theorem path for Phase 8 receiver-indexed belief state, first-class bounded demand messages, evidence messages, demand soundness, duplicate non-inflation under demand-driven forwarding, commitment lead-time accounting, stale-demand safety, multi-receiver compatibility, and propagated host/bridge demand soundness
+  - current expansion target:
+    - guarded commitment correctness over mergeable statistics,
+    - multi-receiver compatibility from non-identical partial histories,
+    - demand-guided non-interference on the merged statistic,
+    - positive commitment lead time under explicit useful-inference assumptions,
+    - receiver-quality monotonicity under innovative valid evidence
 - `Field/Architecture.lean`
   - shared enum vocabulary for projection kinds, refinement-ladder stages, lineage stages, and semantic-versus-proof-artifact roles
 - `Field/CostAPI.lean`
@@ -147,6 +153,14 @@ This map describes the current organization of `verification/Field`.
     - `demandPriorityScore` for proof-facing priority metadata that does not affect evidence acceptance
     - `ActiveDemandExecutionSurface` and `PropagatedDemandRecord` for
       host/bridge replay-visible active demand
+  - planned expansion vocabulary:
+    - `AdditiveScoreStatistic` as the proof-facing merged statistic for the
+      additive score-vector task
+    - `PartialHistoryWitness` and partial-history compatibility predicates for
+      multi-receiver results without identical evidence histories
+    - `ReceiverQualityOrder` and innovative-quality-step predicates for
+      monotonicity statements
+    - theorem-facing guarded commitment construction from a merged statistic
   - completed theorem names:
     - `demand_bounded_by_entry_cap`
     - `demand_bounded_by_byte_cap`
@@ -166,6 +180,15 @@ This map describes the current organization of `verification/Field`.
     - `propagated_demand_carries_no_contribution`
     - `propagated_demand_cannot_validate_invalid_evidence`
     - `propagated_demand_duplicate_non_inflation`
+  - expansion theorem targets:
+    - `guarded_commitment_decodes_statistic_decision`
+    - `guarded_commitment_from_mergeable_statistic_correct`
+    - `compatible_partial_histories_yield_compatible_commitments`
+    - `demand_guided_statistic_acceptance_matches_plain_acceptance`
+    - `propagated_demand_guided_statistic_acceptance_matches_plain_acceptance`
+    - `useful_inference_can_support_positive_commitment_lead_time`
+    - `right_censored_timeline_has_no_commitment_lead_time`
+    - `innovative_valid_evidence_quality_monotone`
   - non-claims:
     - demand is first-class replay-visible communication data, but it is not evidence
     - receiver compatibility is agreement on a guarded local decision, not consensus, common knowledge, or globally identical beliefs
@@ -178,6 +201,11 @@ This map describes the current organization of `verification/Field`.
     - `PropagatedDemandRecord` maps to the strong host/bridge replay artifact
       surface that distinguishes simulator-local demand from host/bridge
       demand.
+    - `AnomalyLandscapeSummary`, `DecisionCommitmentState`,
+      `ReceiverInferenceQualitySummary`, and
+      `ReceiverBeliefCompatibilitySummary` are the Rust mirrors for the planned
+      merged-statistic, guarded-commitment, quality-order, and compatibility
+      theorem surfaces.
 
 ### Phase 11 Rust Correspondence Freeze
 
