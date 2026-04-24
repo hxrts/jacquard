@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::model::CodedInferenceReadinessScenario;
 
 mod coded;
+mod comparison;
 mod epidemic;
 mod spray;
 mod uncoded;
@@ -55,6 +56,8 @@ pub(crate) enum BaselineContractError {
     EmptyContributionLedger,
     MissingMetric(BaselineMetricField),
     PolicyClassMismatch,
+    MissingRequiredBaseline,
+    UnequalBudgetMetadata,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
