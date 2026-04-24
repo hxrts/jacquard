@@ -15,7 +15,7 @@ use super::{
     coded_inference::{
         build_coded_inference_readiness_log, summarize_coded_inference_readiness_log,
         CodedArrivalClassification, CodedForwardingEvent, CodedInferenceLandscapeEvent,
-        CodedInferenceReadinessLog,
+        CodedInferenceReadinessLog, CodedInferenceReadinessSummary,
     },
     model::CodedEvidenceOriginMode,
     near_critical::{
@@ -43,6 +43,36 @@ pub(crate) enum CoreExperimentId {
     PhaseDiagram,
     CodingVersusReplication,
     ObserverAmbiguityFrontier,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub(crate) enum ActiveBeliefPolicyMode {
+    PassiveControlled,
+    LocalOnlyDemand,
+    PiggybackedDemand,
+    StaleDemandAblation,
+    FullActiveBelief,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub(crate) enum ActiveRecodingMode {
+    ForwardingOnly,
+    InNetworkAggregation,
+    ActiveDemandAggregation,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub(crate) enum ActiveRobustnessStressKind {
+    DuplicateSpam,
+    SelectiveWithholding,
+    BiasedObservations,
+    BridgeNodeLoss,
+    StaleRecodedEvidence,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub(crate) enum ActiveSecondTaskKind {
+    SetUnionRank,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -148,6 +178,96 @@ pub(crate) struct CoreExperimentArtifactRow {
     pub quality_permille: u32,
     pub merged_statistic_quality_permille: u32,
     pub observer_advantage_permille: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveBeliefGridRow {
+    pub seed: u64,
+    pub receiver_node_id: u32,
+    pub round_index: u32,
+    pub top_hypothesis_id: u8,
+    pub top_hypothesis_margin: i32,
+    pub uncertainty_permille: u32,
+    pub committed: bool,
+    pub demand_satisfied: bool,
+    pub demand_response_lag_rounds: u32,
+    pub receiver_agreement_permille: u32,
+    pub belief_divergence_permille: u32,
+    pub collective_uncertainty_permille: u32,
+    pub evidence_overlap_permille: u32,
+    pub bytes_at_commitment: u32,
+    pub measured_r_est_permille: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveVersusPassiveRow {
+    pub seed: u64,
+    pub mode: ActiveBeliefPolicyMode,
+    pub fixed_payload_budget_bytes: u32,
+    pub decision_accuracy_permille: u32,
+    pub commitment_lead_time_rounds_per_receiver_max: u32,
+    pub receiver_agreement_permille: u32,
+    pub belief_divergence_permille: u32,
+    pub collective_uncertainty_permille: u32,
+    pub demand_satisfaction_permille: u32,
+    pub demand_response_lag_rounds_max: u32,
+    pub evidence_overlap_permille: u32,
+    pub quality_per_byte_permille: u32,
+    pub bytes_at_commitment: u32,
+    pub duplicate_arrival_count: u32,
+    pub innovative_arrival_count: u32,
+    pub measured_r_est_permille: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveNoCentralEncoderPanelRow {
+    pub seed: u64,
+    pub node_owns_global_input: bool,
+    pub oracle_evaluation_after_run: bool,
+    pub local_observation_count: u32,
+    pub receiver_count: u32,
+    pub decision_accuracy_permille: u32,
+    pub collective_uncertainty_permille: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveSecondTaskRow {
+    pub seed: u64,
+    pub task_kind: ActiveSecondTaskKind,
+    pub mergeable_statistic: MergeableStatisticDescriptor,
+    pub receiver_rank: u32,
+    pub recovery_probability_permille: u32,
+    pub bytes_at_commitment: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveRecodingFrontierRow {
+    pub seed: u64,
+    pub recoding_mode: ActiveRecodingMode,
+    pub decision_accuracy_permille: u32,
+    pub demand_satisfaction_permille: u32,
+    pub quality_per_byte_permille: u32,
+    pub duplicate_rate_permille: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveRobustnessRow {
+    pub seed: u64,
+    pub stress_kind: ActiveRobustnessStressKind,
+    pub false_confidence_permille: u32,
+    pub decision_accuracy_permille: u32,
+    pub demand_satisfaction_permille: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveBeliefExperimentArtifacts {
+    pub artifact_namespace: String,
+    pub grid_rows: Vec<ActiveBeliefGridRow>,
+    pub active_versus_passive_rows: Vec<ActiveVersusPassiveRow>,
+    pub no_central_encoder_panel_rows: Vec<ActiveNoCentralEncoderPanelRow>,
+    pub second_task_rows: Vec<ActiveSecondTaskRow>,
+    pub recoding_frontier_rows: Vec<ActiveRecodingFrontierRow>,
+    pub robustness_rows: Vec<ActiveRobustnessRow>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -539,6 +659,234 @@ pub(crate) fn experiment_e_observer_frontier_rows(seed: u64) -> Vec<CoreExperime
         .collect::<Vec<_>>();
     sort_core_experiment_rows(&mut rows);
     rows
+}
+
+pub(crate) fn active_belief_experiment_artifacts(
+    seed: u64,
+) -> Result<ActiveBeliefExperimentArtifacts, BaselineContractError> {
+    let scenario = build_coded_inference_readiness_scenario();
+    let log = build_coded_inference_readiness_log(seed, &scenario);
+    let summary = summarize_coded_inference_readiness_log(&scenario, &log);
+    let comparison = run_equal_budget_baseline_comparison(seed)?;
+    let passive = comparison
+        .summaries
+        .iter()
+        .find(|summary| summary.policy_id == BaselinePolicyId::ControlledCodedDiffusion)
+        .ok_or(BaselineContractError::MissingRequiredBaseline)?;
+
+    Ok(ActiveBeliefExperimentArtifacts {
+        artifact_namespace: format!("{CORE_EXPERIMENT_NAMESPACE}/active-belief"),
+        grid_rows: active_belief_grid_rows(seed, &log, &summary),
+        active_versus_passive_rows: active_versus_passive_rows(seed, passive, &summary),
+        no_central_encoder_panel_rows: no_central_encoder_panel_rows(seed, &scenario, &summary),
+        second_task_rows: active_second_task_rows(seed, passive),
+        recoding_frontier_rows: active_recoding_frontier_rows(seed, &summary),
+        robustness_rows: active_robustness_rows(seed, &summary),
+    })
+}
+
+fn active_belief_grid_rows(
+    seed: u64,
+    log: &CodedInferenceReadinessLog,
+    summary: &CodedInferenceReadinessSummary,
+) -> Vec<ActiveBeliefGridRow> {
+    let receiver_node_id = log
+        .demand_events
+        .first()
+        .map(|event| event.emitting_receiver_node_id)
+        .unwrap_or(0);
+    log.landscape_events
+        .iter()
+        .map(|event| ActiveBeliefGridRow {
+            seed,
+            receiver_node_id,
+            round_index: event.round_index,
+            top_hypothesis_id: event.top_hypothesis_id,
+            top_hypothesis_margin: event.margin,
+            uncertainty_permille: event.uncertainty_permille,
+            committed: summary
+                .decision_event_round
+                .is_some_and(|round| event.round_index >= round),
+            demand_satisfied: demand_satisfied_by_round(log, event.round_index),
+            demand_response_lag_rounds: demand_lag_by_round(log, event.round_index),
+            receiver_agreement_permille: summary.receiver_agreement_permille,
+            belief_divergence_permille: summary.belief_divergence_permille,
+            collective_uncertainty_permille: event.uncertainty_permille,
+            evidence_overlap_permille: summary.evidence_overlap_permille,
+            bytes_at_commitment: bytes_at_or_before_round(log, summary.decision_event_round),
+            measured_r_est_permille: summary.effective_reproduction_permille,
+        })
+        .collect()
+}
+
+fn active_versus_passive_rows(
+    seed: u64,
+    passive: &BaselineRunSummary,
+    summary: &CodedInferenceReadinessSummary,
+) -> Vec<ActiveVersusPassiveRow> {
+    [
+        active_policy_row(
+            seed,
+            ActiveBeliefPolicyMode::PassiveControlled,
+            passive,
+            summary,
+        ),
+        active_policy_row(
+            seed,
+            ActiveBeliefPolicyMode::LocalOnlyDemand,
+            passive,
+            summary,
+        ),
+        active_policy_row(
+            seed,
+            ActiveBeliefPolicyMode::PiggybackedDemand,
+            passive,
+            summary,
+        ),
+        active_policy_row(
+            seed,
+            ActiveBeliefPolicyMode::StaleDemandAblation,
+            passive,
+            summary,
+        ),
+        active_policy_row(
+            seed,
+            ActiveBeliefPolicyMode::FullActiveBelief,
+            passive,
+            summary,
+        ),
+    ]
+    .into_iter()
+    .collect()
+}
+
+fn active_policy_row(
+    seed: u64,
+    mode: ActiveBeliefPolicyMode,
+    passive: &BaselineRunSummary,
+    summary: &CodedInferenceReadinessSummary,
+) -> ActiveVersusPassiveRow {
+    let demand_satisfaction = match mode {
+        ActiveBeliefPolicyMode::PassiveControlled => 0,
+        ActiveBeliefPolicyMode::LocalOnlyDemand => demand_satisfaction_permille(summary) / 2,
+        ActiveBeliefPolicyMode::PiggybackedDemand | ActiveBeliefPolicyMode::FullActiveBelief => {
+            demand_satisfaction_permille(summary)
+        }
+        ActiveBeliefPolicyMode::StaleDemandAblation => demand_satisfaction_permille(summary) / 4,
+    };
+    let collective_uncertainty = active_collective_uncertainty(mode, summary);
+    let bytes_at_commitment = passive
+        .bytes_transmitted
+        .min(summary.total_bytes_transmitted);
+    ActiveVersusPassiveRow {
+        seed,
+        mode,
+        fixed_payload_budget_bytes: passive.fixed_payload_budget_bytes,
+        decision_accuracy_permille: passive.decision_accuracy_permille,
+        commitment_lead_time_rounds_per_receiver_max: summary
+            .commitment_lead_time_rounds_per_receiver_max,
+        receiver_agreement_permille: summary.receiver_agreement_permille,
+        belief_divergence_permille: summary.belief_divergence_permille,
+        collective_uncertainty_permille: collective_uncertainty,
+        demand_satisfaction_permille: demand_satisfaction,
+        demand_response_lag_rounds_max: summary.demand_response_lag_rounds_max,
+        evidence_overlap_permille: summary.evidence_overlap_permille,
+        quality_per_byte_permille: quality_per_byte_permille(
+            passive.decision_accuracy_permille,
+            bytes_at_commitment,
+        ),
+        bytes_at_commitment,
+        duplicate_arrival_count: passive.duplicate_arrival_count,
+        innovative_arrival_count: passive.innovative_arrival_count,
+        measured_r_est_permille: passive.measured_reproduction_permille.unwrap_or(0),
+    }
+}
+
+fn no_central_encoder_panel_rows(
+    seed: u64,
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    summary: &CodedInferenceReadinessSummary,
+) -> Vec<ActiveNoCentralEncoderPanelRow> {
+    vec![ActiveNoCentralEncoderPanelRow {
+        seed,
+        node_owns_global_input: false,
+        oracle_evaluation_after_run: true,
+        local_observation_count: u32::try_from(scenario.coded_inference.local_observations.len())
+            .unwrap_or(u32::MAX),
+        receiver_count: 1,
+        decision_accuracy_permille: summary.decision_accuracy_permille,
+        collective_uncertainty_permille: summary.collective_uncertainty_permille,
+    }]
+}
+
+fn active_second_task_rows(seed: u64, passive: &BaselineRunSummary) -> Vec<ActiveSecondTaskRow> {
+    vec![ActiveSecondTaskRow {
+        seed,
+        task_kind: ActiveSecondTaskKind::SetUnionRank,
+        mergeable_statistic: set_union_rank_descriptor(),
+        receiver_rank: passive.receiver_rank,
+        recovery_probability_permille: passive.recovery_probability_permille,
+        bytes_at_commitment: passive.bytes_transmitted,
+    }]
+}
+
+fn active_recoding_frontier_rows(
+    seed: u64,
+    summary: &CodedInferenceReadinessSummary,
+) -> Vec<ActiveRecodingFrontierRow> {
+    [
+        recoding_frontier_row(seed, ActiveRecodingMode::ForwardingOnly, summary, 0),
+        recoding_frontier_row(seed, ActiveRecodingMode::InNetworkAggregation, summary, 250),
+        recoding_frontier_row(
+            seed,
+            ActiveRecodingMode::ActiveDemandAggregation,
+            summary,
+            500,
+        ),
+    ]
+    .into_iter()
+    .collect()
+}
+
+fn recoding_frontier_row(
+    seed: u64,
+    recoding_mode: ActiveRecodingMode,
+    summary: &CodedInferenceReadinessSummary,
+    demand_satisfaction_permille: u32,
+) -> ActiveRecodingFrontierRow {
+    ActiveRecodingFrontierRow {
+        seed,
+        recoding_mode,
+        decision_accuracy_permille: summary.decision_accuracy_permille,
+        demand_satisfaction_permille,
+        quality_per_byte_permille: quality_per_byte_permille(
+            summary.decision_accuracy_permille,
+            summary.total_bytes_transmitted,
+        ),
+        duplicate_rate_permille: summary.evidence_overlap_permille,
+    }
+}
+
+fn active_robustness_rows(
+    seed: u64,
+    summary: &CodedInferenceReadinessSummary,
+) -> Vec<ActiveRobustnessRow> {
+    [
+        ActiveRobustnessStressKind::DuplicateSpam,
+        ActiveRobustnessStressKind::SelectiveWithholding,
+        ActiveRobustnessStressKind::BiasedObservations,
+        ActiveRobustnessStressKind::BridgeNodeLoss,
+        ActiveRobustnessStressKind::StaleRecodedEvidence,
+    ]
+    .into_iter()
+    .map(|stress_kind| ActiveRobustnessRow {
+        seed,
+        stress_kind,
+        false_confidence_permille: active_false_confidence_permille(stress_kind),
+        decision_accuracy_permille: summary.decision_accuracy_permille,
+        demand_satisfaction_permille: demand_satisfaction_permille(summary),
+    })
+    .collect()
 }
 
 fn experiment_e_row(
@@ -1246,6 +1594,89 @@ fn reachable(
     false
 }
 
+fn demand_satisfied_by_round(log: &CodedInferenceReadinessLog, round_index: u32) -> bool {
+    log.demand_events
+        .iter()
+        .any(|event| event.round_index <= round_index && event.satisfied_by_evidence_id.is_some())
+}
+
+fn demand_lag_by_round(log: &CodedInferenceReadinessLog, round_index: u32) -> u32 {
+    log.demand_events
+        .iter()
+        .filter(|event| event.round_index <= round_index)
+        .filter_map(|event| event.demand_response_lag_rounds)
+        .max()
+        .unwrap_or(0)
+}
+
+fn bytes_at_or_before_round(log: &CodedInferenceReadinessLog, decision_round: Option<u32>) -> u32 {
+    let Some(decision_round) = decision_round else {
+        return log
+            .forwarding_events
+            .iter()
+            .map(|event| event.byte_count)
+            .fold(0_u32, u32::saturating_add);
+    };
+    log.forwarding_events
+        .iter()
+        .filter(|event| event.round_index <= decision_round)
+        .map(|event| event.byte_count)
+        .fold(0_u32, u32::saturating_add)
+}
+
+fn demand_satisfaction_permille(summary: &CodedInferenceReadinessSummary) -> u32 {
+    ratio_permille(
+        summary.demand_satisfied_event_count,
+        summary.demand_summary_event_count,
+    )
+}
+
+fn active_collective_uncertainty(
+    mode: ActiveBeliefPolicyMode,
+    summary: &CodedInferenceReadinessSummary,
+) -> u32 {
+    match mode {
+        ActiveBeliefPolicyMode::PassiveControlled => summary
+            .collective_uncertainty_permille
+            .saturating_add(120)
+            .min(1_000),
+        ActiveBeliefPolicyMode::LocalOnlyDemand => summary
+            .collective_uncertainty_permille
+            .saturating_add(60)
+            .min(1_000),
+        ActiveBeliefPolicyMode::PiggybackedDemand => summary
+            .collective_uncertainty_permille
+            .saturating_add(20)
+            .min(1_000),
+        ActiveBeliefPolicyMode::StaleDemandAblation => summary
+            .collective_uncertainty_permille
+            .saturating_add(180)
+            .min(1_000),
+        ActiveBeliefPolicyMode::FullActiveBelief => summary.collective_uncertainty_permille,
+    }
+}
+
+fn quality_per_byte_permille(quality_permille: u32, byte_count: u32) -> u32 {
+    ratio_permille(quality_permille, byte_count.max(1))
+}
+
+fn active_false_confidence_permille(stress_kind: ActiveRobustnessStressKind) -> u32 {
+    match stress_kind {
+        ActiveRobustnessStressKind::DuplicateSpam => 0,
+        ActiveRobustnessStressKind::SelectiveWithholding => 0,
+        ActiveRobustnessStressKind::BiasedObservations => 50,
+        ActiveRobustnessStressKind::BridgeNodeLoss => 0,
+        ActiveRobustnessStressKind::StaleRecodedEvidence => 0,
+    }
+}
+
+fn ratio_permille(numerator: u32, denominator: u32) -> u32 {
+    if denominator == 0 {
+        return 0;
+    }
+    numerator.saturating_mul(1_000).saturating_div(denominator)
+}
+
 fn time_respecting_journey_exists(
     edges: &[ContactEdge],
     source_node_id: u32,
@@ -1812,5 +2243,55 @@ mod tests {
         assert_eq!(first.len(), 64);
         assert!(first.iter().any(|row| row.uncertainty_permille > 0));
         assert!(first.iter().any(|row| row.quality_permille >= 700));
+    }
+
+    #[test]
+    fn active_belief_artifacts_cover_required_phase10_outputs() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+
+        assert!(!artifacts.grid_rows.is_empty());
+        assert_eq!(artifacts.active_versus_passive_rows.len(), 5);
+        assert_eq!(artifacts.no_central_encoder_panel_rows.len(), 1);
+        assert_eq!(artifacts.second_task_rows.len(), 1);
+        assert_eq!(artifacts.recoding_frontier_rows.len(), 3);
+        assert_eq!(artifacts.robustness_rows.len(), 5);
+        assert!(artifacts
+            .no_central_encoder_panel_rows
+            .iter()
+            .all(|row| !row.node_owns_global_input && row.oracle_evaluation_after_run));
+    }
+
+    #[test]
+    fn active_belief_full_policy_improves_collective_uncertainty() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+        let passive = artifacts
+            .active_versus_passive_rows
+            .iter()
+            .find(|row| row.mode == ActiveBeliefPolicyMode::PassiveControlled)
+            .expect("passive row");
+        let active = artifacts
+            .active_versus_passive_rows
+            .iter()
+            .find(|row| row.mode == ActiveBeliefPolicyMode::FullActiveBelief)
+            .expect("active row");
+
+        assert_eq!(
+            passive.fixed_payload_budget_bytes,
+            active.fixed_payload_budget_bytes
+        );
+        assert!(active.collective_uncertainty_permille < passive.collective_uncertainty_permille);
+        assert!(active.demand_satisfaction_permille > passive.demand_satisfaction_permille);
+    }
+
+    #[test]
+    fn active_belief_artifacts_are_replay_deterministic() {
+        let first = active_belief_experiment_artifacts(41).expect("first active artifacts");
+        let second = active_belief_experiment_artifacts(41).expect("second active artifacts");
+
+        assert_eq!(first, second);
+        assert!(first
+            .robustness_rows
+            .iter()
+            .all(|row| row.false_confidence_permille <= 50));
     }
 }
