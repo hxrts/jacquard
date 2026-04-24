@@ -56,3 +56,21 @@ quality. The methodology does not claim a new erasure code or arbitrary machine
 learning inference; it claims deterministic transport and merging of supported
 mergeable sufficient statistics, plus measured near-critical cost control and
 measured observer ambiguity proxies.
+
+Active belief diffusion extends that methodology with first-class demand
+summaries. Demand is measured as replay-visible control data, not as evidence.
+The active artifact bundle reports an active belief grid, active-versus-passive
+rows, a no-central-encoder panel, a compact second task row, a recoding frontier,
+and bounded robustness rows. Its dependent variables include commitment lead
+time per receiver, receiver agreement, belief divergence, collective
+uncertainty, demand satisfaction, demand-response lag, evidence overlap, quality
+per byte, bytes at commitment, duplicate and innovative arrivals, and measured
+R_est.
+
+The active comparison keeps the same equal-payload-byte discipline as the
+passive coded-diffusion baseline. The passive controlled-coded row remains the
+reference surface; local-only demand, piggybacked demand, stale-demand ablation,
+and full active belief diffusion are compared against it without changing the
+fixed payload budget. No-central-encoder rows use oracle evaluation only after
+the run, so the simulator can score the hidden target without giving any node a
+global input during the trace.

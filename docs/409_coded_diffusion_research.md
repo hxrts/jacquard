@@ -242,6 +242,77 @@ duplicate rank inflation and duplicate statistic inflation. Arbitrary machine
 learning inference, new erasure-code construction, and formal privacy claims are
 outside this phase unless a later theorem or experiment explicitly adds them.
 
+## Active Belief Diffusion Paper Package
+
+The paper-facing research name is active belief diffusion. It should be framed
+as a decentralized-inference primitive, not as Jacquard, Field, routing, or
+MPST. In temporal networks without stable paths or a central aggregator, agents
+exchange two bounded, replay-visible objects:
+
+- mergeable coded evidence describing what they have learned,
+- bounded demand summaries describing what would most reduce uncertainty.
+
+The two objects are symmetric as communication objects but not semantically
+symmetric. Coded evidence carries audited contribution identity and can update a
+mergeable statistic. Demand summaries are non-evidential control data. They may
+shape priority, custody, recoding, and allocation, but they must not validate
+evidence, create contribution identity, alter merge semantics, directly change a
+belief statistic, or publish route truth.
+
+The paper structure should be organized around the primitive and its evidence:
+
+1. Communication as inference.
+2. Motivating anomaly-localization figure.
+3. Active belief diffusion primitive.
+4. Mergeable task model.
+5. Demand, control, and resource accounting.
+6. Theory and proof boundary.
+7. Implementation and replay substrate.
+8. Evaluation organized by claims.
+9. Related work and positioning.
+10. Limits and future work.
+
+The theorem package is intentionally compact. `Field.CodedDiffusion` covers
+evidence-origin modes, contribution ledgers, exact threshold reconstruction,
+duplicate non-inflation, recoding soundness, observer projection preservation,
+diffusion-potential accounting, and finite deterministic work recurrence.
+`Field.ActiveBelief` covers bounded first-class demand, demand/evidence semantic
+separation, demand soundness, duplicate non-inflation under demand-aware
+forwarding, stale-demand safety, commitment lead-time accounting, and
+multi-receiver compatibility as guarded local agreement. The theorem dependency
+table and Rust correspondence live in `verification/Field/CODE_MAP.md`.
+
+The active experiment surface is `ActiveBeliefExperimentArtifacts` in
+`crates/simulator/src/diffusion/core_experiment.rs`. It exports:
+
+- the active belief grid over receiver, time, top hypothesis, margin,
+  uncertainty, commitment, demand satisfaction, lag, agreement, divergence,
+  evidence overlap, bytes at commitment, and measured R_est,
+- active-versus-passive comparison rows under equal payload-byte budget,
+- a no-central-encoder panel with oracle evaluation only after the run,
+- one compact second mergeable task row for the set-union threshold instance,
+- a recoding frontier for forwarding-only, in-network aggregation, and active
+  demand plus aggregation,
+- bounded robustness rows for duplicate spam, selective withholding, biased
+  observations, bridge-node loss, and stale recoded evidence.
+
+The evaluation must state fixed budgets, caps, and replay assumptions wherever
+results are shown. The primary comparison fixes payload bytes. Demand summaries
+carry explicit entry, byte, and lifetime caps. All metrics are deterministic
+integer or fixed-denominator values under typed time/order and canonical
+ordering.
+
+Paper non-claims:
+
+- no consensus or common knowledge,
+- no globally identical receiver beliefs,
+- no optimal active-demand policy,
+- no arbitrary compactness for all machine-learning tasks,
+- no new erasure code claim,
+- no formal privacy claim from observer-ambiguity proxies,
+- no broad adversarial-security claim from bounded stress rows,
+- no Telltale proof of empirical diffusion performance.
+
 ## Legacy Field Baseline
 
 `docs/406_field_routing.md` is legacy context. It documents the old corridor-envelope Field engine that still exists as a runnable baseline.
