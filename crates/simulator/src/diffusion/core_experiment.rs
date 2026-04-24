@@ -11,8 +11,10 @@ use super::{
     catalog::scenarios::build_coded_inference_readiness_scenario,
     coded_inference::{
         build_coded_inference_readiness_log, summarize_coded_inference_readiness_log,
-        CodedInferenceLandscapeEvent, CodedInferenceReadinessLog,
+        CodedArrivalClassification, CodedForwardingEvent, CodedInferenceLandscapeEvent,
+        CodedInferenceReadinessLog,
     },
+    model::CodedEvidenceOriginMode,
 };
 
 const CORE_EXPERIMENT_NAMESPACE: &str = "artifacts/coded-inference/core-experiments";
@@ -105,9 +107,12 @@ pub(crate) struct CoreExperimentArtifactRow {
     pub top_hypothesis_id: u8,
     pub scaled_score: i32,
     pub energy_gap: i32,
+    pub available_evidence_count: u32,
+    pub useful_contribution_count: u32,
     pub byte_count: u32,
     pub duplicate_count: u32,
     pub latency_rounds: u32,
+    pub storage_pressure_bytes: u32,
     pub receiver_rank: u32,
     pub top_hypothesis_margin: i32,
     pub uncertainty_permille: u32,
@@ -283,12 +288,15 @@ pub(crate) fn experiment_a_landscape_rows(
             top_hypothesis_id: readiness_summary.top_hypothesis_id,
             scaled_score: readiness_summary.top_hypothesis_margin,
             energy_gap: readiness_summary.energy_gap,
+            available_evidence_count: summary.forwarding_events,
+            useful_contribution_count: summary.receiver_rank,
             byte_count: summary.bytes_transmitted,
             duplicate_count: summary.duplicate_arrival_count,
             latency_rounds: summary
                 .commitment_round
                 .or(summary.reconstruction_round)
                 .unwrap_or(0),
+            storage_pressure_bytes: summary.peak_stored_payload_bytes_per_node,
             receiver_rank: summary.receiver_rank,
             top_hypothesis_margin: summary.top_hypothesis_margin,
             uncertainty_permille: 1000_u32.saturating_sub(summary.decision_accuracy_permille),
@@ -304,6 +312,36 @@ pub(crate) fn experiment_a_landscape_rows(
         final_round,
         &readiness_summary,
     ));
+    sort_core_experiment_rows(&mut rows);
+    Ok(rows)
+}
+
+pub(crate) fn experiment_a2_evidence_mode_rows(
+    seed: u64,
+) -> Result<Vec<CoreExperimentArtifactRow>, BaselineContractError> {
+    let scenario = build_coded_inference_readiness_scenario();
+    let log = build_coded_inference_readiness_log(seed, &scenario);
+    let summary = summarize_coded_inference_readiness_log(&scenario, &log);
+    let path_evidence = core_path_evidence(&deterministic_core_fixture_edges(), 1, 5);
+    let storage_pressure_bytes = peak_storage_pressure_bytes(&log);
+    let mut rows = Vec::new();
+
+    for origin_mode in [
+        CodedEvidenceOriginMode::SourceCoded,
+        CodedEvidenceOriginMode::LocalObservation,
+        CodedEvidenceOriginMode::RecodedAggregate,
+    ] {
+        let accumulator = accumulate_origin_mode(&log, origin_mode);
+        rows.push(origin_mode_row(
+            seed,
+            origin_mode,
+            &summary,
+            &path_evidence,
+            storage_pressure_bytes,
+            accumulator,
+        ));
+    }
+
     sort_core_experiment_rows(&mut rows);
     Ok(rows)
 }
@@ -331,9 +369,12 @@ fn experiment_a_landscape_event_row(
         top_hypothesis_id: event.top_hypothesis_id,
         scaled_score: event.scaled_score,
         energy_gap: event.energy_gap,
+        available_evidence_count: forwarding_events_at_or_before(log, event.round_index),
+        useful_contribution_count: receiver_rank_at_or_before(log, event.round_index),
         byte_count: cumulative_payload_bytes(log, event.round_index),
         duplicate_count: duplicate_arrivals_at_or_before(log, event.round_index),
         latency_rounds: event.round_index,
+        storage_pressure_bytes: peak_storage_pressure_bytes_at_or_before(log, event.round_index),
         receiver_rank: receiver_rank_at_or_before(log, event.round_index),
         top_hypothesis_margin: event.margin,
         uncertainty_permille: event.uncertainty_permille,
@@ -365,15 +406,147 @@ fn experiment_a_oracle_row(
         top_hypothesis_id: summary.top_hypothesis_id,
         scaled_score: summary.top_hypothesis_margin,
         energy_gap: summary.energy_gap,
+        available_evidence_count: summary.coded_fragment_count,
+        useful_contribution_count: summary.coded_fragment_count,
         byte_count: summary.uncoded_fixed_payload_budget_bytes,
         duplicate_count: 0,
         latency_rounds: final_round,
+        storage_pressure_bytes: summary.uncoded_fixed_payload_budget_bytes,
         receiver_rank: summary.coded_fragment_count,
         top_hypothesis_margin: summary.top_hypothesis_margin,
         uncertainty_permille: 0,
         quality_permille: 1000,
         merged_statistic_quality_permille: 1000,
         observer_advantage_permille: 0,
+    }
+}
+
+fn origin_mode_row(
+    seed: u64,
+    origin_mode: CodedEvidenceOriginMode,
+    summary: &super::coded_inference::CodedInferenceReadinessSummary,
+    path_evidence: &CoreExperimentPathEvidence,
+    storage_pressure_bytes: u32,
+    accumulator: OriginModeAccumulator,
+) -> CoreExperimentArtifactRow {
+    CoreExperimentArtifactRow {
+        identity: core_experiment_identity(
+            CoreExperimentId::EvidenceOriginModes,
+            EXPERIMENT_A_SCENARIO_ID,
+            seed,
+            origin_mode_label(origin_mode),
+        ),
+        mergeable_statistic: origin_mode_descriptor(origin_mode),
+        path_evidence: path_evidence.clone(),
+        round_index: summary
+            .decision_event_round
+            .or(summary.reconstruction_round)
+            .unwrap_or(accumulator.latest_arrival_round),
+        ordering_key: origin_mode_ordering_key(origin_mode),
+        hidden_hypothesis_id: summary.top_hypothesis_id,
+        hypothesis_id: summary.top_hypothesis_id,
+        top_hypothesis_id: summary.top_hypothesis_id,
+        scaled_score: summary.top_hypothesis_margin,
+        energy_gap: summary.energy_gap,
+        available_evidence_count: accumulator.available_evidence_count,
+        useful_contribution_count: accumulator.useful_contribution_count(),
+        byte_count: accumulator.byte_count,
+        duplicate_count: accumulator.duplicate_count,
+        latency_rounds: accumulator.latest_arrival_round,
+        storage_pressure_bytes,
+        receiver_rank: accumulator.useful_contribution_count(),
+        top_hypothesis_margin: summary.top_hypothesis_margin,
+        uncertainty_permille: summary.uncertainty_permille,
+        quality_permille: origin_mode_quality_permille(origin_mode, summary),
+        merged_statistic_quality_permille: origin_mode_quality_permille(origin_mode, summary),
+        observer_advantage_permille: 0,
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct OriginModeAccumulator {
+    available_evidence_count: u32,
+    useful_contribution_ids: BTreeSet<u32>,
+    byte_count: u32,
+    duplicate_count: u32,
+    latest_arrival_round: u32,
+}
+
+impl OriginModeAccumulator {
+    fn useful_contribution_count(&self) -> u32 {
+        u32::try_from(self.useful_contribution_ids.len()).unwrap_or(u32::MAX)
+    }
+}
+
+fn accumulate_origin_mode(
+    log: &CodedInferenceReadinessLog,
+    origin_mode: CodedEvidenceOriginMode,
+) -> OriginModeAccumulator {
+    let mut accumulator = OriginModeAccumulator::default();
+    for event in log
+        .forwarding_events
+        .iter()
+        .filter(|event| event.origin.origin_mode == origin_mode)
+    {
+        accumulate_forwarding_event(&mut accumulator, event);
+    }
+    accumulator
+}
+
+fn accumulate_forwarding_event(
+    accumulator: &mut OriginModeAccumulator,
+    event: &CodedForwardingEvent,
+) {
+    accumulator.available_evidence_count = accumulator.available_evidence_count.saturating_add(1);
+    accumulator.byte_count = accumulator.byte_count.saturating_add(event.byte_count);
+    accumulator.latest_arrival_round = accumulator.latest_arrival_round.max(event.arrival_round);
+    if event.classification == CodedArrivalClassification::Duplicate {
+        accumulator.duplicate_count = accumulator.duplicate_count.saturating_add(1);
+    }
+    accumulator
+        .useful_contribution_ids
+        .extend(event.origin.contribution_ledger_ids.iter().copied());
+}
+
+fn origin_mode_label(origin_mode: CodedEvidenceOriginMode) -> &'static str {
+    match origin_mode {
+        CodedEvidenceOriginMode::SourceCoded => "source-coded-reconstruction",
+        CodedEvidenceOriginMode::LocalObservation => "distributed-local-evidence-inference",
+        CodedEvidenceOriginMode::RecodedAggregate => "in-network-recoded-aggregation",
+    }
+}
+
+fn origin_mode_ordering_key(origin_mode: CodedEvidenceOriginMode) -> u32 {
+    match origin_mode {
+        CodedEvidenceOriginMode::SourceCoded => 0,
+        CodedEvidenceOriginMode::LocalObservation => 1,
+        CodedEvidenceOriginMode::RecodedAggregate => 2,
+    }
+}
+
+fn origin_mode_descriptor(origin_mode: CodedEvidenceOriginMode) -> MergeableStatisticDescriptor {
+    match origin_mode {
+        CodedEvidenceOriginMode::SourceCoded => set_union_rank_descriptor(),
+        CodedEvidenceOriginMode::LocalObservation | CodedEvidenceOriginMode::RecodedAggregate => {
+            additive_score_vector_descriptor()
+        }
+    }
+}
+
+fn origin_mode_quality_permille(
+    origin_mode: CodedEvidenceOriginMode,
+    summary: &super::coded_inference::CodedInferenceReadinessSummary,
+) -> u32 {
+    match origin_mode {
+        CodedEvidenceOriginMode::SourceCoded => summary.recovery_probability_permille,
+        CodedEvidenceOriginMode::LocalObservation => summary.decision_accuracy_permille,
+        CodedEvidenceOriginMode::RecodedAggregate => {
+            if summary.rank_inflation_guard_passed {
+                1000_u32.saturating_sub(summary.uncertainty_permille)
+            } else {
+                0
+            }
+        }
     }
 }
 
@@ -385,11 +558,41 @@ fn cumulative_payload_bytes(log: &CodedInferenceReadinessLog, round_index: u32) 
         .fold(0_u32, u32::saturating_add)
 }
 
+fn forwarding_events_at_or_before(log: &CodedInferenceReadinessLog, round_index: u32) -> u32 {
+    u32::try_from(
+        log.forwarding_events
+            .iter()
+            .filter(|event| event.round_index <= round_index)
+            .count(),
+    )
+    .unwrap_or(u32::MAX)
+}
+
 fn duplicate_arrivals_at_or_before(log: &CodedInferenceReadinessLog, round_index: u32) -> u32 {
     log.receiver_events
         .iter()
         .filter(|event| event.round_index <= round_index)
         .map(|event| event.duplicate_arrival_count)
+        .max()
+        .unwrap_or(0)
+}
+
+fn peak_storage_pressure_bytes(log: &CodedInferenceReadinessLog) -> u32 {
+    log.budget_events
+        .iter()
+        .map(|event| event.retained_bytes)
+        .max()
+        .unwrap_or(0)
+}
+
+fn peak_storage_pressure_bytes_at_or_before(
+    log: &CodedInferenceReadinessLog,
+    round_index: u32,
+) -> u32 {
+    log.budget_events
+        .iter()
+        .filter(|event| event.round_index <= round_index)
+        .map(|event| event.retained_bytes)
         .max()
         .unwrap_or(0)
 }
@@ -514,9 +717,12 @@ mod tests {
             top_hypothesis_id: 2,
             scaled_score: 24,
             energy_gap: 12,
+            available_evidence_count: 5,
+            useful_contribution_count: 3,
             byte_count: 64,
             duplicate_count: 1,
             latency_rounds: 4,
+            storage_pressure_bytes: 192,
             receiver_rank: 3,
             top_hypothesis_margin: 12,
             uncertainty_permille: 400,
@@ -638,8 +844,11 @@ mod tests {
             "top_hypothesis_id",
             "scaled_score",
             "energy_gap",
+            "available_evidence_count",
+            "useful_contribution_count",
             "byte_count",
             "duplicate_count",
+            "storage_pressure_bytes",
             "receiver_rank",
             "top_hypothesis_margin",
             "uncertainty_permille",
@@ -647,5 +856,92 @@ mod tests {
         ] {
             assert!(json.contains(field));
         }
+    }
+
+    #[test]
+    fn experiment_a2_evidence_modes_include_all_origin_modes() {
+        let rows = experiment_a2_evidence_mode_rows(41).expect("rows");
+
+        assert_eq!(rows.len(), 3);
+        assert!(rows.iter().any(|row| row.identity.policy_or_mode
+            == "source-coded-reconstruction"
+            && row.mergeable_statistic.statistic_kind == MergeableStatisticKind::SetUnionRank));
+        assert!(rows.iter().any(|row| row.identity.policy_or_mode
+            == "distributed-local-evidence-inference"
+            && row.mergeable_statistic.statistic_kind
+                == MergeableStatisticKind::AdditiveScoreVector));
+        assert!(rows
+            .iter()
+            .any(|row| row.identity.policy_or_mode == "in-network-recoded-aggregation"));
+    }
+
+    #[test]
+    fn experiment_a2_evidence_modes_distributed_local_evidence_is_additive_inference() {
+        let rows = experiment_a2_evidence_mode_rows(41).expect("rows");
+        let local = rows
+            .iter()
+            .find(|row| row.identity.policy_or_mode == "distributed-local-evidence-inference")
+            .expect("local evidence row");
+
+        assert_eq!(
+            local.mergeable_statistic.merge_operation,
+            MergeOperationKind::VectorAddition
+        );
+        assert_eq!(
+            local.mergeable_statistic.decision_map,
+            DecisionMapKind::TopHypothesisMargin
+        );
+        assert!(local.available_evidence_count > 0);
+        assert!(local.useful_contribution_count > 0);
+        assert!(local.top_hypothesis_margin > 0);
+        assert_eq!(local.hidden_hypothesis_id, local.top_hypothesis_id);
+    }
+
+    #[test]
+    fn experiment_a2_evidence_modes_recoding_does_not_inflate_rank_through_duplicate_lineage() {
+        let rows = experiment_a2_evidence_mode_rows(41).expect("rows");
+        let recoded = rows
+            .iter()
+            .find(|row| row.identity.policy_or_mode == "in-network-recoded-aggregation")
+            .expect("recoded row");
+        let scenario = build_coded_inference_readiness_scenario();
+        let log = build_coded_inference_readiness_log(41, &scenario);
+        let unique_recoded_ledger_count = log
+            .forwarding_events
+            .iter()
+            .filter(|event| event.origin.origin_mode == CodedEvidenceOriginMode::RecodedAggregate)
+            .flat_map(|event| event.origin.contribution_ledger_ids.iter().copied())
+            .collect::<BTreeSet<_>>()
+            .len();
+
+        assert_eq!(
+            recoded.receiver_rank,
+            u32::try_from(unique_recoded_ledger_count).unwrap_or(u32::MAX)
+        );
+        assert_eq!(recoded.receiver_rank, recoded.useful_contribution_count);
+    }
+
+    #[test]
+    fn experiment_a2_evidence_modes_recoding_does_not_inflate_mergeable_statistic() {
+        let rows = experiment_a2_evidence_mode_rows(41).expect("rows");
+        let recoded = rows
+            .iter()
+            .find(|row| row.identity.policy_or_mode == "in-network-recoded-aggregation")
+            .expect("recoded row");
+        let scenario = build_coded_inference_readiness_scenario();
+        let contribution_universe = scenario
+            .coded_inference
+            .source_fragment_count
+            .saturating_add(
+                u32::try_from(scenario.coded_inference.local_observations.len())
+                    .unwrap_or(u32::MAX),
+            );
+
+        assert_eq!(
+            recoded.mergeable_statistic.contribution_ledger_rule,
+            ContributionLedgerRule::EvidenceVectorContribution
+        );
+        assert!(recoded.useful_contribution_count <= contribution_universe);
+        assert!(recoded.merged_statistic_quality_permille > 0);
     }
 }
