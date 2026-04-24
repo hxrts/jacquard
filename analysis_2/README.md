@@ -7,8 +7,8 @@ This package owns:
 
 - `research_boundary.md`, the research boundary and implementation/proof split
   previously kept in `docs/`,
-- `paper_artifact.md`, the manuscript-facing strong paper artifact previously
-  kept in `docs/`,
+- `text.md`, the manuscript-facing paper text following the outline from
+  `work/research_proposal.md`,
 - the report generator that assembles paper text, active-belief CSV rows,
   figures, captions, and the reproducibility manifest,
 - sanity checks for the generated active-belief report artifacts.

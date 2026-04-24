@@ -36,9 +36,7 @@ def write_pdf_report(
     artifact_dir: Path,
     report_dir: Path,
     pdf_path: Path,
-    proposal_text: str,
-    paper_text: str,
-    strong_paper_text: str,
+    manuscript_text: str,
     figure_specs: list[dict[str, object]],
     figure_rows: list[dict[str, object]],
 ) -> None:
@@ -68,24 +66,7 @@ def write_pdf_report(
             styles["Body"],
         )
     )
-    add_markdown(story, styles, extract_final_claim_boundary(proposal_text))
-    add_markdown(story, styles, paper_text)
-    add_markdown(
-        story,
-        styles,
-        extract_sections(
-            strong_paper_text,
-            [
-                "Claim Boundary",
-                "Strong Abstract",
-                "Theorem Assumption Table",
-                "Task Breadth Table",
-                "Evaluation Structure",
-                "Caption Audit Rules",
-                "Limitations",
-            ],
-        ),
-    )
+    add_markdown(story, styles, manuscript_text)
     add_figures(story, styles, report_dir, figure_specs)
     add_manifest(story, styles, artifact_dir, figure_rows)
     doc.build(story)
@@ -162,27 +143,6 @@ def add_manifest(
     )
     story.append(Spacer(1, BLOCK_SPACER))
     story.append(Paragraph(paper_markup(f"Report artifacts: {artifact_dir}"), styles["Body"]))
-
-
-def extract_final_claim_boundary(proposal_text: str) -> str:
-    if "## Final Claim Boundary" not in proposal_text:
-        return ""
-    body = proposal_text.split("## Final Claim Boundary", 1)[1]
-    body = body.split("## Problem", 1)[0]
-    return "## Final Claim Boundary\n" + body.strip()
-
-
-def extract_sections(markdown: str, section_names: list[str]) -> str:
-    lines = markdown.splitlines()
-    selected: list[str] = []
-    capture = False
-    wanted = set(section_names)
-    for line in lines:
-        if line.startswith("## "):
-            capture = line[3:].strip() in wanted
-        if capture:
-            selected.append(line)
-    return "\n".join(selected)
 
 
 def add_markdown(story: list[object], styles, markdown: str) -> None:

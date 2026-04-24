@@ -49,9 +49,7 @@ def write_outputs(artifact_dir: Path) -> None:
             artifact_dir,
             report_dir,
             staging / REPORT_PDF_NAME,
-            load_text(Path("work/research_proposal.md")),
-            load_text(Path("work/final_paper_draft.md")),
-            load_text(Path("analysis_2/paper_artifact.md")),
+            load_text(Path("analysis_2/text.md")),
             figure_specs,
             figure_rows,
         )
