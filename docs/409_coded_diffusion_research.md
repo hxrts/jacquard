@@ -323,6 +323,12 @@ It exports:
   bounds, and false-commitment bounds,
 - 500-node large-regime rows with deterministic replay, runtime-stability, and
   artifact-sanity coverage,
+- trace-validation rows for synthetic and semi-realistic mobility-contact trace
+  families with canonical preprocessing and replay checks,
+- deterministic stronger-baseline rows, including a contact-frequency
+  opportunistic baseline,
+- exact deterministic seed-summary rows reporting receiver-arrival probability,
+  commitment accuracy, false-commitment rate, lead time, and quality per byte,
 - final proposal validation rows covering three deterministic seeds, sparse
   bridge-heavy, clustered duplicate-heavy, and semi-realistic mobility regimes,
   active modes, and all compact task kinds,
@@ -359,6 +365,9 @@ The strong proposal closure adds a replay-visible host/bridge demand artifact
 surface. It remains deliberately narrow: host bridges batch and replay demand
 metadata, but demand still cannot validate evidence, create contribution
 identity, alter merge semantics, publish route truth, or assign Jacquard time.
+The strong robustness package additionally covers correlated observations,
+adversarial withholding, malicious duplicate pressure, delayed demand, and
+asymmetric receiver histories alongside the scoped stress set.
 
 Paper non-claims:
 

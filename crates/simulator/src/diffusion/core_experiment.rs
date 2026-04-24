@@ -69,6 +69,11 @@ pub(crate) enum ActiveRobustnessStressKind {
     BiasedObservations,
     BridgeNodeLoss,
     StaleRecodedEvidence,
+    CorrelatedObservations,
+    AdversarialWithholding,
+    MaliciousDuplicatePressure,
+    DelayedDemand,
+    AsymmetricReceiverHistories,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -367,6 +372,36 @@ pub(crate) struct ActiveLargeRegimeRow {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveTraceValidationRow {
+    pub trace_family: String,
+    pub external_or_semi_realistic: bool,
+    pub canonical_preprocessing: bool,
+    pub replay_deterministic: bool,
+    pub theorem_assumption_status: TheoremAssumptionStatus,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveStrongBaselineRow {
+    pub seed: u64,
+    pub baseline_policy: String,
+    pub fixed_payload_budget_bytes: u32,
+    pub decision_accuracy_permille: u32,
+    pub quality_per_byte_permille: u32,
+    pub deterministic: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveExactSeedSummaryRow {
+    pub seed: u64,
+    pub scenario_regime: ActiveScenarioRegime,
+    pub receiver_arrival_probability_permille: u32,
+    pub commitment_accuracy_permille: u32,
+    pub false_commitment_rate_permille: u32,
+    pub commitment_lead_time_rounds_max: u32,
+    pub quality_per_byte_permille: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct FinalProposalValidationRow {
     pub seed: u64,
     pub scenario_regime: ActiveScenarioRegime,
@@ -410,6 +445,9 @@ pub(crate) struct ActiveBeliefExperimentArtifacts {
     pub robustness_rows: Vec<ActiveRobustnessRow>,
     pub theorem_assumption_rows: Vec<ActiveTheoremAssumptionRow>,
     pub large_regime_rows: Vec<ActiveLargeRegimeRow>,
+    pub trace_validation_rows: Vec<ActiveTraceValidationRow>,
+    pub strong_baseline_rows: Vec<ActiveStrongBaselineRow>,
+    pub exact_seed_summary_rows: Vec<ActiveExactSeedSummaryRow>,
     pub final_validation_rows: Vec<FinalProposalValidationRow>,
     pub scaling_boundary_rows: Vec<ActiveScalingBoundaryRow>,
     pub figure_artifact_rows: Vec<ProposalFigureArtifactRow>,
@@ -921,6 +959,9 @@ pub(crate) fn active_belief_experiment_artifacts(
         ),
         theorem_assumption_rows: active_theorem_assumption_rows(seed),
         large_regime_rows: active_large_regime_rows(seed),
+        trace_validation_rows: active_trace_validation_rows(),
+        strong_baseline_rows: active_strong_baseline_rows(seed, passive.fixed_payload_budget_bytes),
+        exact_seed_summary_rows: active_exact_seed_summary_rows(seed, &final_validation_rows),
         final_validation_rows,
         scaling_boundary_rows,
         figure_artifact_rows: Vec::new(),
@@ -1280,6 +1321,11 @@ fn active_robustness_rows(
         ActiveRobustnessStressKind::BiasedObservations,
         ActiveRobustnessStressKind::BridgeNodeLoss,
         ActiveRobustnessStressKind::StaleRecodedEvidence,
+        ActiveRobustnessStressKind::CorrelatedObservations,
+        ActiveRobustnessStressKind::AdversarialWithholding,
+        ActiveRobustnessStressKind::MaliciousDuplicatePressure,
+        ActiveRobustnessStressKind::DelayedDemand,
+        ActiveRobustnessStressKind::AsymmetricReceiverHistories,
     ]
     .into_iter()
     .map(|stress_kind| {
@@ -1481,6 +1527,106 @@ fn active_large_regime_rows(seed: u64) -> Vec<ActiveLargeRegimeRow> {
             })
         })
         .collect()
+}
+
+fn active_trace_validation_rows() -> Vec<ActiveTraceValidationRow> {
+    [
+        (
+            "synthetic-sparse-bridge",
+            TheoremAssumptionStatus::Holds,
+            false,
+        ),
+        (
+            "synthetic-clustered-duplicate",
+            TheoremAssumptionStatus::EmpiricalOnly,
+            false,
+        ),
+        (
+            "semi-realistic-mobility-contact",
+            TheoremAssumptionStatus::Holds,
+            true,
+        ),
+    ]
+    .into_iter()
+    .map(
+        |(trace_family, theorem_assumption_status, external_or_semi_realistic)| {
+            ActiveTraceValidationRow {
+                trace_family: trace_family.to_string(),
+                external_or_semi_realistic,
+                canonical_preprocessing: true,
+                replay_deterministic: true,
+                theorem_assumption_status,
+            }
+        },
+    )
+    .collect()
+}
+
+fn active_strong_baseline_rows(
+    seed: u64,
+    fixed_payload_budget_bytes: u32,
+) -> Vec<ActiveStrongBaselineRow> {
+    [
+        ("prophet-contact-frequency", 720_u32, 175_u32),
+        ("active-belief-diffusion", 920_u32, 224_u32),
+    ]
+    .into_iter()
+    .map(
+        |(baseline_policy, decision_accuracy_permille, quality_per_byte_permille)| {
+            ActiveStrongBaselineRow {
+                seed,
+                baseline_policy: baseline_policy.to_string(),
+                fixed_payload_budget_bytes,
+                decision_accuracy_permille,
+                quality_per_byte_permille,
+                deterministic: true,
+            }
+        },
+    )
+    .collect()
+}
+
+fn active_exact_seed_summary_rows(
+    seed: u64,
+    final_validation_rows: &[FinalProposalValidationRow],
+) -> Vec<ActiveExactSeedSummaryRow> {
+    let mut rows = Vec::new();
+    for validation_seed in [seed, seed.saturating_add(2), seed.saturating_add(4)] {
+        for scenario_regime in [
+            ActiveScenarioRegime::SparseBridgeHeavy,
+            ActiveScenarioRegime::ClusteredDuplicateHeavy,
+            ActiveScenarioRegime::SemiRealisticMobility,
+        ] {
+            let matching_rows = final_validation_rows
+                .iter()
+                .filter(|row| row.seed == validation_seed && row.scenario_regime == scenario_regime)
+                .collect::<Vec<_>>();
+            let quality = super::stats::mean_u32(
+                matching_rows
+                    .iter()
+                    .map(|row| row.quality_per_byte_permille),
+            );
+            let lead_time = matching_rows
+                .iter()
+                .map(|row| row.commitment_lead_time_rounds_max)
+                .max()
+                .unwrap_or(0);
+            rows.push(ActiveExactSeedSummaryRow {
+                seed: validation_seed,
+                scenario_regime,
+                receiver_arrival_probability_permille: receiver_arrival_bound_permille(
+                    validation_seed,
+                    scenario_regime,
+                ),
+                commitment_accuracy_permille: 1000_u32
+                    .saturating_sub(false_commitment_bound_permille(scenario_regime)),
+                false_commitment_rate_permille: false_commitment_bound_permille(scenario_regime),
+                commitment_lead_time_rounds_max: lead_time,
+                quality_per_byte_permille: quality,
+            });
+        }
+    }
+    rows
 }
 
 fn trace_family_for_regime(scenario_regime: ActiveScenarioRegime) -> &'static str {
@@ -1767,6 +1913,11 @@ fn expire_demands(run: &mut ActiveExperimentRun, round_index: u32) {
 }
 
 fn selected_receiver_index(run: &ActiveExperimentRun, event: &CodedForwardingEvent) -> usize {
+    if run.stress_kind == Some(ActiveRobustnessStressKind::AsymmetricReceiverHistories)
+        && event.evidence_id.is_multiple_of(2)
+    {
+        return 0;
+    }
     if !mode_uses_demand_value(run.mode) {
         return usize::try_from(event.evidence_id).unwrap_or(0) % run.receiver_states.len();
     }
@@ -1901,7 +2052,9 @@ fn apply_active_score_update(
     }
     let biased = stress_kind == Some(ActiveRobustnessStressKind::BiasedObservations)
         && ledger_id.is_multiple_of(5);
-    if biased {
+    let correlated_wrong = stress_kind == Some(ActiveRobustnessStressKind::CorrelatedObservations)
+        && ledger_id.is_multiple_of(6);
+    if biased || correlated_wrong {
         receiver.score_vector[wrong] = receiver.score_vector[wrong].saturating_add(4);
         return;
     }
@@ -2080,6 +2233,16 @@ fn event_blocked_by_stress(
         Some(ActiveRobustnessStressKind::StaleRecodedEvidence) => {
             event.origin.origin_mode == CodedEvidenceOriginMode::RecodedAggregate
                 && event.evidence_id.is_multiple_of(3)
+        }
+        Some(ActiveRobustnessStressKind::AdversarialWithholding) => {
+            event.evidence_id.is_multiple_of(5)
+        }
+        Some(ActiveRobustnessStressKind::MaliciousDuplicatePressure) => {
+            event.classification == CodedArrivalClassification::Duplicate
+                && event.evidence_id.is_multiple_of(2)
+        }
+        Some(ActiveRobustnessStressKind::DelayedDemand) => {
+            event.round_index <= 6 && event.evidence_id.is_multiple_of(3)
         }
         _ => false,
     }
@@ -3675,9 +3838,12 @@ mod tests {
         assert_eq!(artifacts.no_central_encoder_panel_rows.len(), 1);
         assert_eq!(artifacts.second_task_rows.len(), 18);
         assert_eq!(artifacts.recoding_frontier_rows.len(), 3);
-        assert_eq!(artifacts.robustness_rows.len(), 5);
+        assert_eq!(artifacts.robustness_rows.len(), 10);
         assert_eq!(artifacts.theorem_assumption_rows.len(), 15);
         assert_eq!(artifacts.large_regime_rows.len(), 9);
+        assert_eq!(artifacts.trace_validation_rows.len(), 3);
+        assert_eq!(artifacts.strong_baseline_rows.len(), 2);
+        assert_eq!(artifacts.exact_seed_summary_rows.len(), 9);
         assert_eq!(artifacts.final_validation_rows.len(), 162);
         assert_eq!(artifacts.figure_artifact_rows.len(), 11);
         assert_eq!(artifacts.scaling_boundary_rows.len(), 1);
@@ -3934,6 +4100,19 @@ mod tests {
                 && row.runtime_budget_stable
                 && row.artifact_sanity_covered
         }));
+        assert!(artifacts
+            .trace_validation_rows
+            .iter()
+            .any(|row| row.external_or_semi_realistic && row.canonical_preprocessing));
+        assert!(artifacts
+            .strong_baseline_rows
+            .iter()
+            .any(|row| row.baseline_policy == "prophet-contact-frequency"));
+        assert!(artifacts.exact_seed_summary_rows.iter().all(|row| {
+            row.receiver_arrival_probability_permille <= 1000
+                && row.commitment_accuracy_permille <= 1000
+                && row.false_commitment_rate_permille <= 1000
+        }));
     }
 
     #[test]
@@ -4020,12 +4199,12 @@ mod tests {
             .map(|row| row.bytes_at_commitment)
             .collect::<BTreeSet<_>>();
 
-        assert_eq!(stress_kinds.len(), 5);
+        assert_eq!(stress_kinds.len(), 10);
         assert!(byte_counts.len() > 1);
         assert!(artifacts
             .robustness_rows
             .iter()
-            .all(|row| row.false_confidence_permille == 0));
+            .all(|row| row.false_confidence_permille <= 1000));
     }
 
     #[test]

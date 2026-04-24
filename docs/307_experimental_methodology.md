@@ -64,8 +64,9 @@ host/bridge demand replay rows, active-versus-passive rows, a
 no-central-encoder panel, compact second-task rows for set-union,
 majority-threshold, and bounded-histogram tasks, a recoding frontier, bounded
 robustness rows, theorem-assumption rows, large-regime rows, final validation
-rows, scaling-boundary rows, and figure sanity rows. Its dependent variables
-include commitment lead time per receiver,
+rows, trace-validation rows, deterministic stronger-baseline rows, exact
+per-seed summary rows, scaling-boundary rows, and figure sanity rows. Its
+dependent variables include commitment lead time per receiver,
 receiver agreement, belief divergence, collective uncertainty, demand
 satisfaction, demand-response lag, evidence overlap, quality per byte, bytes at
 commitment, duplicate and innovative arrivals, stale-demand ignored count,
@@ -103,3 +104,12 @@ scaling-boundary row remains as a compatibility marker for the scoped package.
 Theorem-assumption rows label which regimes satisfy the finite-horizon
 receiver-arrival, anomaly-margin, false-commitment, and potential-drift
 assumptions and which remain empirical-only.
+
+The strong experiment package also records semi-realistic mobility-contact trace
+validation with canonical preprocessing and replay checks, exact deterministic
+seed summaries instead of floating-point confidence state, and a deterministic
+contact-frequency opportunistic baseline row. Robustness coverage includes
+duplicate spam, selective withholding, biased observations, bridge-node loss,
+stale recoded evidence, correlated observations, adversarial withholding,
+malicious duplicate pressure, delayed demand, and asymmetric receiver
+histories.

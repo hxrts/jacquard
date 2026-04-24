@@ -107,6 +107,22 @@ class ReportSanityTests(unittest.TestCase):
                 "deterministic_replay,runtime_budget_stable,artifact_sanity_covered\n"
                 "41,sparse-bridge-heavy,500,500,true,true,true\n"
             )
+            (report_dir / "active_belief_trace_validation.csv").write_text(
+                "trace_family,external_or_semi_realistic,canonical_preprocessing,"
+                "replay_deterministic,theorem_assumption_status\n"
+                "semi-realistic-mobility-contact,true,true,true,holds\n"
+            )
+            (report_dir / "active_belief_strong_baselines.csv").write_text(
+                "seed,baseline_policy,fixed_payload_budget_bytes,"
+                "decision_accuracy_permille,quality_per_byte_permille,deterministic\n"
+                "41,prophet-contact-frequency,4096,720,175,true\n"
+            )
+            (report_dir / "active_belief_exact_seed_summary.csv").write_text(
+                "seed,scenario_regime,receiver_arrival_probability_permille,"
+                "commitment_accuracy_permille,false_commitment_rate_permille,"
+                "commitment_lead_time_rounds_max,quality_per_byte_permille\n"
+                "41,sparse-bridge-heavy,760,960,40,6,224\n"
+            )
             (report_dir / "active_belief_scaling_boundary.csv").write_text(
                 "requested_node_count,executed_node_count,documented_boundary,"
                 "boundary_reason\n"
