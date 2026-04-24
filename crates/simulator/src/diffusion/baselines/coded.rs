@@ -276,4 +276,88 @@ mod tests {
         }));
         assert!(summary.duplicate_arrival_count > 0);
     }
+
+    #[test]
+    fn controlled_coded_reports_target_and_measured_reproduction_fields() {
+        let input = coded_input(BaselinePolicyId::ControlledCodedDiffusion);
+        let (log, readiness_log) =
+            run_controlled_coded_diffusion_baseline(&input).expect("controlled");
+        let summary = summarize_coded_diffusion_baseline(&input, &log, &readiness_log, true)
+            .expect("summary");
+
+        assert_eq!(
+            summary.policy_id,
+            BaselinePolicyId::ControlledCodedDiffusion
+        );
+        assert_eq!(summary.target_reproduction_min_permille, Some(800));
+        assert_eq!(summary.target_reproduction_max_permille, Some(1200));
+        assert!(summary.measured_reproduction_permille.is_some());
+        assert_ne!(
+            summary.measured_reproduction_permille,
+            summary.target_reproduction_min_permille
+        );
+    }
+
+    #[test]
+    fn controlled_coded_replay_is_deterministic() {
+        let input = coded_input(BaselinePolicyId::ControlledCodedDiffusion);
+        let first = run_controlled_coded_diffusion_baseline(&input).expect("first");
+        let second = run_controlled_coded_diffusion_baseline(&input).expect("second");
+
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn controlled_and_uncontrolled_coded_report_comparable_metrics() {
+        let controlled_input = coded_input(BaselinePolicyId::ControlledCodedDiffusion);
+        let uncontrolled_input = coded_input(BaselinePolicyId::UncontrolledCodedDiffusion);
+        let (controlled_log, controlled_readiness) =
+            run_controlled_coded_diffusion_baseline(&controlled_input).expect("controlled");
+        let (uncontrolled_log, uncontrolled_readiness) =
+            run_uncontrolled_coded_diffusion_baseline(&uncontrolled_input).expect("uncontrolled");
+        let controlled = summarize_coded_diffusion_baseline(
+            &controlled_input,
+            &controlled_log,
+            &controlled_readiness,
+            true,
+        )
+        .expect("controlled summary");
+        let uncontrolled = summarize_coded_diffusion_baseline(
+            &uncontrolled_input,
+            &uncontrolled_log,
+            &uncontrolled_readiness,
+            false,
+        )
+        .expect("uncontrolled summary");
+
+        assert_eq!(controlled.payload_mode, uncontrolled.payload_mode);
+        assert_eq!(
+            controlled.fixed_payload_budget_bytes,
+            uncontrolled.fixed_payload_budget_bytes
+        );
+        assert_eq!(controlled.receiver_rank, uncontrolled.receiver_rank);
+        assert_eq!(
+            controlled.top_hypothesis_margin,
+            uncontrolled.top_hypothesis_margin
+        );
+        assert_eq!(
+            controlled.measured_reproduction_permille,
+            uncontrolled.measured_reproduction_permille
+        );
+    }
+
+    #[test]
+    fn controlled_coded_does_not_write_route_analysis_fields() {
+        let input = coded_input(BaselinePolicyId::ControlledCodedDiffusion);
+        let (log, readiness_log) =
+            run_controlled_coded_diffusion_baseline(&input).expect("controlled");
+        let summary = summarize_coded_diffusion_baseline(&input, &log, &readiness_log, true)
+            .expect("summary");
+        let serialized = serde_json::to_string(&summary).expect("summary json");
+
+        assert!(!serialized.contains("field_corridor_publication_dependency"));
+        assert!(!serialized.contains("private_route_witness_dependency"));
+        assert!(!serialized.contains("route_quality_ranking_dependency"));
+        assert!(!serialized.contains("routing_analysis_filter_id"));
+    }
 }
