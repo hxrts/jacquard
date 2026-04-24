@@ -6,6 +6,8 @@ This map describes the current organization of `verification/Field`.
 
 - `Field/CodedDiffusion.lean`
   - active coded-diffusion theorem path for Phase 1 evidence-origin modes, contribution ledgers, k-of-n reconstruction, duplicate non-inflation, recoding soundness, observer projection, diffusion-potential accounting, and finite deterministic work recurrence
+- `Field/ActiveBelief.lean`
+  - active belief diffusion theorem path for Phase 8 receiver-indexed belief state, first-class bounded demand messages, evidence messages, demand soundness, duplicate non-inflation under demand-driven forwarding, commitment lead-time accounting, stale-demand safety, and multi-receiver compatibility
 - `Field/Architecture.lean`
   - shared enum vocabulary for projection kinds, refinement-ladder stages, lineage stages, and semantic-versus-proof-artifact roles
 - `Field/CostAPI.lean`
@@ -38,7 +40,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Assumptions.lean`
   - imports the proof-contract vocabulary and theorem-packaging surface used across the field stack
 - `Field/Field.lean`
-  - umbrella import for the current field verification stack; imports `Field/CodedDiffusion.lean` as the active research theorem path and keeps older route/corridor packs as legacy baseline context
+  - umbrella import for the current field verification stack; imports `Field/CodedDiffusion.lean` and `Field/ActiveBelief.lean` as the active research theorem path and keeps older route/corridor packs as legacy baseline context
 
 ## Active Coded-Diffusion Path
 
@@ -87,6 +89,67 @@ This map describes the current organization of `verification/Field`.
     - Leaves probability-heavy concentration support in `Classical/Families/ConcentrationInequalities.lean` as an explicit Phase 2 target.
   - Rust alignment:
     - `EvidenceOriginMode`, `ContributionLedgerKind`, `ContributionLedgerRecord`, `CodingWindow`, `ReceiverRank`, and reconstruction/recoding theorem names intentionally mirror `crates/field/src/research.rs`.
+
+## Active Belief Diffusion Path
+
+- `Field/ActiveBelief.lean`
+  - owns the Phase 8 active belief diffusion proof vocabulary:
+    - `ReceiverId`, `HypothesisId`, and `DemandEntryId` for receiver-indexed active belief objects
+    - `QualitySummary` for proof-facing uncertainty, margin, and evidence-count summaries
+    - `ReceiverBeliefState` for audited receiver state over `ReceiverRank`
+    - `DemandEntry` and `DemandSummary` for bounded advisory demand control data
+    - `validDemandSummary` and `expiredDemandSummary` for demand caps and lifetime semantics
+    - `EvidenceProposal` and `demandAwareAccept` for demand-aware forwarding through the ordinary contribution gate
+    - `ActiveMessage` for the first-class exchanged-message surface covering evidence and demand
+    - `CommitmentTimeline` and `commitmentLeadTime` for logged lead-time accounting
+    - `GuardedCommitment` and `compatibleCommitments` for multi-receiver compatibility without consensus
+    - `demandPriorityScore` for proof-facing priority metadata that does not affect evidence acceptance
+  - completed theorem names:
+    - `demand_bounded_by_entry_cap`
+    - `demand_bounded_by_byte_cap`
+    - `valid_demand_is_live`
+    - `demand_message_carries_no_contribution`
+    - `evidence_message_carries_contribution`
+    - `demand_cannot_validate_invalid_evidence`
+    - `demand_accepts_only_through_valid_evidence`
+    - `demand_duplicate_non_inflation`
+    - `expired_demand_does_not_accept_invalid_evidence`
+    - `commitment_lead_time_soundness`
+    - `same_guarded_basin_compatible`
+    - `compatible_commitments_have_same_hypothesis`
+    - `demand_priority_does_not_change_acceptance`
+  - non-claims:
+    - demand is first-class replay-visible communication data, but it is not evidence
+    - receiver compatibility is agreement on a guarded local decision, not consensus, common knowledge, or globally identical beliefs
+    - commitment lead time is a replay metric over logged events, not a correctness theorem
+    - active demand is not claimed optimal under arbitrary mobility or adversarial traces
+  - Rust alignment target:
+    - `DemandSummary`, `DemandEntry`, receiver-indexed belief summaries, commitment lead-time rows, receiver agreement rows, demand satisfaction rows, and stale-demand rejection counters should be mirrored by Phase 9 Rust/replay artifacts before Phase 10 experiments expand.
+
+### Phase 8 Theorem Dependency Table
+
+| Paper claim | Lean object | Depends on | Rust/replay target |
+| --- | --- | --- | --- |
+| Demand is bounded first-class communication data | `DemandSummary`, `validDemandSummary`, `ActiveMessage.demand` | entry, byte, and ttl caps | demand emitted/received replay rows with caps |
+| Demand carries no contribution identity | `demand_message_carries_no_contribution` | `ActiveMessage.contributionId?` | demand rows with no contribution id field or an explicit empty contribution slot |
+| Evidence carries audited contribution identity | `evidence_message_carries_contribution` | `EvidenceProposal`, `ContributionId` | evidence rows with contribution id and validity fields |
+| Demand cannot validate invalid evidence | `demand_cannot_validate_invalid_evidence` | `demandAwareAccept`, `EvidenceProposal.validEvidence` | invalid evidence rejection counters under active policy |
+| Demand-driven duplicates do not inflate rank | `demand_duplicate_non_inflation` | `acceptContribution`, `ReceiverRank` | duplicate arrival rows and receiver-rank stability checks |
+| Stale demand cannot justify invalid evidence | `expired_demand_does_not_accept_invalid_evidence` | `expiredDemandSummary`, `demandAwareAccept` | stale-demand ignored/rejected replay rows |
+| Commitment lead time is a replay metric | `commitment_lead_time_soundness` | `CommitmentTimeline` | commitment and full-recovery event rows |
+| Compatible decisions are guarded local decisions | `same_guarded_basin_compatible`, `compatible_commitments_have_same_hypothesis` | `GuardedCommitment` | receiver agreement rows over committed hypotheses |
+
+### Phase 8 Non-Claim Note
+
+Active belief diffusion exchanges two bounded replay-visible message classes:
+coded evidence and demand summaries. They are symmetric as communication
+objects, but not semantically symmetric. Evidence can carry audited contribution
+identity into the mergeable statistic. Demand can describe uncertainty and shape
+priority, custody, recoding, and allocation. Demand cannot validate evidence,
+create contribution identity, change merge semantics, or directly change a
+belief statistic. The Phase 8 theorem pack also does not claim consensus,
+common knowledge, globally identical receiver beliefs, active-policy optimality,
+formal privacy, or robustness against arbitrary adversaries.
 
 ## Legacy Route/Corridor Baseline Packs
 

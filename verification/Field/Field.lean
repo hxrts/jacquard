@@ -1,4 +1,5 @@
 import Field.CodedDiffusion
+import Field.ActiveBelief
 import Field.LocalModel
 import Field.PrivateProtocol
 import Field.Boundary

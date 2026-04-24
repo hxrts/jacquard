@@ -37,6 +37,7 @@ lean_lib JacquardVerification where
   roots := #[
     `Verification,
     `Field.Architecture,
+    `Field.ActiveBelief,
     `Field.CodedDiffusion,
     `Field.CostAPI,
     `Field.Field,
