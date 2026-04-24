@@ -149,6 +149,21 @@ Phase 4 ablation artifacts use the same trace inputs and budget surface as the f
 
 The Phase 4 scenario matrix contains sparse reproduction-pressure, clustered duplicate-heavy, and bridge-heavy fixtures. These fixtures exist to prove that bridge value, duplicate risk, landscape value, and reproduction control change behavior in visible, replayable ways before Phase 5 report generation.
 
+## Phase 5 Near-Critical Control Placement
+
+Phase 5 near-critical control remains simulator-owned. The simulator owns rolling reproduction-pressure accounting, controller state, controller ablations, potential summaries, sweep definitions, and plot-ready artifacts. Field continues to own reusable coded-diffusion research vocabulary only; the controller does not become a shared route, transport, or protocol contract.
+
+The accounting surface is deterministic and integer-only:
+
+- rolling R_est is computed from active forwarding opportunities and innovative successor opportunities,
+- raw copies, innovative copies, receiver-arrival opportunities, duplicate arrivals, and decision-quality improvements are tracked separately,
+- controller target bands use permille bounds R_low and R_high,
+- hard caps cover storage units, transmissions, and payload bytes,
+- W_infer and W_diff are named-term weighted integer potentials,
+- sweep cells carry scenario identity, target band, forwarding budget, controller mode, caps, and seed.
+
+Near-critical control must not publish routes, construct corridor plans, own transport, assign host time, use floating-point control state, depend on host iteration order, or use ambient randomness. Any controller ablation or sweep uses the same deterministic trace and hard-cap schema as the full controller unless the ablation explicitly disables only the near-critical adjustment path.
+
 ## Legacy Field Baseline
 
 `docs/406_field_routing.md` is legacy context. It documents the old corridor-envelope Field engine that still exists as a runnable baseline.
