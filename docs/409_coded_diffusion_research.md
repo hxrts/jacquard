@@ -283,11 +283,22 @@ multi-receiver compatibility as guarded local agreement. The theorem dependency
 table and Rust correspondence live in `verification/Field/CODE_MAP.md`.
 
 The active experiment surface is `ActiveBeliefExperimentArtifacts` in
-`crates/simulator/src/diffusion/core_experiment.rs`. It exports:
+`crates/simulator/src/diffusion/core_experiment.rs`. Phase 13 replaced the
+earlier scaffold with a reduced simulator-local causal runner. Each policy mode
+is executed as a separate run over the same deterministic event stream and
+payload-byte budget; active metrics are computed from receiver state, not from
+fixed offsets against the passive summary. Demand is generated before
+forwarding choices, feeds candidate scoring through demand value, and is then
+tracked through replay-visible lifecycle rows. Oracle access is used only after
+the run to score the hidden target.
+
+It exports:
 
 - the active belief grid over receiver, time, top hypothesis, margin,
   uncertainty, commitment, demand satisfaction, lag, agreement, divergence,
   evidence overlap, bytes at commitment, and measured R_est,
+- demand trace rows for emitted, received, forwarded, piggybacked, expired,
+  ignored-stale, and satisfied demand summaries,
 - active-versus-passive comparison rows under equal payload-byte budget,
 - a no-central-encoder panel with oracle evaluation only after the run,
 - one compact second mergeable task row for the set-union threshold instance,
@@ -296,11 +307,30 @@ The active experiment surface is `ActiveBeliefExperimentArtifacts` in
 - bounded robustness rows for duplicate spam, selective withholding, biased
   observations, bridge-node loss, and stale recoded evidence.
 
+The active modes are passive controlled coded diffusion, demand disabled,
+local-only demand, piggybacked demand, stale-demand ablation, and full active
+belief diffusion. The reduced runner maintains three receiver-indexed belief
+landscapes with distinct accepted contribution histories. Agreement,
+divergence, collective uncertainty, evidence overlap, demand satisfaction,
+stale-demand ignored counts, false-confidence counts, bytes at commitment, and
+measured reproduction pressure are all derived from those run states.
+
 The evaluation must state fixed budgets, caps, and replay assumptions wherever
 results are shown. The primary comparison fixes payload bytes. Demand summaries
 carry explicit entry, byte, and lifetime caps. All metrics are deterministic
 integer or fixed-denominator values under typed time/order and canonical
 ordering.
+
+The Phase 13 conclusion is conditional but positive: under the modeled
+temporal-network assumptions and the compact mergeable tasks implemented here,
+the causal active runs validate the active-belief thesis. Full active belief
+diffusion improves a central collective metric over passive controlled coded
+diffusion under equal payload bytes, the gain shrinks under a demand ablation,
+stale demand affects only policy behavior, and demand never changes evidence
+validity, contribution identity, duplicate accounting, or commitment guards.
+The validated claim remains bounded to these mergeable tasks and reduced
+simulator fixtures; it is not a claim about arbitrary ML inference or a
+production network protocol.
 
 Paper non-claims:
 

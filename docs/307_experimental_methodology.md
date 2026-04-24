@@ -59,18 +59,32 @@ measured observer ambiguity proxies.
 
 Active belief diffusion extends that methodology with first-class demand
 summaries. Demand is measured as replay-visible control data, not as evidence.
-The active artifact bundle reports an active belief grid, active-versus-passive
-rows, a no-central-encoder panel, a compact second task row, a recoding frontier,
-and bounded robustness rows. Its dependent variables include commitment lead
-time per receiver, receiver agreement, belief divergence, collective
-uncertainty, demand satisfaction, demand-response lag, evidence overlap, quality
-per byte, bytes at commitment, duplicate and innovative arrivals, and measured
-R_est.
+The active artifact bundle reports an active belief grid, demand trace rows,
+active-versus-passive rows, a no-central-encoder panel, a compact second task
+row, a recoding frontier, and bounded robustness rows. Its dependent variables
+include commitment lead time per receiver, receiver agreement, belief
+divergence, collective uncertainty, demand satisfaction, demand-response lag,
+evidence overlap, quality per byte, bytes at commitment, duplicate and
+innovative arrivals, stale-demand ignored count, false-confidence count, and
+measured R_est.
 
 The active comparison keeps the same equal-payload-byte discipline as the
-passive coded-diffusion baseline. The passive controlled-coded row remains the
-reference surface; local-only demand, piggybacked demand, stale-demand ablation,
-and full active belief diffusion are compared against it without changing the
-fixed payload budget. No-central-encoder rows use oracle evaluation only after
-the run, so the simulator can score the hidden target without giving any node a
-global input during the trace.
+passive coded-diffusion baseline. Active comparison is not a
+formula-derived offset from a passive summary. Passive controlled coded
+diffusion, demand disabled, local-only demand, piggybacked demand, stale-demand
+ablation, and full active belief diffusion are separate reduced causal runs over
+the same deterministic event stream and fixed payload budget. Demand is
+generated before forwarding choices, live demand feeds policy scoring through
+demand value, and emitted, received, forwarded, piggybacked, expired,
+ignored-stale, and satisfied demand rows are replay-visible. No-central-encoder
+rows use oracle evaluation only after the run, so the simulator can score the
+hidden target without giving any node a global input during the trace.
+
+The active validation claim is bounded to compact mergeable tasks under the
+modeled temporal-network assumptions. Agreement, divergence, collective
+uncertainty, evidence overlap, commitment, bytes at commitment, and stress
+outcomes are computed from receiver-indexed run state. The methodology supports
+the empirical claim that demand can improve allocation and belief formation
+while preserving the non-evidential safety boundary; it does not claim arbitrary
+machine learning inference, consensus, common knowledge, or production-network
+robustness.

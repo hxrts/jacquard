@@ -15,7 +15,7 @@ use super::{
     coded_inference::{
         build_coded_inference_readiness_log, summarize_coded_inference_readiness_log,
         CodedArrivalClassification, CodedForwardingEvent, CodedInferenceLandscapeEvent,
-        CodedInferenceReadinessLog, CodedInferenceReadinessSummary,
+        CodedInferenceReadinessLog,
     },
     model::CodedEvidenceOriginMode,
     near_critical::{
@@ -48,6 +48,7 @@ pub(crate) enum CoreExperimentId {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub(crate) enum ActiveBeliefPolicyMode {
     PassiveControlled,
+    DemandDisabled,
     LocalOnlyDemand,
     PiggybackedDemand,
     StaleDemandAblation,
@@ -183,6 +184,7 @@ pub(crate) struct CoreExperimentArtifactRow {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct ActiveBeliefGridRow {
     pub seed: u64,
+    pub mode: ActiveBeliefPolicyMode,
     pub receiver_node_id: u32,
     pub round_index: u32,
     pub top_hypothesis_id: u8,
@@ -217,6 +219,7 @@ pub(crate) struct ActiveVersusPassiveRow {
     pub duplicate_arrival_count: u32,
     pub innovative_arrival_count: u32,
     pub measured_r_est_permille: u32,
+    pub stale_demand_ignored_count: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -238,6 +241,7 @@ pub(crate) struct ActiveSecondTaskRow {
     pub receiver_rank: u32,
     pub recovery_probability_permille: u32,
     pub bytes_at_commitment: u32,
+    pub demand_satisfaction_permille: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -248,6 +252,7 @@ pub(crate) struct ActiveRecodingFrontierRow {
     pub demand_satisfaction_permille: u32,
     pub quality_per_byte_permille: u32,
     pub duplicate_rate_permille: u32,
+    pub bytes_at_commitment: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -257,12 +262,38 @@ pub(crate) struct ActiveRobustnessRow {
     pub false_confidence_permille: u32,
     pub decision_accuracy_permille: u32,
     pub demand_satisfaction_permille: u32,
+    pub stale_demand_ignored_count: u32,
+    pub bytes_at_commitment: u32,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub(crate) enum ActiveDemandTraceKind {
+    Emitted,
+    Received,
+    Forwarded,
+    Piggybacked,
+    Expired,
+    IgnoredStale,
+    Satisfied,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveDemandTraceRow {
+    pub seed: u64,
+    pub mode: ActiveBeliefPolicyMode,
+    pub receiver_node_id: u32,
+    pub peer_node_id: u32,
+    pub round_index: u32,
+    pub trace_kind: ActiveDemandTraceKind,
+    pub demand_id: u32,
+    pub evidence_id: Option<u32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct ActiveBeliefExperimentArtifacts {
     pub artifact_namespace: String,
     pub grid_rows: Vec<ActiveBeliefGridRow>,
+    pub demand_trace_rows: Vec<ActiveDemandTraceRow>,
     pub active_versus_passive_rows: Vec<ActiveVersusPassiveRow>,
     pub no_central_encoder_panel_rows: Vec<ActiveNoCentralEncoderPanelRow>,
     pub second_task_rows: Vec<ActiveSecondTaskRow>,
@@ -275,6 +306,60 @@ pub(crate) struct ContactEdge {
     pub round_index: u32,
     pub node_a: u32,
     pub node_b: u32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ActiveExperimentRun {
+    seed: u64,
+    mode: ActiveBeliefPolicyMode,
+    recoding_mode: ActiveRecodingMode,
+    stress_kind: Option<ActiveRobustnessStressKind>,
+    fixed_payload_budget_bytes: u32,
+    receiver_states: Vec<ActiveReceiverState>,
+    demand_trace_rows: Vec<ActiveDemandTraceRow>,
+    selected_event_count: u32,
+    bytes_spent: u32,
+    innovative_arrival_count: u32,
+    duplicate_arrival_count: u32,
+    stale_demand_ignored_count: u32,
+    false_confidence_count: u32,
+    active_forwarding_opportunities: u32,
+    final_round: u32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ActiveReceiverState {
+    receiver_node_id: u32,
+    score_vector: Vec<i32>,
+    accepted_contribution_ids: BTreeSet<u32>,
+    commitment_round: Option<u32>,
+    reconstruction_round: Option<u32>,
+    bytes_at_commitment: Option<u32>,
+    innovative_arrival_count: u32,
+    duplicate_arrival_count: u32,
+    demand: Option<ActiveDemandState>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ActiveDemandState {
+    demand_id: u32,
+    emitted_round: u32,
+    expires_round: u32,
+    requested_hypothesis_id: u8,
+    requested_contribution_ids: BTreeSet<u32>,
+    received_by_peer: bool,
+    forwarded: bool,
+    piggybacked: bool,
+    expired: bool,
+    ignored_stale: bool,
+    satisfied_round: Option<u32>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ActiveRunConfig {
+    mode: ActiveBeliefPolicyMode,
+    recoding_mode: ActiveRecodingMode,
+    stress_kind: Option<ActiveRobustnessStressKind>,
 }
 
 pub(crate) fn additive_score_vector_descriptor() -> MergeableStatisticDescriptor {
@@ -666,146 +751,169 @@ pub(crate) fn active_belief_experiment_artifacts(
 ) -> Result<ActiveBeliefExperimentArtifacts, BaselineContractError> {
     let scenario = build_coded_inference_readiness_scenario();
     let log = build_coded_inference_readiness_log(seed, &scenario);
-    let summary = summarize_coded_inference_readiness_log(&scenario, &log);
     let comparison = run_equal_budget_baseline_comparison(seed)?;
     let passive = comparison
         .summaries
         .iter()
         .find(|summary| summary.policy_id == BaselinePolicyId::ControlledCodedDiffusion)
         .ok_or(BaselineContractError::MissingRequiredBaseline)?;
+    let runs = active_policy_runs(seed, &scenario, &log, passive.fixed_payload_budget_bytes);
+    let full_active = run_for_mode(&runs, ActiveBeliefPolicyMode::FullActiveBelief);
 
     Ok(ActiveBeliefExperimentArtifacts {
         artifact_namespace: format!("{CORE_EXPERIMENT_NAMESPACE}/active-belief"),
-        grid_rows: active_belief_grid_rows(seed, &log, &summary),
-        active_versus_passive_rows: active_versus_passive_rows(seed, passive, &summary),
-        no_central_encoder_panel_rows: no_central_encoder_panel_rows(seed, &scenario, &summary),
-        second_task_rows: active_second_task_rows(seed, passive),
-        recoding_frontier_rows: active_recoding_frontier_rows(seed, &summary),
-        robustness_rows: active_robustness_rows(seed, &summary),
+        grid_rows: active_belief_grid_rows(&runs),
+        demand_trace_rows: active_demand_trace_rows(&runs),
+        active_versus_passive_rows: active_versus_passive_rows(&runs),
+        no_central_encoder_panel_rows: no_central_encoder_panel_rows(seed, &scenario, full_active),
+        second_task_rows: active_second_task_rows(full_active),
+        recoding_frontier_rows: active_recoding_frontier_rows(
+            seed,
+            &scenario,
+            &log,
+            passive.fixed_payload_budget_bytes,
+        ),
+        robustness_rows: active_robustness_rows(
+            seed,
+            &scenario,
+            &log,
+            passive.fixed_payload_budget_bytes,
+        ),
     })
 }
 
-fn active_belief_grid_rows(
+fn active_policy_runs(
     seed: u64,
+    scenario: &super::model::CodedInferenceReadinessScenario,
     log: &CodedInferenceReadinessLog,
-    summary: &CodedInferenceReadinessSummary,
-) -> Vec<ActiveBeliefGridRow> {
-    let receiver_node_id = log
-        .demand_events
-        .first()
-        .map(|event| event.emitting_receiver_node_id)
-        .unwrap_or(0);
-    log.landscape_events
-        .iter()
-        .map(|event| ActiveBeliefGridRow {
-            seed,
-            receiver_node_id,
-            round_index: event.round_index,
-            top_hypothesis_id: event.top_hypothesis_id,
-            top_hypothesis_margin: event.margin,
-            uncertainty_permille: event.uncertainty_permille,
-            committed: summary
-                .decision_event_round
-                .is_some_and(|round| event.round_index >= round),
-            demand_satisfied: demand_satisfied_by_round(log, event.round_index),
-            demand_response_lag_rounds: demand_lag_by_round(log, event.round_index),
-            receiver_agreement_permille: summary.receiver_agreement_permille,
-            belief_divergence_permille: summary.belief_divergence_permille,
-            collective_uncertainty_permille: event.uncertainty_permille,
-            evidence_overlap_permille: summary.evidence_overlap_permille,
-            bytes_at_commitment: bytes_at_or_before_round(log, summary.decision_event_round),
-            measured_r_est_permille: summary.effective_reproduction_permille,
-        })
-        .collect()
-}
-
-fn active_versus_passive_rows(
-    seed: u64,
-    passive: &BaselineRunSummary,
-    summary: &CodedInferenceReadinessSummary,
-) -> Vec<ActiveVersusPassiveRow> {
+    fixed_payload_budget_bytes: u32,
+) -> Vec<ActiveExperimentRun> {
     [
-        active_policy_row(
-            seed,
-            ActiveBeliefPolicyMode::PassiveControlled,
-            passive,
-            summary,
-        ),
-        active_policy_row(
-            seed,
-            ActiveBeliefPolicyMode::LocalOnlyDemand,
-            passive,
-            summary,
-        ),
-        active_policy_row(
-            seed,
-            ActiveBeliefPolicyMode::PiggybackedDemand,
-            passive,
-            summary,
-        ),
-        active_policy_row(
-            seed,
-            ActiveBeliefPolicyMode::StaleDemandAblation,
-            passive,
-            summary,
-        ),
-        active_policy_row(
-            seed,
-            ActiveBeliefPolicyMode::FullActiveBelief,
-            passive,
-            summary,
-        ),
+        ActiveBeliefPolicyMode::PassiveControlled,
+        ActiveBeliefPolicyMode::DemandDisabled,
+        ActiveBeliefPolicyMode::LocalOnlyDemand,
+        ActiveBeliefPolicyMode::PiggybackedDemand,
+        ActiveBeliefPolicyMode::StaleDemandAblation,
+        ActiveBeliefPolicyMode::FullActiveBelief,
     ]
     .into_iter()
+    .map(|mode| {
+        run_active_experiment(
+            seed,
+            scenario,
+            log,
+            fixed_payload_budget_bytes,
+            ActiveRunConfig {
+                mode,
+                recoding_mode: ActiveRecodingMode::ActiveDemandAggregation,
+                stress_kind: None,
+            },
+        )
+    })
     .collect()
 }
 
-fn active_policy_row(
-    seed: u64,
+fn run_for_mode(
+    runs: &[ActiveExperimentRun],
     mode: ActiveBeliefPolicyMode,
-    passive: &BaselineRunSummary,
-    summary: &CodedInferenceReadinessSummary,
-) -> ActiveVersusPassiveRow {
-    let demand_satisfaction = match mode {
-        ActiveBeliefPolicyMode::PassiveControlled => 0,
-        ActiveBeliefPolicyMode::LocalOnlyDemand => demand_satisfaction_permille(summary) / 2,
-        ActiveBeliefPolicyMode::PiggybackedDemand | ActiveBeliefPolicyMode::FullActiveBelief => {
-            demand_satisfaction_permille(summary)
+) -> &ActiveExperimentRun {
+    runs.iter()
+        .find(|run| run.mode == mode)
+        .expect("active run")
+}
+
+fn active_belief_grid_rows(runs: &[ActiveExperimentRun]) -> Vec<ActiveBeliefGridRow> {
+    let mut rows = Vec::new();
+    for run in runs {
+        for receiver in &run.receiver_states {
+            rows.push(ActiveBeliefGridRow {
+                seed: run.seed,
+                mode: run.mode,
+                receiver_node_id: receiver.receiver_node_id,
+                round_index: receiver
+                    .commitment_round
+                    .or(receiver.reconstruction_round)
+                    .unwrap_or(0),
+                top_hypothesis_id: top_hypothesis(&receiver.score_vector),
+                top_hypothesis_margin: top_margin(&receiver.score_vector),
+                uncertainty_permille: receiver_uncertainty(receiver),
+                committed: receiver.commitment_round.is_some(),
+                demand_satisfied: receiver
+                    .demand
+                    .as_ref()
+                    .is_some_and(|demand| demand.satisfied_round.is_some()),
+                demand_response_lag_rounds: receiver
+                    .demand
+                    .as_ref()
+                    .and_then(|demand| {
+                        demand
+                            .satisfied_round
+                            .map(|round| round.saturating_sub(demand.emitted_round))
+                    })
+                    .unwrap_or(0),
+                receiver_agreement_permille: receiver_agreement_permille(run),
+                belief_divergence_permille: belief_divergence_permille(run),
+                collective_uncertainty_permille: collective_uncertainty_permille(run),
+                evidence_overlap_permille: evidence_overlap_permille(run),
+                bytes_at_commitment: receiver.bytes_at_commitment.unwrap_or(run.bytes_spent),
+                measured_r_est_permille: measured_r_est_permille(run),
+            });
         }
-        ActiveBeliefPolicyMode::StaleDemandAblation => demand_satisfaction_permille(summary) / 4,
-    };
-    let collective_uncertainty = active_collective_uncertainty(mode, summary);
-    let bytes_at_commitment = passive
-        .bytes_transmitted
-        .min(summary.total_bytes_transmitted);
+    }
+    rows.sort_by_key(|row| (row.mode, row.receiver_node_id, row.round_index));
+    rows
+}
+
+fn active_demand_trace_rows(runs: &[ActiveExperimentRun]) -> Vec<ActiveDemandTraceRow> {
+    let mut rows = runs
+        .iter()
+        .flat_map(|run| run.demand_trace_rows.clone())
+        .collect::<Vec<_>>();
+    rows.sort_by_key(|row| {
+        (
+            row.mode,
+            row.round_index,
+            row.receiver_node_id,
+            row.demand_id,
+            row.trace_kind,
+        )
+    });
+    rows
+}
+
+fn active_versus_passive_rows(runs: &[ActiveExperimentRun]) -> Vec<ActiveVersusPassiveRow> {
+    runs.iter().map(active_policy_row).collect()
+}
+
+fn active_policy_row(run: &ActiveExperimentRun) -> ActiveVersusPassiveRow {
     ActiveVersusPassiveRow {
-        seed,
-        mode,
-        fixed_payload_budget_bytes: passive.fixed_payload_budget_bytes,
-        decision_accuracy_permille: passive.decision_accuracy_permille,
-        commitment_lead_time_rounds_per_receiver_max: summary
-            .commitment_lead_time_rounds_per_receiver_max,
-        receiver_agreement_permille: summary.receiver_agreement_permille,
-        belief_divergence_permille: summary.belief_divergence_permille,
-        collective_uncertainty_permille: collective_uncertainty,
-        demand_satisfaction_permille: demand_satisfaction,
-        demand_response_lag_rounds_max: summary.demand_response_lag_rounds_max,
-        evidence_overlap_permille: summary.evidence_overlap_permille,
+        seed: run.seed,
+        mode: run.mode,
+        fixed_payload_budget_bytes: run.fixed_payload_budget_bytes,
+        decision_accuracy_permille: decision_accuracy_permille(run),
+        commitment_lead_time_rounds_per_receiver_max: commitment_lead_time_rounds_max(run),
+        receiver_agreement_permille: receiver_agreement_permille(run),
+        belief_divergence_permille: belief_divergence_permille(run),
+        collective_uncertainty_permille: collective_uncertainty_permille(run),
+        demand_satisfaction_permille: demand_satisfaction_permille_for_run(run),
+        demand_response_lag_rounds_max: demand_response_lag_rounds_max(run),
+        evidence_overlap_permille: evidence_overlap_permille(run),
         quality_per_byte_permille: quality_per_byte_permille(
-            passive.decision_accuracy_permille,
-            bytes_at_commitment,
+            decision_accuracy_permille(run),
+            run.bytes_spent.max(1),
         ),
-        bytes_at_commitment,
-        duplicate_arrival_count: passive.duplicate_arrival_count,
-        innovative_arrival_count: passive.innovative_arrival_count,
-        measured_r_est_permille: passive.measured_reproduction_permille.unwrap_or(0),
+        bytes_at_commitment: bytes_at_commitment(run),
+        duplicate_arrival_count: run.duplicate_arrival_count,
+        innovative_arrival_count: run.innovative_arrival_count,
+        measured_r_est_permille: measured_r_est_permille(run),
+        stale_demand_ignored_count: run.stale_demand_ignored_count,
     }
 }
 
 fn no_central_encoder_panel_rows(
     seed: u64,
     scenario: &super::model::CodedInferenceReadinessScenario,
-    summary: &CodedInferenceReadinessSummary,
+    run: &ActiveExperimentRun,
 ) -> Vec<ActiveNoCentralEncoderPanelRow> {
     vec![ActiveNoCentralEncoderPanelRow {
         seed,
@@ -813,63 +921,73 @@ fn no_central_encoder_panel_rows(
         oracle_evaluation_after_run: true,
         local_observation_count: u32::try_from(scenario.coded_inference.local_observations.len())
             .unwrap_or(u32::MAX),
-        receiver_count: 1,
-        decision_accuracy_permille: summary.decision_accuracy_permille,
-        collective_uncertainty_permille: summary.collective_uncertainty_permille,
+        receiver_count: u32::try_from(run.receiver_states.len()).unwrap_or(u32::MAX),
+        decision_accuracy_permille: decision_accuracy_permille(run),
+        collective_uncertainty_permille: collective_uncertainty_permille(run),
     }]
 }
 
-fn active_second_task_rows(seed: u64, passive: &BaselineRunSummary) -> Vec<ActiveSecondTaskRow> {
+fn active_second_task_rows(run: &ActiveExperimentRun) -> Vec<ActiveSecondTaskRow> {
     vec![ActiveSecondTaskRow {
-        seed,
+        seed: run.seed,
         task_kind: ActiveSecondTaskKind::SetUnionRank,
         mergeable_statistic: set_union_rank_descriptor(),
-        receiver_rank: passive.receiver_rank,
-        recovery_probability_permille: passive.recovery_probability_permille,
-        bytes_at_commitment: passive.bytes_transmitted,
+        receiver_rank: max_receiver_rank(run),
+        recovery_probability_permille: recovery_probability_permille(run),
+        bytes_at_commitment: bytes_at_commitment(run),
+        demand_satisfaction_permille: demand_satisfaction_permille_for_run(run),
     }]
 }
 
 fn active_recoding_frontier_rows(
     seed: u64,
-    summary: &CodedInferenceReadinessSummary,
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    log: &CodedInferenceReadinessLog,
+    fixed_payload_budget_bytes: u32,
 ) -> Vec<ActiveRecodingFrontierRow> {
     [
-        recoding_frontier_row(seed, ActiveRecodingMode::ForwardingOnly, summary, 0),
-        recoding_frontier_row(seed, ActiveRecodingMode::InNetworkAggregation, summary, 250),
-        recoding_frontier_row(
-            seed,
-            ActiveRecodingMode::ActiveDemandAggregation,
-            summary,
-            500,
-        ),
+        ActiveRecodingMode::ForwardingOnly,
+        ActiveRecodingMode::InNetworkAggregation,
+        ActiveRecodingMode::ActiveDemandAggregation,
     ]
     .into_iter()
+    .map(|recoding_mode| {
+        run_active_experiment(
+            seed,
+            scenario,
+            log,
+            fixed_payload_budget_bytes,
+            ActiveRunConfig {
+                mode: ActiveBeliefPolicyMode::FullActiveBelief,
+                recoding_mode,
+                stress_kind: None,
+            },
+        )
+    })
+    .map(|run| recoding_frontier_row(&run))
     .collect()
 }
 
-fn recoding_frontier_row(
-    seed: u64,
-    recoding_mode: ActiveRecodingMode,
-    summary: &CodedInferenceReadinessSummary,
-    demand_satisfaction_permille: u32,
-) -> ActiveRecodingFrontierRow {
+fn recoding_frontier_row(run: &ActiveExperimentRun) -> ActiveRecodingFrontierRow {
     ActiveRecodingFrontierRow {
-        seed,
-        recoding_mode,
-        decision_accuracy_permille: summary.decision_accuracy_permille,
-        demand_satisfaction_permille,
+        seed: run.seed,
+        recoding_mode: run.recoding_mode,
+        decision_accuracy_permille: decision_accuracy_permille(run),
+        demand_satisfaction_permille: demand_satisfaction_permille_for_run(run),
         quality_per_byte_permille: quality_per_byte_permille(
-            summary.decision_accuracy_permille,
-            summary.total_bytes_transmitted,
+            decision_accuracy_permille(run),
+            run.bytes_spent.max(1),
         ),
-        duplicate_rate_permille: summary.evidence_overlap_permille,
+        duplicate_rate_permille: duplicate_rate_permille(run),
+        bytes_at_commitment: bytes_at_commitment(run),
     }
 }
 
 fn active_robustness_rows(
     seed: u64,
-    summary: &CodedInferenceReadinessSummary,
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    log: &CodedInferenceReadinessLog,
+    fixed_payload_budget_bytes: u32,
 ) -> Vec<ActiveRobustnessRow> {
     [
         ActiveRobustnessStressKind::DuplicateSpam,
@@ -879,14 +997,541 @@ fn active_robustness_rows(
         ActiveRobustnessStressKind::StaleRecodedEvidence,
     ]
     .into_iter()
-    .map(|stress_kind| ActiveRobustnessRow {
-        seed,
-        stress_kind,
-        false_confidence_permille: active_false_confidence_permille(stress_kind),
-        decision_accuracy_permille: summary.decision_accuracy_permille,
-        demand_satisfaction_permille: demand_satisfaction_permille(summary),
+    .map(|stress_kind| {
+        run_active_experiment(
+            seed,
+            scenario,
+            log,
+            fixed_payload_budget_bytes,
+            ActiveRunConfig {
+                mode: ActiveBeliefPolicyMode::FullActiveBelief,
+                recoding_mode: ActiveRecodingMode::ActiveDemandAggregation,
+                stress_kind: Some(stress_kind),
+            },
+        )
+    })
+    .map(|run| ActiveRobustnessRow {
+        seed: run.seed,
+        stress_kind: run.stress_kind.expect("stress kind"),
+        false_confidence_permille: false_confidence_permille(&run),
+        decision_accuracy_permille: decision_accuracy_permille(&run),
+        demand_satisfaction_permille: demand_satisfaction_permille_for_run(&run),
+        stale_demand_ignored_count: run.stale_demand_ignored_count,
+        bytes_at_commitment: bytes_at_commitment(&run),
     })
     .collect()
+}
+
+fn run_active_experiment(
+    seed: u64,
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    log: &CodedInferenceReadinessLog,
+    fixed_payload_budget_bytes: u32,
+    config: ActiveRunConfig,
+) -> ActiveExperimentRun {
+    let mut run = ActiveExperimentRun {
+        seed,
+        mode: config.mode,
+        recoding_mode: config.recoding_mode,
+        stress_kind: config.stress_kind,
+        fixed_payload_budget_bytes,
+        receiver_states: active_receiver_states(scenario),
+        demand_trace_rows: Vec::new(),
+        selected_event_count: 0,
+        bytes_spent: 0,
+        innovative_arrival_count: 0,
+        duplicate_arrival_count: 0,
+        stale_demand_ignored_count: 0,
+        false_confidence_count: 0,
+        active_forwarding_opportunities: 0,
+        final_round: log
+            .forwarding_events
+            .last()
+            .map(|event| event.round_index)
+            .unwrap_or(0),
+    };
+    let mut current_round = None;
+    for event in &log.forwarding_events {
+        if current_round != Some(event.round_index) {
+            current_round = Some(event.round_index);
+            generate_pre_forwarding_demands(scenario, &mut run, event.round_index);
+            expire_demands(&mut run, event.round_index);
+        }
+        run.active_forwarding_opportunities = run.active_forwarding_opportunities.saturating_add(1);
+        if run.bytes_spent.saturating_add(event.byte_count) > fixed_payload_budget_bytes {
+            continue;
+        }
+        if !event_allowed_by_recoding_mode(event, config.recoding_mode) {
+            continue;
+        }
+        if event_blocked_by_stress(event, config.stress_kind) {
+            continue;
+        }
+        let receiver_index = selected_receiver_index(&run, event);
+        let score = active_forwarding_score(&run.receiver_states[receiver_index], event, config);
+        if score < active_selection_threshold(config.mode) {
+            continue;
+        }
+        apply_active_event(scenario, &mut run, receiver_index, event, config);
+    }
+    update_false_confidence(scenario, &mut run);
+    run
+}
+
+fn active_receiver_states(
+    scenario: &super::model::CodedInferenceReadinessScenario,
+) -> Vec<ActiveReceiverState> {
+    [
+        scenario.coded_inference.receiver_node_id,
+        scenario.coded_inference.receiver_node_id.saturating_sub(17),
+        scenario.coded_inference.receiver_node_id.saturating_sub(34),
+    ]
+    .into_iter()
+    .map(|receiver_node_id| ActiveReceiverState {
+        receiver_node_id,
+        score_vector: scenario.coded_inference.initial_score_vector.clone(),
+        accepted_contribution_ids: BTreeSet::new(),
+        commitment_round: None,
+        reconstruction_round: None,
+        bytes_at_commitment: None,
+        innovative_arrival_count: 0,
+        duplicate_arrival_count: 0,
+        demand: None,
+    })
+    .collect()
+}
+
+fn generate_pre_forwarding_demands(
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    run: &mut ActiveExperimentRun,
+    round_index: u32,
+) {
+    if !mode_generates_demand(run.mode) {
+        return;
+    }
+    for index in 0..run.receiver_states.len() {
+        if run.receiver_states[index]
+            .demand
+            .as_ref()
+            .is_some_and(|demand| demand.satisfied_round.is_none() && !demand.expired)
+        {
+            continue;
+        }
+        let mut demand =
+            generated_demand_for_receiver(scenario, &run.receiver_states[index], round_index);
+        if run.mode == ActiveBeliefPolicyMode::StaleDemandAblation {
+            demand.expires_round = round_index;
+        }
+        emit_demand_trace(run, index, &demand, ActiveDemandTraceKind::Emitted, None);
+        if mode_receives_demand(run.mode) {
+            emit_demand_trace(run, index, &demand, ActiveDemandTraceKind::Received, None);
+        }
+        if mode_forwards_demand(run.mode) {
+            emit_demand_trace(run, index, &demand, ActiveDemandTraceKind::Forwarded, None);
+        }
+        run.receiver_states[index].demand = Some(demand);
+    }
+}
+
+fn generated_demand_for_receiver(
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    receiver: &ActiveReceiverState,
+    round_index: u32,
+) -> ActiveDemandState {
+    let demand_id = round_index
+        .saturating_mul(10_000)
+        .saturating_add(receiver.receiver_node_id);
+    ActiveDemandState {
+        demand_id,
+        emitted_round: round_index,
+        expires_round: round_index.saturating_add(4),
+        requested_hypothesis_id: runner_up_hypothesis(&receiver.score_vector),
+        requested_contribution_ids: missing_contribution_ids(scenario, receiver),
+        received_by_peer: false,
+        forwarded: false,
+        piggybacked: false,
+        expired: false,
+        ignored_stale: false,
+        satisfied_round: None,
+    }
+}
+
+fn missing_contribution_ids(
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    receiver: &ActiveReceiverState,
+) -> BTreeSet<u32> {
+    scenario
+        .coded_inference
+        .local_observations
+        .iter()
+        .map(|observation| observation.contribution_ledger_id)
+        .filter(|ledger_id| !receiver.accepted_contribution_ids.contains(ledger_id))
+        .take(6)
+        .collect()
+}
+
+fn expire_demands(run: &mut ActiveExperimentRun, round_index: u32) {
+    for index in 0..run.receiver_states.len() {
+        let Some(demand) = run.receiver_states[index].demand.clone() else {
+            continue;
+        };
+        if demand.satisfied_round.is_some() || demand.expired || round_index <= demand.expires_round
+        {
+            continue;
+        }
+        if let Some(active_demand) = run.receiver_states[index].demand.as_mut() {
+            active_demand.expired = true;
+        }
+        emit_demand_trace(run, index, &demand, ActiveDemandTraceKind::Expired, None);
+        if run.mode == ActiveBeliefPolicyMode::StaleDemandAblation {
+            run.stale_demand_ignored_count = run.stale_demand_ignored_count.saturating_add(1);
+            emit_demand_trace(
+                run,
+                index,
+                &demand,
+                ActiveDemandTraceKind::IgnoredStale,
+                None,
+            );
+        }
+    }
+}
+
+fn selected_receiver_index(run: &ActiveExperimentRun, event: &CodedForwardingEvent) -> usize {
+    if !mode_uses_demand_value(run.mode) {
+        return usize::try_from(event.evidence_id).unwrap_or(0) % run.receiver_states.len();
+    }
+    run.receiver_states
+        .iter()
+        .enumerate()
+        .max_by_key(|(_index, receiver)| {
+            (
+                demand_value(receiver, event, run.mode),
+                missing_value(receiver, event),
+                std::cmp::Reverse(receiver.receiver_node_id),
+            )
+        })
+        .map(|(index, _receiver)| index)
+        .unwrap_or(0)
+}
+
+fn active_forwarding_score(
+    receiver: &ActiveReceiverState,
+    event: &CodedForwardingEvent,
+    config: ActiveRunConfig,
+) -> u32 {
+    let innovation_value: u32 = if event_is_innovative_for_receiver(receiver, event) {
+        600
+    } else {
+        50
+    };
+    let demand_value = if mode_uses_demand_value(config.mode) {
+        demand_value(receiver, event, config.mode)
+    } else {
+        0
+    };
+    let recoding_value = match event.origin.origin_mode {
+        CodedEvidenceOriginMode::RecodedAggregate => match config.recoding_mode {
+            ActiveRecodingMode::ForwardingOnly => 0,
+            ActiveRecodingMode::InNetworkAggregation => 200,
+            ActiveRecodingMode::ActiveDemandAggregation => 320,
+        },
+        _ => 0,
+    };
+    innovation_value
+        .saturating_add(demand_value)
+        .saturating_add(recoding_value)
+        .saturating_sub(event.byte_count.min(100))
+}
+
+fn active_selection_threshold(mode: ActiveBeliefPolicyMode) -> u32 {
+    match mode {
+        ActiveBeliefPolicyMode::PassiveControlled => 520,
+        ActiveBeliefPolicyMode::DemandDisabled => 540,
+        ActiveBeliefPolicyMode::LocalOnlyDemand => 500,
+        ActiveBeliefPolicyMode::PiggybackedDemand => 460,
+        ActiveBeliefPolicyMode::StaleDemandAblation => 560,
+        ActiveBeliefPolicyMode::FullActiveBelief => 430,
+    }
+}
+
+fn apply_active_event(
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    run: &mut ActiveExperimentRun,
+    receiver_index: usize,
+    event: &CodedForwardingEvent,
+    config: ActiveRunConfig,
+) {
+    if demand_is_stale(&run.receiver_states[receiver_index], event.round_index) {
+        run.stale_demand_ignored_count = run.stale_demand_ignored_count.saturating_add(1);
+        if let Some(demand) = run.receiver_states[receiver_index].demand.clone() {
+            emit_demand_trace(
+                run,
+                receiver_index,
+                &demand,
+                ActiveDemandTraceKind::IgnoredStale,
+                Some(event.evidence_id),
+            );
+        }
+    }
+    let receiver = &mut run.receiver_states[receiver_index];
+    let innovative = event_is_innovative_for_receiver(receiver, event);
+    if innovative {
+        for ledger_id in &event.origin.contribution_ledger_ids {
+            receiver.accepted_contribution_ids.insert(*ledger_id);
+            apply_active_score_update(scenario, receiver, *ledger_id, config.stress_kind);
+        }
+        receiver.innovative_arrival_count = receiver.innovative_arrival_count.saturating_add(1);
+        run.innovative_arrival_count = run.innovative_arrival_count.saturating_add(1);
+        satisfy_demand_if_needed(run, receiver_index, event);
+    } else {
+        receiver.duplicate_arrival_count = receiver.duplicate_arrival_count.saturating_add(1);
+        run.duplicate_arrival_count = run.duplicate_arrival_count.saturating_add(1);
+    }
+    run.selected_event_count = run.selected_event_count.saturating_add(1);
+    run.bytes_spent = run.bytes_spent.saturating_add(event.byte_count);
+    update_receiver_commitment(scenario, run, receiver_index, event.round_index);
+}
+
+fn apply_active_score_update(
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    receiver: &mut ActiveReceiverState,
+    ledger_id: u32,
+    stress_kind: Option<ActiveRobustnessStressKind>,
+) {
+    let hidden = usize::from(scenario.coded_inference.hidden_anomaly_cluster_id);
+    let wrong = (hidden + 1) % receiver.score_vector.len().max(1);
+    if receiver.score_vector.is_empty() {
+        return;
+    }
+    let biased =
+        stress_kind == Some(ActiveRobustnessStressKind::BiasedObservations) && ledger_id % 5 == 0;
+    if biased {
+        receiver.score_vector[wrong] = receiver.score_vector[wrong].saturating_add(4);
+        return;
+    }
+    receiver.score_vector[hidden] = receiver.score_vector[hidden].saturating_add(8);
+    let side = usize::try_from(ledger_id).unwrap_or(0) % receiver.score_vector.len();
+    if side != hidden {
+        receiver.score_vector[side] = receiver.score_vector[side].saturating_add(1);
+    }
+}
+
+fn update_receiver_commitment(
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    run: &mut ActiveExperimentRun,
+    receiver_index: usize,
+    round_index: u32,
+) {
+    let receiver = &mut run.receiver_states[receiver_index];
+    let rank = u32::try_from(receiver.accepted_contribution_ids.len()).unwrap_or(u32::MAX);
+    if receiver.reconstruction_round.is_none() && rank >= active_full_recovery_threshold(scenario) {
+        receiver.reconstruction_round = Some(round_index);
+    }
+    if receiver.commitment_round.is_none()
+        && rank >= scenario.coded_inference.minimum_decision_evidence_count
+        && top_margin(&receiver.score_vector) >= scenario.coded_inference.decision_margin_threshold
+    {
+        receiver.commitment_round = Some(round_index);
+        receiver.bytes_at_commitment = Some(run.bytes_spent);
+    }
+}
+
+fn active_full_recovery_threshold(scenario: &super::model::CodedInferenceReadinessScenario) -> u32 {
+    u32::try_from(scenario.coded_inference.local_observations.len())
+        .unwrap_or(u32::MAX)
+        .max(scenario.coded_inference.reconstruction_threshold)
+}
+
+fn satisfy_demand_if_needed(
+    run: &mut ActiveExperimentRun,
+    receiver_index: usize,
+    event: &CodedForwardingEvent,
+) {
+    let Some(demand) = run.receiver_states[receiver_index].demand.clone() else {
+        return;
+    };
+    if demand.expired || demand.satisfied_round.is_some() {
+        return;
+    }
+    let satisfies = event
+        .origin
+        .contribution_ledger_ids
+        .iter()
+        .any(|ledger_id| demand.requested_contribution_ids.contains(ledger_id));
+    if !satisfies {
+        return;
+    }
+    if let Some(active_demand) = run.receiver_states[receiver_index].demand.as_mut() {
+        active_demand.satisfied_round = Some(event.round_index);
+        active_demand.piggybacked = mode_forwards_demand(run.mode);
+    }
+    if mode_forwards_demand(run.mode) {
+        emit_demand_trace(
+            run,
+            receiver_index,
+            &demand,
+            ActiveDemandTraceKind::Piggybacked,
+            Some(event.evidence_id),
+        );
+    }
+    emit_demand_trace(
+        run,
+        receiver_index,
+        &demand,
+        ActiveDemandTraceKind::Satisfied,
+        Some(event.evidence_id),
+    );
+}
+
+fn emit_demand_trace(
+    run: &mut ActiveExperimentRun,
+    receiver_index: usize,
+    demand: &ActiveDemandState,
+    trace_kind: ActiveDemandTraceKind,
+    evidence_id: Option<u32>,
+) {
+    let receiver_node_id = run.receiver_states[receiver_index].receiver_node_id;
+    run.demand_trace_rows.push(ActiveDemandTraceRow {
+        seed: run.seed,
+        mode: run.mode,
+        receiver_node_id,
+        peer_node_id: receiver_node_id.saturating_sub(1),
+        round_index: demand.emitted_round,
+        trace_kind,
+        demand_id: demand.demand_id,
+        evidence_id,
+    });
+}
+
+fn event_is_innovative_for_receiver(
+    receiver: &ActiveReceiverState,
+    event: &CodedForwardingEvent,
+) -> bool {
+    event
+        .origin
+        .contribution_ledger_ids
+        .iter()
+        .any(|ledger_id| !receiver.accepted_contribution_ids.contains(ledger_id))
+}
+
+fn demand_value(
+    receiver: &ActiveReceiverState,
+    event: &CodedForwardingEvent,
+    mode: ActiveBeliefPolicyMode,
+) -> u32 {
+    let Some(demand) = &receiver.demand else {
+        return 0;
+    };
+    if demand.expired || demand.satisfied_round.is_some() {
+        return 0;
+    }
+    if mode == ActiveBeliefPolicyMode::StaleDemandAblation
+        && event.round_index > demand.expires_round
+    {
+        return 0;
+    }
+    if event
+        .origin
+        .contribution_ledger_ids
+        .iter()
+        .any(|ledger_id| demand.requested_contribution_ids.contains(ledger_id))
+    {
+        return 520;
+    }
+    120
+}
+
+fn missing_value(receiver: &ActiveReceiverState, event: &CodedForwardingEvent) -> u32 {
+    if event_is_innovative_for_receiver(receiver, event) {
+        1
+    } else {
+        0
+    }
+}
+
+fn demand_is_stale(receiver: &ActiveReceiverState, round_index: u32) -> bool {
+    receiver
+        .demand
+        .as_ref()
+        .is_some_and(|demand| demand.expired || round_index > demand.expires_round)
+}
+
+fn event_allowed_by_recoding_mode(
+    event: &CodedForwardingEvent,
+    recoding_mode: ActiveRecodingMode,
+) -> bool {
+    match (event.origin.origin_mode, recoding_mode) {
+        (CodedEvidenceOriginMode::RecodedAggregate, ActiveRecodingMode::ForwardingOnly) => false,
+        _ => true,
+    }
+}
+
+fn event_blocked_by_stress(
+    event: &CodedForwardingEvent,
+    stress_kind: Option<ActiveRobustnessStressKind>,
+) -> bool {
+    match stress_kind {
+        Some(ActiveRobustnessStressKind::SelectiveWithholding) => event.evidence_id % 4 == 0,
+        Some(ActiveRobustnessStressKind::BridgeNodeLoss) => {
+            event.sender_cluster_id != event.receiver_cluster_id && event.evidence_id % 2 == 0
+        }
+        Some(ActiveRobustnessStressKind::StaleRecodedEvidence) => {
+            event.origin.origin_mode == CodedEvidenceOriginMode::RecodedAggregate
+                && event.evidence_id % 3 == 0
+        }
+        _ => false,
+    }
+}
+
+fn mode_generates_demand(mode: ActiveBeliefPolicyMode) -> bool {
+    !matches!(
+        mode,
+        ActiveBeliefPolicyMode::PassiveControlled | ActiveBeliefPolicyMode::DemandDisabled
+    )
+}
+
+fn mode_uses_demand_value(mode: ActiveBeliefPolicyMode) -> bool {
+    matches!(
+        mode,
+        ActiveBeliefPolicyMode::LocalOnlyDemand
+            | ActiveBeliefPolicyMode::PiggybackedDemand
+            | ActiveBeliefPolicyMode::StaleDemandAblation
+            | ActiveBeliefPolicyMode::FullActiveBelief
+    )
+}
+
+fn mode_receives_demand(mode: ActiveBeliefPolicyMode) -> bool {
+    matches!(
+        mode,
+        ActiveBeliefPolicyMode::LocalOnlyDemand
+            | ActiveBeliefPolicyMode::PiggybackedDemand
+            | ActiveBeliefPolicyMode::StaleDemandAblation
+            | ActiveBeliefPolicyMode::FullActiveBelief
+    )
+}
+
+fn mode_forwards_demand(mode: ActiveBeliefPolicyMode) -> bool {
+    matches!(
+        mode,
+        ActiveBeliefPolicyMode::PiggybackedDemand | ActiveBeliefPolicyMode::FullActiveBelief
+    )
+}
+
+fn update_false_confidence(
+    scenario: &super::model::CodedInferenceReadinessScenario,
+    run: &mut ActiveExperimentRun,
+) {
+    let hidden = scenario.coded_inference.hidden_anomaly_cluster_id;
+    run.false_confidence_count = u32::try_from(
+        run.receiver_states
+            .iter()
+            .filter(|receiver| {
+                receiver.commitment_round.is_some()
+                    && top_hypothesis(&receiver.score_vector) != hidden
+            })
+            .count(),
+    )
+    .unwrap_or(u32::MAX);
 }
 
 fn experiment_e_row(
@@ -1594,80 +2239,215 @@ fn reachable(
     false
 }
 
-fn demand_satisfied_by_round(log: &CodedInferenceReadinessLog, round_index: u32) -> bool {
-    log.demand_events
-        .iter()
-        .any(|event| event.round_index <= round_index && event.satisfied_by_evidence_id.is_some())
-}
-
-fn demand_lag_by_round(log: &CodedInferenceReadinessLog, round_index: u32) -> u32 {
-    log.demand_events
-        .iter()
-        .filter(|event| event.round_index <= round_index)
-        .filter_map(|event| event.demand_response_lag_rounds)
-        .max()
-        .unwrap_or(0)
-}
-
-fn bytes_at_or_before_round(log: &CodedInferenceReadinessLog, decision_round: Option<u32>) -> u32 {
-    let Some(decision_round) = decision_round else {
-        return log
-            .forwarding_events
-            .iter()
-            .map(|event| event.byte_count)
-            .fold(0_u32, u32::saturating_add);
-    };
-    log.forwarding_events
-        .iter()
-        .filter(|event| event.round_index <= decision_round)
-        .map(|event| event.byte_count)
-        .fold(0_u32, u32::saturating_add)
-}
-
-fn demand_satisfaction_permille(summary: &CodedInferenceReadinessSummary) -> u32 {
-    ratio_permille(
-        summary.demand_satisfied_event_count,
-        summary.demand_summary_event_count,
-    )
-}
-
-fn active_collective_uncertainty(
-    mode: ActiveBeliefPolicyMode,
-    summary: &CodedInferenceReadinessSummary,
-) -> u32 {
-    match mode {
-        ActiveBeliefPolicyMode::PassiveControlled => summary
-            .collective_uncertainty_permille
-            .saturating_add(120)
-            .min(1_000),
-        ActiveBeliefPolicyMode::LocalOnlyDemand => summary
-            .collective_uncertainty_permille
-            .saturating_add(60)
-            .min(1_000),
-        ActiveBeliefPolicyMode::PiggybackedDemand => summary
-            .collective_uncertainty_permille
-            .saturating_add(20)
-            .min(1_000),
-        ActiveBeliefPolicyMode::StaleDemandAblation => summary
-            .collective_uncertainty_permille
-            .saturating_add(180)
-            .min(1_000),
-        ActiveBeliefPolicyMode::FullActiveBelief => summary.collective_uncertainty_permille,
-    }
-}
-
 fn quality_per_byte_permille(quality_permille: u32, byte_count: u32) -> u32 {
     ratio_permille(quality_permille, byte_count.max(1))
 }
 
-fn active_false_confidence_permille(stress_kind: ActiveRobustnessStressKind) -> u32 {
-    match stress_kind {
-        ActiveRobustnessStressKind::DuplicateSpam => 0,
-        ActiveRobustnessStressKind::SelectiveWithholding => 0,
-        ActiveRobustnessStressKind::BiasedObservations => 50,
-        ActiveRobustnessStressKind::BridgeNodeLoss => 0,
-        ActiveRobustnessStressKind::StaleRecodedEvidence => 0,
+fn decision_accuracy_permille(run: &ActiveExperimentRun) -> u32 {
+    let committed = run
+        .receiver_states
+        .iter()
+        .filter(|receiver| receiver.commitment_round.is_some())
+        .count();
+    if committed == 0 {
+        return 0;
     }
+    let correct =
+        committed.saturating_sub(usize::try_from(run.false_confidence_count).unwrap_or(0));
+    ratio_permille(
+        u32::try_from(correct).unwrap_or(u32::MAX),
+        u32::try_from(committed).unwrap_or(u32::MAX),
+    )
+}
+
+fn recovery_probability_permille(run: &ActiveExperimentRun) -> u32 {
+    ratio_permille(
+        u32::try_from(
+            run.receiver_states
+                .iter()
+                .filter(|receiver| receiver.reconstruction_round.is_some())
+                .count(),
+        )
+        .unwrap_or(u32::MAX),
+        u32::try_from(run.receiver_states.len()).unwrap_or(u32::MAX),
+    )
+}
+
+fn receiver_agreement_permille(run: &ActiveExperimentRun) -> u32 {
+    let committed = run
+        .receiver_states
+        .iter()
+        .filter(|receiver| receiver.commitment_round.is_some())
+        .collect::<Vec<_>>();
+    if committed.is_empty() {
+        return 0;
+    }
+    let modal = committed
+        .iter()
+        .map(|receiver| top_hypothesis(&receiver.score_vector))
+        .fold(BTreeMap::<u8, u32>::new(), |mut counts, hypothesis| {
+            *counts.entry(hypothesis).or_insert(0) += 1;
+            counts
+        })
+        .into_values()
+        .max()
+        .unwrap_or(0);
+    ratio_permille(modal, u32::try_from(committed.len()).unwrap_or(u32::MAX))
+}
+
+fn belief_divergence_permille(run: &ActiveExperimentRun) -> u32 {
+    1_000_u32.saturating_sub(receiver_agreement_permille(run))
+}
+
+fn collective_uncertainty_permille(run: &ActiveExperimentRun) -> u32 {
+    let total = run
+        .receiver_states
+        .iter()
+        .map(receiver_uncertainty)
+        .fold(0_u32, u32::saturating_add);
+    total.saturating_div(u32::try_from(run.receiver_states.len()).unwrap_or(1).max(1))
+}
+
+fn receiver_uncertainty(receiver: &ActiveReceiverState) -> u32 {
+    1_000_u32.saturating_sub(
+        u32::try_from(top_margin(&receiver.score_vector).max(0))
+            .unwrap_or(0)
+            .saturating_mul(20),
+    )
+}
+
+fn demand_satisfaction_permille_for_run(run: &ActiveExperimentRun) -> u32 {
+    let emitted = run
+        .demand_trace_rows
+        .iter()
+        .filter(|row| row.trace_kind == ActiveDemandTraceKind::Emitted)
+        .count();
+    if emitted == 0 {
+        return 0;
+    }
+    let satisfied = run
+        .demand_trace_rows
+        .iter()
+        .filter(|row| row.trace_kind == ActiveDemandTraceKind::Satisfied)
+        .count();
+    ratio_permille(
+        u32::try_from(satisfied).unwrap_or(u32::MAX),
+        u32::try_from(emitted).unwrap_or(u32::MAX),
+    )
+}
+
+fn demand_response_lag_rounds_max(run: &ActiveExperimentRun) -> u32 {
+    run.receiver_states
+        .iter()
+        .filter_map(|receiver| receiver.demand.as_ref())
+        .filter_map(|demand| {
+            demand
+                .satisfied_round
+                .map(|round| round.saturating_sub(demand.emitted_round))
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+fn evidence_overlap_permille(run: &ActiveExperimentRun) -> u32 {
+    if run.receiver_states.len() < 2 {
+        return 0;
+    }
+    let mut intersections = 0_u32;
+    let mut unions = 0_u32;
+    for left_index in 0..run.receiver_states.len() {
+        for right_index in left_index + 1..run.receiver_states.len() {
+            let left = &run.receiver_states[left_index].accepted_contribution_ids;
+            let right = &run.receiver_states[right_index].accepted_contribution_ids;
+            intersections = intersections.saturating_add(
+                u32::try_from(left.intersection(right).count()).unwrap_or(u32::MAX),
+            );
+            unions =
+                unions.saturating_add(u32::try_from(left.union(right).count()).unwrap_or(u32::MAX));
+        }
+    }
+    ratio_permille(intersections, unions)
+}
+
+fn commitment_lead_time_rounds_max(run: &ActiveExperimentRun) -> u32 {
+    run.receiver_states
+        .iter()
+        .filter_map(|receiver| {
+            let commitment_round = receiver.commitment_round?;
+            let recovery_round = receiver.reconstruction_round.unwrap_or(run.final_round);
+            Some(recovery_round.saturating_sub(commitment_round))
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+fn bytes_at_commitment(run: &ActiveExperimentRun) -> u32 {
+    run.receiver_states
+        .iter()
+        .filter_map(|receiver| receiver.bytes_at_commitment)
+        .min()
+        .unwrap_or(run.bytes_spent)
+}
+
+fn measured_r_est_permille(run: &ActiveExperimentRun) -> u32 {
+    ratio_permille(
+        run.innovative_arrival_count,
+        run.active_forwarding_opportunities,
+    )
+}
+
+fn duplicate_rate_permille(run: &ActiveExperimentRun) -> u32 {
+    ratio_permille(
+        run.duplicate_arrival_count,
+        run.duplicate_arrival_count
+            .saturating_add(run.innovative_arrival_count),
+    )
+}
+
+fn false_confidence_permille(run: &ActiveExperimentRun) -> u32 {
+    ratio_permille(
+        run.false_confidence_count,
+        u32::try_from(run.receiver_states.len()).unwrap_or(u32::MAX),
+    )
+}
+
+fn max_receiver_rank(run: &ActiveExperimentRun) -> u32 {
+    run.receiver_states
+        .iter()
+        .map(|receiver| u32::try_from(receiver.accepted_contribution_ids.len()).unwrap_or(u32::MAX))
+        .max()
+        .unwrap_or(0)
+}
+
+fn top_hypothesis(score_vector: &[i32]) -> u8 {
+    ranked_hypotheses(score_vector)
+        .first()
+        .map(|entry| entry.0)
+        .unwrap_or(0)
+}
+
+fn runner_up_hypothesis(score_vector: &[i32]) -> u8 {
+    ranked_hypotheses(score_vector)
+        .get(1)
+        .map(|entry| entry.0)
+        .unwrap_or(0)
+}
+
+fn top_margin(score_vector: &[i32]) -> i32 {
+    let ranked = ranked_hypotheses(score_vector);
+    let top = ranked.first().map(|entry| entry.1).unwrap_or(0);
+    let runner_up = ranked.get(1).map(|entry| entry.1).unwrap_or(top);
+    top.saturating_sub(runner_up)
+}
+
+fn ranked_hypotheses(score_vector: &[i32]) -> Vec<(u8, i32)> {
+    let mut ranked = score_vector
+        .iter()
+        .enumerate()
+        .map(|(index, score)| (u8::try_from(index).unwrap_or(u8::MAX), *score))
+        .collect::<Vec<_>>();
+    ranked.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+    ranked
 }
 
 fn ratio_permille(numerator: u32, denominator: u32) -> u32 {
@@ -2250,7 +3030,8 @@ mod tests {
         let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
 
         assert!(!artifacts.grid_rows.is_empty());
-        assert_eq!(artifacts.active_versus_passive_rows.len(), 5);
+        assert!(!artifacts.demand_trace_rows.is_empty());
+        assert_eq!(artifacts.active_versus_passive_rows.len(), 6);
         assert_eq!(artifacts.no_central_encoder_panel_rows.len(), 1);
         assert_eq!(artifacts.second_task_rows.len(), 1);
         assert_eq!(artifacts.recoding_frontier_rows.len(), 3);
@@ -2259,6 +3040,7 @@ mod tests {
             .no_central_encoder_panel_rows
             .iter()
             .all(|row| !row.node_owns_global_input && row.oracle_evaluation_after_run));
+        assert_eq!(artifacts.no_central_encoder_panel_rows[0].receiver_count, 3);
     }
 
     #[test]
@@ -2281,6 +3063,188 @@ mod tests {
         );
         assert!(active.collective_uncertainty_permille < passive.collective_uncertainty_permille);
         assert!(active.demand_satisfaction_permille > passive.demand_satisfaction_permille);
+        assert!(active.commitment_lead_time_rounds_per_receiver_max > 0);
+    }
+
+    #[test]
+    fn active_belief_causal_ablation_reduces_demand_gain() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+        let demand_disabled = artifacts
+            .active_versus_passive_rows
+            .iter()
+            .find(|row| row.mode == ActiveBeliefPolicyMode::DemandDisabled)
+            .expect("demand disabled row");
+        let active = artifacts
+            .active_versus_passive_rows
+            .iter()
+            .find(|row| row.mode == ActiveBeliefPolicyMode::FullActiveBelief)
+            .expect("active row");
+
+        assert!(
+            active.collective_uncertainty_permille
+                < demand_disabled.collective_uncertainty_permille
+        );
+        assert!(active.demand_satisfaction_permille > demand_disabled.demand_satisfaction_permille);
+    }
+
+    #[test]
+    fn active_belief_demand_trace_records_lifecycle_events() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+        let kinds = artifacts
+            .demand_trace_rows
+            .iter()
+            .map(|row| row.trace_kind)
+            .collect::<BTreeSet<_>>();
+
+        assert!(kinds.contains(&ActiveDemandTraceKind::Emitted));
+        assert!(kinds.contains(&ActiveDemandTraceKind::Received));
+        assert!(kinds.contains(&ActiveDemandTraceKind::Forwarded));
+        assert!(kinds.contains(&ActiveDemandTraceKind::Piggybacked));
+        assert!(kinds.contains(&ActiveDemandTraceKind::Satisfied));
+    }
+
+    #[test]
+    fn active_belief_stale_demand_is_policy_only() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+        let stale = artifacts
+            .active_versus_passive_rows
+            .iter()
+            .find(|row| row.mode == ActiveBeliefPolicyMode::StaleDemandAblation)
+            .expect("stale row");
+        let active = artifacts
+            .active_versus_passive_rows
+            .iter()
+            .find(|row| row.mode == ActiveBeliefPolicyMode::FullActiveBelief)
+            .expect("active row");
+
+        assert!(stale.stale_demand_ignored_count > 0);
+        assert!(stale.demand_satisfaction_permille <= active.demand_satisfaction_permille);
+        assert!(stale.innovative_arrival_count <= active.innovative_arrival_count);
+    }
+
+    #[test]
+    fn active_belief_demand_preserves_evidence_accounting_and_commitment_guards() {
+        let scenario = build_coded_inference_readiness_scenario();
+        let log = build_coded_inference_readiness_log(41, &scenario);
+        let comparison = run_equal_budget_baseline_comparison(41).expect("baseline comparison");
+        let passive = comparison
+            .summaries
+            .iter()
+            .find(|summary| summary.policy_id == BaselinePolicyId::ControlledCodedDiffusion)
+            .expect("controlled coded baseline");
+        let contribution_ids = log
+            .forwarding_events
+            .iter()
+            .flat_map(|event| event.origin.contribution_ledger_ids.iter().copied())
+            .collect::<BTreeSet<_>>();
+
+        for run in active_policy_runs(41, &scenario, &log, passive.fixed_payload_budget_bytes) {
+            assert_eq!(
+                run.selected_event_count,
+                run.innovative_arrival_count
+                    .saturating_add(run.duplicate_arrival_count)
+            );
+            for receiver in &run.receiver_states {
+                assert!(receiver
+                    .accepted_contribution_ids
+                    .is_subset(&contribution_ids));
+                if receiver.commitment_round.is_some() {
+                    let rank =
+                        u32::try_from(receiver.accepted_contribution_ids.len()).unwrap_or(u32::MAX);
+                    assert!(rank >= scenario.coded_inference.minimum_decision_evidence_count);
+                    assert!(
+                        top_margin(&receiver.score_vector)
+                            >= scenario.coded_inference.decision_margin_threshold
+                    );
+                    assert!(receiver.bytes_at_commitment.is_some());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn active_belief_multi_receiver_metrics_use_distinct_histories() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+        let active_grid = artifacts
+            .grid_rows
+            .iter()
+            .filter(|row| row.mode == ActiveBeliefPolicyMode::FullActiveBelief)
+            .collect::<Vec<_>>();
+        let receivers = active_grid
+            .iter()
+            .map(|row| row.receiver_node_id)
+            .collect::<BTreeSet<_>>();
+        let ranks = active_grid
+            .iter()
+            .map(|row| (row.receiver_node_id, row.top_hypothesis_margin))
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(receivers.len(), 3);
+        assert!(ranks.len() >= 3);
+        assert!(active_grid
+            .iter()
+            .all(|row| row.receiver_agreement_permille <= 1000));
+    }
+
+    #[test]
+    fn active_belief_recoding_frontier_and_second_task_are_causal_rows() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+        let forwarding_only = artifacts
+            .recoding_frontier_rows
+            .iter()
+            .find(|row| row.recoding_mode == ActiveRecodingMode::ForwardingOnly)
+            .expect("forwarding-only row");
+        let active_aggregation = artifacts
+            .recoding_frontier_rows
+            .iter()
+            .find(|row| row.recoding_mode == ActiveRecodingMode::ActiveDemandAggregation)
+            .expect("active aggregation row");
+
+        assert!(
+            active_aggregation.demand_satisfaction_permille
+                >= forwarding_only.demand_satisfaction_permille
+        );
+        assert!(active_aggregation.bytes_at_commitment > 0);
+        assert_eq!(
+            artifacts.second_task_rows[0]
+                .mergeable_statistic
+                .statistic_kind,
+            MergeableStatisticKind::SetUnionRank
+        );
+        assert!(artifacts.second_task_rows[0].receiver_rank > 0);
+        assert!(artifacts.second_task_rows[0].demand_satisfaction_permille > 0);
+    }
+
+    #[test]
+    fn active_belief_robustness_rows_are_dynamic_and_guard_false_confidence() {
+        let artifacts = active_belief_experiment_artifacts(41).expect("active artifacts");
+        let stress_kinds = artifacts
+            .robustness_rows
+            .iter()
+            .map(|row| row.stress_kind)
+            .collect::<BTreeSet<_>>();
+        let byte_counts = artifacts
+            .robustness_rows
+            .iter()
+            .map(|row| row.bytes_at_commitment)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(stress_kinds.len(), 5);
+        assert!(byte_counts.len() > 1);
+        assert!(artifacts
+            .robustness_rows
+            .iter()
+            .all(|row| row.false_confidence_permille == 0));
+    }
+
+    #[test]
+    fn active_belief_artifacts_replay_for_multiple_seeds() {
+        for seed in [41, 43] {
+            let first = active_belief_experiment_artifacts(seed).expect("first artifacts");
+            let second = active_belief_experiment_artifacts(seed).expect("second artifacts");
+
+            assert_eq!(first, second);
+        }
     }
 
     #[test]
