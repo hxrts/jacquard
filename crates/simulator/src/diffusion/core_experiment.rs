@@ -1,0 +1,394 @@
+//! Core experiment artifacts for the coded-diffusion paper figures.
+
+#![allow(dead_code)]
+
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+use serde::{Deserialize, Serialize};
+
+const CORE_EXPERIMENT_NAMESPACE: &str = "artifacts/coded-inference/core-experiments";
+const CORE_EXPERIMENT_BUDGET_LABEL: &str = "equal-payload-bytes";
+const CORE_WINDOW_START_ROUND: u32 = 4;
+const CORE_WINDOW_END_ROUND: u32 = 12;
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub(crate) enum CoreExperimentId {
+    LandscapeComingIntoFocus,
+    EvidenceOriginModes,
+    PathFreeRecovery,
+    PhaseDiagram,
+    CodingVersusReplication,
+    ObserverAmbiguityFrontier,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) enum MergeableStatisticKind {
+    SetUnionRank,
+    AdditiveScoreVector,
+    ObserverProjectionSummary,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) enum MergeOperationKind {
+    SetUnion,
+    VectorAddition,
+    ProjectionAggregation,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) enum ContributionLedgerRule {
+    CanonicalContributionLedger,
+    EvidenceVectorContribution,
+    ProjectionErasure,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) enum DecisionMapKind {
+    ReconstructionThreshold,
+    TopHypothesisMargin,
+    AttackerAdvantage,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) enum QualityMapKind {
+    ReceiverRank,
+    LandscapeUncertainty,
+    ObserverAmbiguity,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct MergeableStatisticDescriptor {
+    pub statistic_kind: MergeableStatisticKind,
+    pub merge_operation: MergeOperationKind,
+    pub contribution_ledger_rule: ContributionLedgerRule,
+    pub decision_map: DecisionMapKind,
+    pub quality_map: QualityMapKind,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct CoreExperimentIdentity {
+    pub experiment_id: CoreExperimentId,
+    pub scenario_id: String,
+    pub seed: u64,
+    pub policy_or_mode: String,
+    pub fixed_budget_label: String,
+    pub artifact_namespace: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct CoreExperimentPathEvidence {
+    pub core_window_start_round: u32,
+    pub core_window_end_round: u32,
+    pub no_static_path_in_core_window: bool,
+    pub time_respecting_evidence_journey_exists: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct CoreExperimentArtifactRow {
+    pub identity: CoreExperimentIdentity,
+    pub mergeable_statistic: MergeableStatisticDescriptor,
+    pub path_evidence: CoreExperimentPathEvidence,
+    pub round_index: u32,
+    pub ordering_key: u32,
+    pub byte_count: u32,
+    pub duplicate_count: u32,
+    pub latency_rounds: u32,
+    pub receiver_rank: u32,
+    pub top_hypothesis_margin: i32,
+    pub uncertainty_permille: u32,
+    pub quality_permille: u32,
+    pub merged_statistic_quality_permille: u32,
+    pub observer_advantage_permille: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ContactEdge {
+    pub round_index: u32,
+    pub node_a: u32,
+    pub node_b: u32,
+}
+
+pub(crate) fn additive_score_vector_descriptor() -> MergeableStatisticDescriptor {
+    MergeableStatisticDescriptor {
+        statistic_kind: MergeableStatisticKind::AdditiveScoreVector,
+        merge_operation: MergeOperationKind::VectorAddition,
+        contribution_ledger_rule: ContributionLedgerRule::EvidenceVectorContribution,
+        decision_map: DecisionMapKind::TopHypothesisMargin,
+        quality_map: QualityMapKind::LandscapeUncertainty,
+    }
+}
+
+pub(crate) fn set_union_rank_descriptor() -> MergeableStatisticDescriptor {
+    MergeableStatisticDescriptor {
+        statistic_kind: MergeableStatisticKind::SetUnionRank,
+        merge_operation: MergeOperationKind::SetUnion,
+        contribution_ledger_rule: ContributionLedgerRule::CanonicalContributionLedger,
+        decision_map: DecisionMapKind::ReconstructionThreshold,
+        quality_map: QualityMapKind::ReceiverRank,
+    }
+}
+
+pub(crate) fn observer_projection_descriptor() -> MergeableStatisticDescriptor {
+    MergeableStatisticDescriptor {
+        statistic_kind: MergeableStatisticKind::ObserverProjectionSummary,
+        merge_operation: MergeOperationKind::ProjectionAggregation,
+        contribution_ledger_rule: ContributionLedgerRule::ProjectionErasure,
+        decision_map: DecisionMapKind::AttackerAdvantage,
+        quality_map: QualityMapKind::ObserverAmbiguity,
+    }
+}
+
+pub(crate) fn core_experiment_identity(
+    experiment_id: CoreExperimentId,
+    scenario_id: &str,
+    seed: u64,
+    policy_or_mode: &str,
+) -> CoreExperimentIdentity {
+    CoreExperimentIdentity {
+        experiment_id,
+        scenario_id: scenario_id.to_string(),
+        seed,
+        policy_or_mode: policy_or_mode.to_string(),
+        fixed_budget_label: CORE_EXPERIMENT_BUDGET_LABEL.to_string(),
+        artifact_namespace: CORE_EXPERIMENT_NAMESPACE.to_string(),
+    }
+}
+
+pub(crate) fn core_path_evidence(
+    edges: &[ContactEdge],
+    source_node_id: u32,
+    receiver_node_id: u32,
+) -> CoreExperimentPathEvidence {
+    CoreExperimentPathEvidence {
+        core_window_start_round: CORE_WINDOW_START_ROUND,
+        core_window_end_round: CORE_WINDOW_END_ROUND,
+        no_static_path_in_core_window: no_static_path_in_window(
+            edges,
+            source_node_id,
+            receiver_node_id,
+            CORE_WINDOW_START_ROUND,
+            CORE_WINDOW_END_ROUND,
+        ),
+        time_respecting_evidence_journey_exists: time_respecting_journey_exists(
+            edges,
+            source_node_id,
+            receiver_node_id,
+            CORE_WINDOW_START_ROUND,
+            CORE_WINDOW_END_ROUND,
+        ),
+    }
+}
+
+pub(crate) fn deterministic_core_fixture_edges() -> Vec<ContactEdge> {
+    vec![
+        ContactEdge {
+            round_index: 4,
+            node_a: 1,
+            node_b: 2,
+        },
+        ContactEdge {
+            round_index: 6,
+            node_a: 2,
+            node_b: 3,
+        },
+        ContactEdge {
+            round_index: 8,
+            node_a: 3,
+            node_b: 4,
+        },
+        ContactEdge {
+            round_index: 10,
+            node_a: 4,
+            node_b: 5,
+        },
+    ]
+}
+
+pub(crate) fn serialize_core_experiment_rows(
+    rows: &[CoreExperimentArtifactRow],
+) -> Result<String, serde_json::Error> {
+    serde_json::to_string(rows)
+}
+
+pub(crate) fn sort_core_experiment_rows(rows: &mut [CoreExperimentArtifactRow]) {
+    rows.sort_by_key(|row| {
+        (
+            row.identity.experiment_id,
+            row.identity.seed,
+            row.identity.scenario_id.clone(),
+            row.identity.policy_or_mode.clone(),
+            row.round_index,
+            row.ordering_key,
+        )
+    });
+}
+
+fn no_static_path_in_window(
+    edges: &[ContactEdge],
+    source_node_id: u32,
+    receiver_node_id: u32,
+    start_round: u32,
+    end_round: u32,
+) -> bool {
+    for round_index in start_round..=end_round {
+        if static_path_exists(edges, source_node_id, receiver_node_id, round_index) {
+            return false;
+        }
+    }
+    true
+}
+
+fn static_path_exists(
+    edges: &[ContactEdge],
+    source_node_id: u32,
+    receiver_node_id: u32,
+    round_index: u32,
+) -> bool {
+    let graph = graph_for_round(edges, round_index);
+    reachable(&graph, source_node_id, receiver_node_id)
+}
+
+fn graph_for_round(edges: &[ContactEdge], round_index: u32) -> BTreeMap<u32, BTreeSet<u32>> {
+    let mut graph = BTreeMap::new();
+    for edge in edges.iter().filter(|edge| edge.round_index == round_index) {
+        graph
+            .entry(edge.node_a)
+            .or_insert_with(BTreeSet::new)
+            .insert(edge.node_b);
+        graph
+            .entry(edge.node_b)
+            .or_insert_with(BTreeSet::new)
+            .insert(edge.node_a);
+    }
+    graph
+}
+
+fn reachable(
+    graph: &BTreeMap<u32, BTreeSet<u32>>,
+    source_node_id: u32,
+    target_node_id: u32,
+) -> bool {
+    let mut seen = BTreeSet::new();
+    let mut queue = VecDeque::from([source_node_id]);
+    while let Some(node_id) = queue.pop_front() {
+        if node_id == target_node_id {
+            return true;
+        }
+        if !seen.insert(node_id) {
+            continue;
+        }
+        if let Some(neighbors) = graph.get(&node_id) {
+            for neighbor in neighbors {
+                queue.push_back(*neighbor);
+            }
+        }
+    }
+    false
+}
+
+fn time_respecting_journey_exists(
+    edges: &[ContactEdge],
+    source_node_id: u32,
+    receiver_node_id: u32,
+    start_round: u32,
+    end_round: u32,
+) -> bool {
+    let mut reachable_nodes = BTreeSet::from([source_node_id]);
+    let mut ordered_edges = edges.to_vec();
+    ordered_edges.sort_by_key(|edge| (edge.round_index, edge.node_a, edge.node_b));
+    for edge in ordered_edges {
+        if edge.round_index < start_round || edge.round_index > end_round {
+            continue;
+        }
+        if reachable_nodes.contains(&edge.node_a) {
+            reachable_nodes.insert(edge.node_b);
+        }
+        if reachable_nodes.contains(&edge.node_b) {
+            reachable_nodes.insert(edge.node_a);
+        }
+        if reachable_nodes.contains(&receiver_node_id) {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row(policy_or_mode: &str, ordering_key: u32) -> CoreExperimentArtifactRow {
+        CoreExperimentArtifactRow {
+            identity: core_experiment_identity(
+                CoreExperimentId::LandscapeComingIntoFocus,
+                "path-free-fixture",
+                41,
+                policy_or_mode,
+            ),
+            mergeable_statistic: additive_score_vector_descriptor(),
+            path_evidence: core_path_evidence(&deterministic_core_fixture_edges(), 1, 5),
+            round_index: 8,
+            ordering_key,
+            byte_count: 64,
+            duplicate_count: 1,
+            latency_rounds: 4,
+            receiver_rank: 3,
+            top_hypothesis_margin: 12,
+            uncertainty_permille: 400,
+            quality_permille: 800,
+            merged_statistic_quality_permille: 800,
+            observer_advantage_permille: 200,
+        }
+    }
+
+    #[test]
+    fn core_experiment_harness_detects_path_free_temporal_journey() {
+        let evidence = core_path_evidence(&deterministic_core_fixture_edges(), 1, 5);
+
+        assert!(evidence.no_static_path_in_core_window);
+        assert!(evidence.time_respecting_evidence_journey_exists);
+    }
+
+    #[test]
+    fn core_experiment_harness_exposes_mergeable_statistic_identity() {
+        let additive = additive_score_vector_descriptor();
+        let set_union = set_union_rank_descriptor();
+
+        assert_eq!(additive.merge_operation, MergeOperationKind::VectorAddition);
+        assert_eq!(set_union.merge_operation, MergeOperationKind::SetUnion);
+        assert_ne!(additive.statistic_kind, set_union.statistic_kind);
+    }
+
+    #[test]
+    fn core_experiment_harness_serializes_plot_ready_rows() {
+        let rows = vec![row("controlled-coded-diffusion", 0)];
+        let json = serialize_core_experiment_rows(&rows).expect("json");
+
+        for field in [
+            "experiment_id",
+            "policy_or_mode",
+            "fixed_budget_label",
+            "merge_operation",
+            "no_static_path_in_core_window",
+            "receiver_rank",
+            "merged_statistic_quality_permille",
+        ] {
+            assert!(json.contains(field));
+        }
+    }
+
+    #[test]
+    fn core_experiment_harness_orders_rows_deterministically() {
+        let mut rows = vec![
+            row("spray-and-wait", 2),
+            row("controlled-coded-diffusion", 1),
+        ];
+        sort_core_experiment_rows(&mut rows);
+
+        assert_eq!(
+            rows[0].identity.policy_or_mode,
+            "controlled-coded-diffusion"
+        );
+        assert_eq!(rows[1].identity.policy_or_mode, "spray-and-wait");
+    }
+}
