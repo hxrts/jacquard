@@ -5,11 +5,18 @@
 //! `RouteShapeVisibility::CorridorEnvelope`: it can make conservative
 //! end-to-end claims without claiming an explicit hop-by-hop path.
 //!
+//! The corridor planner is now baseline-only for the coded-diffusion research
+//! path. New research code belongs under the `research` boundary, whose
+//! vocabulary is message fragments, coding rank, fragment custody,
+//! innovative/duplicate arrivals, diffusion pressure, and reconstruction
+//! quorum.
+//!
 //! The implementation is intentionally split into thin modules so the
 //! continuously updated field model, Telltale-backed search substrate, and
 //! private protocol runtime can evolve without changing the shared engine
 //! surface:
 //! - `engine` defines the engine type, identity, and baseline capabilities.
+//! - `research` defines the coded-diffusion research-path vocabulary.
 //! - `planner` implements the shared planning surface.
 //! - `runtime` implements materialization, maintenance, and forwarding hooks.
 //! - `search` freezes field snapshots and runs exact Telltale search while
@@ -45,6 +52,7 @@ mod planner;
 mod planner_model;
 mod policy;
 mod recovery;
+mod research;
 mod route;
 mod runtime;
 mod search;
@@ -86,6 +94,10 @@ pub use planner_model::{
 pub use recovery::{
     FieldBootstrapTransition, FieldPromotionBlocker, FieldPromotionDecision,
     FieldRouteRecoveryOutcome, FieldRouteRecoveryState, FieldRouteRecoveryTrigger,
+};
+pub use research::{
+    CodingWindow, DiffusionFragmentId, DiffusionMessageId, DiffusionPressure, FragmentArrivalClass,
+    FragmentCustody, ReceiverRankState, ReconstructionQuorum,
 };
 pub use route::FieldBootstrapClass;
 pub use search::{

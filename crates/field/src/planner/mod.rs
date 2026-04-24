@@ -1,6 +1,10 @@
 //! `RoutingEnginePlanner` implementation: candidate generation and route
 //! admission.
 //!
+//! Baseline-only: this module is the legacy corridor planning surface. The
+//! coded-diffusion research path must use `crate::research` vocabulary instead
+//! of importing planner admission, publication, promotion, or snapshot helpers.
+//!
 //! Translates the private attractor view and destination belief state into
 //! public routing decisions satisfying the shared framework planning contract.
 //! `candidate_routes` returns one corridor candidate for the requested

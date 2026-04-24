@@ -1,5 +1,12 @@
 # Field Routing
 
+Status: baseline-only for the coded-diffusion research reset. This page records
+the legacy corridor-envelope engine behavior that still exists in Jacquard, but
+it is not the active coded-diffusion research objective. New research work
+should use message fragments, coding rank, fragment custody,
+innovative/duplicate arrivals, diffusion pressure, and reconstruction quorum as
+the semantic center.
+
 `jacquard-field` is Jacquard's corridor-envelope routing engine. It does not claim a full explicit path. Instead it maintains a continuously updated local field model, freezes that model into deterministic search snapshots, runs Telltale search privately, and publishes only conservative corridor-envelope claims through the shared routing contract.
 
 ## Engine Shape

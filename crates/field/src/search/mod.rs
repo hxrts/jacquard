@@ -1,5 +1,10 @@
 //! Telltale-backed search domain, config, and replay diagnostics for field.
 //!
+//! Baseline-only: this module supports the legacy private-selector planner.
+//! The coded-diffusion research path must not depend on these search records
+//! unless a later phase explicitly converts them into fragment-placement or
+//! reconstruction planning records.
+//!
 //! Field keeps corridor-envelope publication, admission, and backend-token
 //! semantics locally. This module owns the search substrate boundary: frozen
 //! field snapshots, execution policy, and replay-ready search records.

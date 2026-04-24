@@ -92,3 +92,20 @@ fn field_docs_keep_runtime_boundary_reduced() {
     );
     assert!(parity.contains("participant-set change stays outside"));
 }
+
+#[test]
+fn field_docs_mark_corridor_routing_as_baseline_only_for_research() {
+    let crate_docs = repo_text("crates/field/src/lib.rs");
+    let planner = repo_text("crates/field/src/planner/mod.rs");
+    let search = repo_text("crates/field/src/search/mod.rs");
+    let route = repo_text("crates/field/src/route.rs");
+    let field_routing = repo_text("docs/406_field_routing.md");
+
+    assert!(crate_docs.contains("coded-diffusion research"));
+    assert!(crate_docs.contains("message fragments"));
+    assert!(planner.contains("Baseline-only"));
+    assert!(search.contains("Baseline-only"));
+    assert!(route.contains("Baseline-only"));
+    assert!(field_routing.contains("baseline-only"));
+    assert!(field_routing.contains("not the active coded-diffusion research objective"));
+}

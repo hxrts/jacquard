@@ -1,5 +1,9 @@
 //! Backend route token encoding and active route tracking for the field engine.
 //!
+//! Baseline-only: this module encodes the legacy installed-decision surface.
+//! It is excluded from the coded-diffusion research path unless a later phase
+//! converts selected pieces into fragment custody or reconstruction state.
+//!
 //! `FieldBackendToken` packs the routing decision (destination, one selected
 //! runtime realization, a bounded continuation envelope, topology epoch,
 //! operating regime, and routing posture) into an opaque byte vector embedded
