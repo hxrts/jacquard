@@ -5,6 +5,7 @@
 mod attacker;
 mod metrics;
 mod projection;
+mod sweep;
 
 #[allow(unused_imports)]
 pub(crate) use attacker::{
@@ -20,4 +21,9 @@ pub(crate) use metrics::{
 pub(crate) use projection::{
     project_observer_trace, ObserverEventKind, ObserverProjectionConfig, ObserverProjectionKind,
     ObserverTraceEvent,
+};
+#[allow(unused_imports)]
+pub(crate) use sweep::{
+    observer_sweep_cells, run_observer_sweep, ObserverForwardingRandomness, ObserverSweepArtifact,
+    ObserverSweepCell,
 };
