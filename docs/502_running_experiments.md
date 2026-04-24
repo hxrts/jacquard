@@ -133,6 +133,19 @@ cargo test -p jacquard-simulator near_critical_theory
 
 The sweep covers subcritical, near-critical, and supercritical target bands across low, nominal, and high forwarding budgets. It emits deterministic plot-ready rows for reproduction pressure, controller action, cap state, inference potential, diffusion potential, byte cost, and transmission cost, plus summary maxima for recovery, commitment, duplicate pressure, storage pressure, and potential. These artifacts are intended as the input shape for later report plots; they do not alter simulator state or route-analysis outputs.
 
+The coded-diffusion observer-ambiguity surface is also exposed as focused simulator fixtures rather than a public tuning-matrix stage:
+
+```bash
+cargo test -p jacquard-simulator observer_projection
+cargo test -p jacquard-simulator observer_attacker
+cargo test -p jacquard-simulator observer_metrics
+cargo test -p jacquard-simulator observer_sweep
+cargo test -p jacquard-simulator observer_robustness
+cargo test -p jacquard-simulator observer_artifacts
+```
+
+Observer fixtures build explicit global, regional, endpoint, and blind projections over coded-inference traces. The first attacker infers anomaly region from one projection at a time. Metrics are empirical proxies for attacker advantage, posterior uncertainty, forwarding/contact trace coupling, and ambiguity-cost frontier area; they are not formal privacy measures. The sweep varies coding rate, fragment dispersion, deterministic forwarding-randomness mode, path-diversity preference, reproduction target band, and projection identity. Plot-ready observer rows carry projection identity, attacker target, knob values, attacker result, ambiguity metrics, cost, latency, and quality fields.
+
 ## Review Guidance
 
 When reviewing report output, prefer the PDF report and CSV tables over any single composite score. Use the transition table to distinguish robust settings from lucky averages. Use the boundary table to see where an engine stops being acceptable. Rerun the matrix after meaningful engine, router, or simulator changes before updating defaults.

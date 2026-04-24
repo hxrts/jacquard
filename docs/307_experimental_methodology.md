@@ -43,3 +43,5 @@ A simulator run produces a per-run log plus aggregate and breakdown JSON files u
 The `analysis/` Python package reads those artifacts. `data.py` loads them into Polars frames. `scoring.py` derives per-run metrics. `tables.py` produces CSV tables. `plots.py` produces vector plots. `sections.py` and `document.py` compose report sections and lay them out. `report.py` is the entry that assembles the PDF.
 
 Report outputs are stable across releases subject to explicit schema versioning. A 3rd party can rely on the artifact shape to build custom reductions or alternate reports without waiting on changes to the included pipeline.
+
+Coded-diffusion observer ambiguity is reported as a measured frontier, not as a formal privacy guarantee. Its independent variables include observer projection, coding rate, fragment dispersion, deterministic forwarding-randomness mode, path-diversity preference, and reproduction target band. Its dependent variables include attacker top-1 accuracy, posterior uncertainty, mutual-information-style trace proxies, ambiguity-cost frontier area, cost, latency, and inference quality.

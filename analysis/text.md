@@ -14,7 +14,7 @@ The maintained corpus is designed for disrupted and mobility-driven mesh environ
 
 The route-visible matrix gives useful evidence for this setting because it stresses the conditions that determine whether a router-facing engine remains usable at all. The maintained families vary bridge pressure, asymmetry, loss, relink events, partitions, recovery, contention, and local node pressure. Those are the same forces that determine whether a proactive engine keeps a route, whether a search-driven engine finds one, and where each approach breaks down.
 
-The diffusion track adds the second half of the picture. It models cases where movement is the transport mechanism and messages must persist across disconnection. Its mobility-driven contacts, bounded replication, energy and transmission accounting, storage utilization, and observer-leakage measures give insight into whether a deferred-delivery policy remains viable in the same population-level setting, not only in easy connected regimes.
+The diffusion track adds the second half of the picture. It models cases where movement is the transport mechanism and messages must persist across disconnection. Its mobility-driven contacts, bounded replication, energy and transmission accounting, storage utilization, and observer-leakage measures give insight into whether a deferred-delivery policy remains viable in the same population-level setting, not only in easy connected regimes. The coded-diffusion observer surface reports measured ambiguity rather than formal privacy: attacker advantage, uncertainty, and ambiguity-cost frontier rows are plot inputs for understanding the cost of hiding forwarding choices under explicit projections.
 
 ## Part I. Tuning
 
