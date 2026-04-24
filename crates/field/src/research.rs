@@ -1316,6 +1316,74 @@ impl ActiveBeliefMessage {
     }
 }
 
+/// Execution surface for first-class active demand.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ActiveDemandExecutionSurface {
+    /// Reduced simulator-local active demand.
+    SimulatorLocal,
+    /// Host bridge owns ingress batching and replay-visible demand exchange.
+    HostBridgeReplay,
+}
+
+/// Construction failure for propagated host/bridge demand records.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum PropagatedDemandRecordError {
+    /// Strong host/bridge records must use the host/bridge replay surface.
+    NotHostBridgeReplay,
+    /// Propagated demand must be replay-visible.
+    NotReplayVisible,
+    /// Propagated demand cannot carry contribution identity.
+    DemandCarriedContributionIdentity,
+    /// Propagated demand must wrap a valid bounded demand summary.
+    MissingDemandSummary,
+}
+
+/// Replay-visible host/bridge demand custody metadata.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PropagatedDemandRecord {
+    /// Execution surface that produced this record.
+    pub execution_surface: ActiveDemandExecutionSurface,
+    /// Bridge-owned deterministic batch id.
+    pub bridge_batch_id: u32,
+    /// Router-owned round in which bridge ingress was presented.
+    pub ingress_tick: Tick,
+    /// Demand message carried by the bridge.
+    pub message: ActiveBeliefMessage,
+    /// Demand records must remain replay-visible.
+    pub replay_visible: bool,
+}
+
+impl PropagatedDemandRecord {
+    /// Build a host/bridge demand record without changing evidence semantics.
+    pub fn try_new(
+        execution_surface: ActiveDemandExecutionSurface,
+        bridge_batch_id: u32,
+        ingress_tick: Tick,
+        message: ActiveBeliefMessage,
+        replay_visible: bool,
+    ) -> Result<Self, PropagatedDemandRecordError> {
+        if execution_surface != ActiveDemandExecutionSurface::HostBridgeReplay {
+            return Err(PropagatedDemandRecordError::NotHostBridgeReplay);
+        }
+        if !replay_visible {
+            return Err(PropagatedDemandRecordError::NotReplayVisible);
+        }
+        if !message.is_demand_summary() {
+            return Err(PropagatedDemandRecordError::MissingDemandSummary);
+        }
+        if !message.contribution_ledger_ids().is_empty() {
+            return Err(PropagatedDemandRecordError::DemandCarriedContributionIdentity);
+        }
+        Ok(Self {
+            execution_surface,
+            bridge_batch_id,
+            ingress_tick,
+            message,
+            replay_visible,
+        })
+    }
+}
+
 /// Replay-visible result of applying active demand around an evidence arrival.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ActiveDemandReplayEvent {
@@ -2273,6 +2341,49 @@ mod tests {
         assert_eq!(state.independent_rank, 1);
         assert_eq!(state.innovative_arrivals, 1);
         assert_eq!(state.duplicate_arrivals, 1);
+    }
+
+    #[test]
+    fn propagated_host_bridge_demand_is_replay_visible_and_non_evidential() {
+        let demand = ActiveBeliefMessage::DemandSummary(demand_summary());
+        let record = PropagatedDemandRecord::try_new(
+            ActiveDemandExecutionSurface::HostBridgeReplay,
+            42,
+            Tick(10),
+            demand,
+            true,
+        )
+        .expect("propagated demand");
+
+        assert_eq!(
+            record.execution_surface,
+            ActiveDemandExecutionSurface::HostBridgeReplay
+        );
+        assert!(record.replay_visible);
+        assert_eq!(record.bridge_batch_id, 42);
+        assert!(record.message.contribution_ledger_ids().is_empty());
+
+        let evidence = ActiveBeliefMessage::CodedEvidence(source_record(1, 2, 3));
+        assert_eq!(
+            PropagatedDemandRecord::try_new(
+                ActiveDemandExecutionSurface::HostBridgeReplay,
+                42,
+                Tick(10),
+                evidence,
+                true,
+            ),
+            Err(PropagatedDemandRecordError::MissingDemandSummary)
+        );
+        assert_eq!(
+            PropagatedDemandRecord::try_new(
+                ActiveDemandExecutionSurface::SimulatorLocal,
+                42,
+                Tick(10),
+                ActiveBeliefMessage::DemandSummary(demand_summary()),
+                true,
+            ),
+            Err(PropagatedDemandRecordError::NotHostBridgeReplay)
+        );
     }
 
     #[test]

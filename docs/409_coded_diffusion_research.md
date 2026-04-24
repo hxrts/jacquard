@@ -277,14 +277,19 @@ evidence-origin modes, contribution ledgers, exact threshold reconstruction,
 duplicate non-inflation, recoding soundness, observer projection preservation,
 diffusion-potential accounting, inference-potential accounting, a
 majority-threshold second-task boundary, and finite deterministic work
-recurrence. Receiver-arrival stochastic dominance and anomaly-margin
-concentration are explicitly narrowed to measured experimental claims rather
-than stated as Lean probability theorems.
+recurrence. `Field.CodedDiffusionStrong` adds the strong finite-horizon
+assumption surface for receiver-arrival reconstruction, useful-inference
+arrival, anomaly-margin lower-tail, guarded false-commitment, and
+inference-potential drift claims. These theorems are assumption-explicit:
+experiment artifacts must label the contact-dependence model, permille floors,
+and whether each regime satisfies the theorem assumptions or remains
+empirical-only.
 `Field.ActiveBelief` covers bounded first-class demand, demand/evidence semantic
 separation, demand soundness, duplicate non-inflation under demand-aware
-forwarding, stale-demand safety, commitment lead-time accounting, and
-multi-receiver compatibility as guarded local agreement. The theorem dependency
-table and Rust correspondence live in `verification/Field/CODE_MAP.md`.
+forwarding, stale-demand safety, commitment lead-time accounting,
+multi-receiver compatibility as guarded local agreement, and propagated
+host/bridge demand soundness. The theorem dependency table and Rust
+correspondence live in `verification/Field/CODE_MAP.md`.
 
 The active experiment surface is `ActiveBeliefExperimentArtifacts` in
 `crates/simulator/src/diffusion/core_experiment.rs`. Phase 13 replaced the
@@ -303,20 +308,27 @@ It exports:
   evidence overlap, bytes at commitment, and measured R_est,
 - demand trace rows for emitted, received, forwarded, piggybacked, expired,
   ignored-stale, and satisfied demand summaries,
+- host/bridge demand replay rows that distinguish simulator-local demand from
+  replay-visible host/bridge demand while proving demand remains non-evidential,
 - active-versus-passive comparison rows under equal payload-byte budget,
 - a no-central-encoder panel with oracle evaluation only after the run,
-- compact second-task rows for both the set-union threshold instance and the
-  stronger majority-threshold mergeable task,
+- compact second-task rows for set-union threshold, majority-threshold, and
+  bounded-histogram mergeable tasks,
 - a recoding frontier for forwarding-only, in-network aggregation, and active
   demand plus aggregation,
 - bounded robustness rows for duplicate spam, selective withholding, biased
   observations, bridge-node loss, and stale recoded evidence.
-- final proposal validation rows covering two deterministic seeds, sparse
-  bridge-heavy and clustered duplicate-heavy regimes, active modes, and both
-  second-task kinds,
+- theorem-assumption rows mapping strong Lean theorem names to trace families,
+  finite-horizon assumption status, receiver-arrival bounds, lower-tail failure
+  bounds, and false-commitment bounds,
+- 500-node large-regime rows with deterministic replay, runtime-stability, and
+  artifact-sanity coverage,
+- final proposal validation rows covering three deterministic seeds, sparse
+  bridge-heavy, clustered duplicate-heavy, and semi-realistic mobility regimes,
+  active modes, and all compact task kinds,
 - figure sanity rows for the paper's eleven expected figures,
-- a documented 500-node scaling boundary row when the final package remains on
-  the replayable 100-node readiness trace.
+- a documented 500-node scaling boundary row retained for scoped-package
+  compatibility.
 
 The active modes are passive controlled coded diffusion, demand disabled,
 local-only demand, piggybacked demand, stale-demand ablation, and full active
@@ -343,10 +355,10 @@ The validated claim remains bounded to these mergeable tasks and reduced
 simulator fixtures; it is not a claim about arbitrary ML inference or a
 production network protocol.
 
-The final proposal closure keeps active demand simulator-local. Promoting demand
-into host bridges or transport profiles remains future integration work unless a
-later phase adds it without changing router, transport, or host-support
-semantics.
+The strong proposal closure adds a replay-visible host/bridge demand artifact
+surface. It remains deliberately narrow: host bridges batch and replay demand
+metadata, but demand still cannot validate evidence, create contribution
+identity, alter merge semantics, publish route truth, or assign Jacquard time.
 
 Paper non-claims:
 

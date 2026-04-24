@@ -82,8 +82,30 @@ class ReportSanityTests(unittest.TestCase):
                 "recovery_probability_permille,bytes_at_commitment,"
                 "demand_satisfaction_permille,decision_accuracy_permille,"
                 "commitment_lead_time_rounds_max,quality_per_byte_permille\n"
-                "41,full-active-belief,majority-threshold,majority-threshold,"
+                "41,full-active-belief,bounded-histogram,bounded-histogram,"
                 "12,1000,384,500,1000,6,4\n"
+            )
+            (report_dir / "active_belief_host_bridge_demand.csv").write_text(
+                "seed,mode,execution_surface,bridge_batch_id,ingress_round,"
+                "replay_visible,demand_contribution_count,evidence_validity_changed,"
+                "contribution_identity_created,merge_semantics_changed,"
+                "route_truth_published,duplicate_rank_inflation\n"
+                "41,full-active-belief,host-bridge-replay,410,4,true,0,false,"
+                "false,false,false,false\n"
+            )
+            (report_dir / "active_belief_theorem_assumptions.csv").write_text(
+                "theorem_name,scenario_regime,trace_family,"
+                "finite_horizon_model_valid,contact_dependence_assumption,"
+                "assumption_status,receiver_arrival_bound_permille,"
+                "lower_tail_failure_permille,false_commitment_bound_permille\n"
+                "receiver_arrival_reconstruction_bound,sparse-bridge-heavy,"
+                "synthetic-sparse-bridge,true,adversarial-with-floor,holds,"
+                "760,90,40\n"
+            )
+            (report_dir / "active_belief_large_regime.csv").write_text(
+                "seed,scenario_regime,requested_node_count,executed_node_count,"
+                "deterministic_replay,runtime_budget_stable,artifact_sanity_covered\n"
+                "41,sparse-bridge-heavy,500,500,true,true,true\n"
             )
             (report_dir / "active_belief_scaling_boundary.csv").write_text(
                 "requested_node_count,executed_node_count,documented_boundary,"

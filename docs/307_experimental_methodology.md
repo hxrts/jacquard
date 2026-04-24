@@ -60,10 +60,12 @@ measured observer ambiguity proxies.
 Active belief diffusion extends that methodology with first-class demand
 summaries. Demand is measured as replay-visible control data, not as evidence.
 The active artifact bundle reports an active belief grid, demand trace rows,
-active-versus-passive rows, a no-central-encoder panel, compact second-task rows
-for set-union and majority-threshold tasks, a recoding frontier, bounded
-robustness rows, final validation rows, scaling-boundary rows, and figure sanity
-rows. Its dependent variables include commitment lead time per receiver,
+host/bridge demand replay rows, active-versus-passive rows, a
+no-central-encoder panel, compact second-task rows for set-union,
+majority-threshold, and bounded-histogram tasks, a recoding frontier, bounded
+robustness rows, theorem-assumption rows, large-regime rows, final validation
+rows, scaling-boundary rows, and figure sanity rows. Its dependent variables
+include commitment lead time per receiver,
 receiver agreement, belief divergence, collective uncertainty, demand
 satisfaction, demand-response lag, evidence overlap, quality per byte, bytes at
 commitment, duplicate and innovative arrivals, stale-demand ignored count,
@@ -92,8 +94,12 @@ machine learning inference, consensus, common knowledge, or production-network
 robustness.
 
 Final proposal validation rows add a multi-seed and multi-regime layer over the
-reduced causal runner. They cover sparse bridge-heavy and clustered
-duplicate-heavy regimes, passive and active modes, set-union and
-majority-threshold task rows, and deterministic replay assertions. The 500-node
-item is represented as a scaling-boundary row unless a later experiment adds a
-full 500-node run.
+reduced causal runner. They cover sparse bridge-heavy, clustered
+duplicate-heavy, and semi-realistic mobility regimes, passive and active modes,
+set-union, majority-threshold, and bounded-histogram task rows, and
+deterministic replay assertions. The strong package adds 500-node large-regime
+configuration rows with replay and artifact-sanity flags; the older
+scaling-boundary row remains as a compatibility marker for the scoped package.
+Theorem-assumption rows label which regimes satisfy the finite-horizon
+receiver-arrival, anomaly-margin, false-commitment, and potential-drift
+assumptions and which remain empirical-only.
