@@ -4,6 +4,8 @@ This map describes the current organization of `verification/Field`.
 
 ## Top-Level Theorem Packs
 
+- `Field/CodedDiffusion.lean`
+  - active coded-diffusion theorem path for k-of-n reconstruction, duplicate non-inflation, observer projection, and diffusion-potential accounting
 - `Field/Architecture.lean`
   - shared enum vocabulary for projection kinds, refinement-ladder stages, lineage stages, and semantic-versus-proof-artifact roles
 - `Field/CostAPI.lean`
@@ -36,12 +38,42 @@ This map describes the current organization of `verification/Field`.
 - `Field/Assumptions.lean`
   - imports the proof-contract vocabulary and theorem-packaging surface used across the field stack
 - `Field/Field.lean`
-  - umbrella import for the whole current field verification stack
+  - umbrella import for the current field verification stack; imports `Field/CodedDiffusion.lean` as the active research theorem path and keeps older route/corridor packs as legacy baseline context
+
+## Active Coded-Diffusion Path
+
+- `Field/CodedDiffusion.lean`
+  - owns the first active coded-diffusion proof vocabulary:
+    - `CodingWindow` for k-of-n reconstruction requirements
+    - `ReceiverRank` for independent receiver rank and duplicate/innovative arrival accounting
+    - `FragmentObservation` and `ObserverProjection` for observer-visible fragment/rank/custody projection
+    - `DiffusionPotential` for rank-deficit, duplicate-pressure, and storage-pressure accounting
+  - theorem placeholders already stated:
+    - `k_of_n_reconstruction`
+    - `duplicate_non_inflation`
+    - `innovative_arrival_increases_rank_by_one`
+    - `observer_projection_preserves_duplicate_count`
+    - `observer_projection_preserves_custody_count`
+    - `innovative_step_rank_deficit_nonincreasing`
+    - `duplicate_step_preserves_rank_deficit`
+
+## Legacy Route/Corridor Baseline Packs
+
+These packs remain in the repository for comparison, regression, and proof-scaffold reuse, but they are no longer the active research theorem path:
+
+- `Field/Router/*`
+  - legacy router-owned publication, admission, installation, lifecycle, selector, canonical-route, cost, optimality, probabilistic, and resilience stack
+- `Field/Search/*`
+  - legacy proof-facing private route-search boundary
+- `Field/Quality/*`
+  - legacy route-view comparison and support-only refinement stack
+- route/canonical portions of `Field/Adequacy/*` and `Field/System/*`
+  - reusable only after conversion to reconstruction-facing runtime projection, fragment movement, or observer-projection statements
 
 ## Local Model
 
 - `Field/Model/API.lean`
-  - semantic state vocabulary, explicit `ReducedBeliefSummary` reduction boundary, explicit `LocalOrderParameter` vocabulary, abstract round-step operations, and boundedness/harmony laws
+  - retained for coded diffusion as the reduced local controller model; semantic state vocabulary, explicit `ReducedBeliefSummary` reduction boundary, explicit `LocalOrderParameter` vocabulary, abstract round-step operations, and boundedness/harmony laws
 - `Field/Model/Instance.lean`
   - first bounded concrete realization, structural theorems, temporal theorems, the Bayesian posterior companion view, a `LocalState` that stores `ReducedBeliefSummary` and `LocalOrderParameter` explicitly, explicit control-fusion from the stored summary into mean-field state, and regime classification over the stored order-parameter surface
 - `Field/Model/Refinement.lean`
@@ -52,7 +84,7 @@ This map describes the current organization of `verification/Field`.
 ## Information Layer
 
 - `Field/Information/API.lean`
-  - abstract probability-simplex style normalization and information-theoretic operations over `FiniteBelief`
+  - retained for coded diffusion as the observer ambiguity layer; abstract probability-simplex style normalization and information-theoretic operations over `FiniteBelief`
 - `Field/Information/Instance.lean`
   - first concrete probability-simplex belief object, weight-normalized distribution, and entropy/mass theorems
 - `Field/Information/Probabilistic.lean`
@@ -69,7 +101,7 @@ This map describes the current organization of `verification/Field`.
 ## Private Protocol
 
 - `Field/Protocol/API.lean`
-  - reduced protocol roles, labels, machine state, global choreography, abstract projection/step/export laws
+  - retained for coded diffusion as bounded summary exchange and fragment-control coordination; reduced protocol roles, labels, machine state, global choreography, abstract projection/step/export laws
 - `Field/Protocol/Boundary.lean`
   - thin boundary-facing import surface exposing the protocol API plus the current reduced instance for higher-layer boundary modules
 - `Field/Protocol/Instance.lean`
@@ -163,7 +195,7 @@ This map describes the current organization of `verification/Field`.
 ## Retention Boundary
 
 - `Field/Retention/API.lean`
-  - reduced payload-token, retention-policy input, retention-state, and abstract retention-step vocabulary plus boundary law bundles
+  - retained for coded diffusion as fragment custody and bounded holding policy; reduced payload-token, retention-policy input, retention-state, and abstract retention-step vocabulary plus boundary law bundles
 - `Field/Retention/Instance.lean`
   - first bounded concrete retention instance with token aging, retain/carry/forward/drop policy, and executable state transitions
 - `Field/Retention/Refinement.lean`
@@ -174,7 +206,7 @@ This map describes the current organization of `verification/Field`.
 ## Async And System Layers
 
 - `Field/Async/API.lean`
-  - reduced async envelopes, explicit delay/retry/loss assumptions, queue stepping, ready-message view, and observer view
+  - retained for coded diffusion as delayed fragment delivery and forwarding; reduced async envelopes, explicit delay/retry/loss assumptions, queue stepping, ready-message view, and observer view
 - `Field/Async/Safety.lean`
   - first async publication-safety theorems and queue-drain facts connecting the async layer back to local honesty
 - `Field/Async/Transport.lean`

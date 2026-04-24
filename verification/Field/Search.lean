@@ -1,3 +1,3 @@
 import Field.Search.API
 
-/-! # Search — proof-facing field search boundary -/
+/-! # Search — legacy private route-search baseline boundary -/

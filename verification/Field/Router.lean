@@ -10,4 +10,4 @@ import Field.Router.Probabilistic
 import Field.Router.CanonicalStrong
 import Field.Router.Resilience
 
-/-! # Router — control-plane operations from publication to selection -/
+/-! # Router — legacy corridor-route baseline control-plane operations -/
