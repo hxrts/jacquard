@@ -120,6 +120,19 @@ Diffusion suites follow the same shape as tuning suites with a different type fa
 
 The in-tree diffusion catalog is similarly crate-private. The same two workarounds apply: upstream new scenarios into the simulator, or duplicate the suite-assembly flow in a dependent crate.
 
+The coded-diffusion near-critical sweep is currently exposed as simulator-local research fixtures rather than a public tuning-matrix stage. Use the focused simulator tests while developing the surface:
+
+```bash
+cargo test -p jacquard-simulator reproduction_pressure
+cargo test -p jacquard-simulator near_critical_controller
+cargo test -p jacquard-simulator potential_accounting
+cargo test -p jacquard-simulator near_critical_sweep
+cargo test -p jacquard-simulator near_critical_artifacts
+cargo test -p jacquard-simulator near_critical_theory
+```
+
+The sweep covers subcritical, near-critical, and supercritical target bands across low, nominal, and high forwarding budgets. It emits deterministic plot-ready rows for reproduction pressure, controller action, cap state, inference potential, diffusion potential, byte cost, and transmission cost, plus summary maxima for recovery, commitment, duplicate pressure, storage pressure, and potential. These artifacts are intended as the input shape for later report plots; they do not alter simulator state or route-analysis outputs.
+
 ## Review Guidance
 
 When reviewing report output, prefer the PDF report and CSV tables over any single composite score. Use the transition table to distinguish robust settings from lucky averages. Use the boundary table to see where an engine stops being acceptable. Rerun the matrix after meaningful engine, router, or simulator changes before updating defaults.

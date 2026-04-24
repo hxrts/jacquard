@@ -162,6 +162,16 @@ The accounting surface is deterministic and integer-only:
 - W_infer and W_diff are named-term weighted integer potentials,
 - sweep cells carry scenario identity, target band, forwarding budget, controller mode, caps, and seed.
 
+Rolling reproduction pressure uses a bounded deterministic window. An empty window reports zero pressure. Window rollover drops the oldest event before adding the new one. R_est is emitted in permille from innovative successor opportunities divided by active forwarding opportunities, using widened integer arithmetic and a bounded result. Raw copies are accounting input, while innovative copies, receiver-arrival opportunities, duplicate arrivals, and decision-quality improvements remain separately observable so copy volume cannot masquerade as useful reproduction.
+
+The near-critical controller compares measured R_est against R_low and R_high. Below the target band it tries to add one forwarding opportunity; inside the band it preserves the candidate opportunity count; above the band it suppresses forwarding. Storage, transmission, and payload-byte caps are checked before band adjustment and clamp emitted opportunities after adjustment, so the controller cannot spend beyond the hard caps. Decision records carry R_est, the target band, selected action, cap saturation flags, input opportunities, emitted opportunities, suppressed opportunities, and added opportunities.
+
+The controller ablation disables only the near-critical adjustment path. It preserves the same trace inputs, target-band fields, copy counters, potential terms, resource caps, and budget schema as the full controller, and identifies its controller mode as disabled. This isolates whether the target-band feedback changes behavior without changing the accounting surface.
+
+W_infer is the weighted integer sum of uncertainty, wrong-basin mass, duplicate pressure, storage pressure, and transmission pressure. W_diff is the weighted integer sum of rank deficit, active fragment pressure, storage pressure, and duplicate pressure for exact k-of-n reconstruction experiments. Both potential records emit named terms, named weights, per-round totals, and per-scenario summaries with initial, final, and maximum values.
+
+The target-band and budget sweep covers subcritical, near-critical, and supercritical regions across low, nominal, and high forwarding budgets. Each cell runs the full controller and the controller ablation, then records recovery, commitment, quality, byte cost, transmission cost, storage pressure, duplicate pressure, W_infer, and W_diff. Plot-ready rows expose per-round R_est, target-band state, controller action, cap state, W_infer, W_diff, byte cost, and transmission cost; summary rows expose boundedness, recovery, commitment, cost, duplicate, storage, and potential maxima.
+
 Near-critical control must not publish routes, construct corridor plans, own transport, assign host time, use floating-point control state, depend on host iteration order, or use ambient randomness. Any controller ablation or sweep uses the same deterministic trace and hard-cap schema as the full controller unless the ablation explicitly disables only the near-critical adjustment path.
 
 ## Legacy Field Baseline

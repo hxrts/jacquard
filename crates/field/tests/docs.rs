@@ -63,6 +63,13 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
     assert!(coded_diffusion.contains("direct delivery"));
     assert!(coded_diffusion.contains("PRoPHET/contact-frequency forwarding"));
     assert!(coded_diffusion.contains("R_est"));
+    assert!(coded_diffusion.contains("R_low"));
+    assert!(coded_diffusion.contains("R_high"));
+    assert!(coded_diffusion.contains("W_infer"));
+    assert!(coded_diffusion.contains("W_diff"));
+    assert!(coded_diffusion.contains("controller ablation"));
+    assert!(coded_diffusion.contains("target-band and budget sweep"));
+    assert!(coded_diffusion.contains("Plot-ready rows"));
     assert!(coded_diffusion.contains("expected_innovation_gain"));
     assert!(coded_diffusion.contains("bridge_value"));
     assert!(coded_diffusion.contains("landscape_value"));

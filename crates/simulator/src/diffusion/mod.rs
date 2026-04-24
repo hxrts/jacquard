@@ -7,6 +7,7 @@ mod catalog;
 mod coded_inference;
 mod local_policy;
 mod model;
+mod near_critical;
 mod posture;
 mod runtime;
 mod scoring;
