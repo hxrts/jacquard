@@ -607,6 +607,29 @@ pub enum AnomalyLandscapeError {
     ZeroMinimumDecisionEvidence,
 }
 
+/// Validation failure for anomaly evidence-vector records.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum EvidenceVectorRecordError {
+    /// Evidence vectors must carry at least one score update.
+    EmptyScoreUpdate,
+    /// Evidence-vector records must target the same coded target as the landscape.
+    TargetMismatch,
+    /// The contribution id must be present in the Phase 1 evidence record.
+    ContributionNotInEvidence,
+    /// Score update vectors must match the landscape hypotheses exactly.
+    MalformedScoreUpdate,
+    /// Local-observation records must carry the Phase 1 local observation id.
+    MalformedLocalObservationReference,
+    /// Recoded or aggregate records must carry unambiguous parent evidence lineage.
+    AmbiguousRecodedLineage,
+    /// A batch must contain at least one evidence-vector record.
+    EmptyBatch,
+    /// Batch records must all belong to the same inference task.
+    MixedInferenceTask,
+    /// A batch can update a contribution id at most once.
+    DuplicateContributionUpdate,
+}
+
 /// One deterministic integer score for one anomaly hypothesis.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AnomalyHypothesisScore {
@@ -615,6 +638,10 @@ pub struct AnomalyHypothesisScore {
     /// Deterministic scaled score or energy for this candidate.
     pub scaled_score: i32,
 }
+
+/// Bounded fixture/noise class attached to deterministic anomaly evidence.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AnomalyEvidenceClass(pub u8);
 
 /// Bounded candidate metadata for one anomaly-localization landscape.
 ///
@@ -719,6 +746,100 @@ pub struct AnomalyLandscape {
     pub summary: AnomalyLandscapeSummary,
 }
 
+/// Deterministic score update attached to one accepted evidence contribution.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EvidenceVectorRecord {
+    /// Inference task updated by this vector.
+    pub task_id: InferenceTaskId,
+    /// Coded target updated by this vector.
+    pub target_id: CodedTargetId,
+    /// Evidence record carrying the contribution.
+    pub evidence_id: CodedEvidenceId,
+    /// Contribution id that gates one score update.
+    pub contribution_id: ContributionLedgerId,
+    /// Phase 1 origin mode preserved for logs and summaries.
+    pub origin_mode: EvidenceOriginMode,
+    /// Optional local observation id for local or aggregate evidence.
+    pub local_observation_id: Option<LocalObservationId>,
+    /// Parent evidence ids for recoded or aggregate evidence.
+    pub parent_evidence_ids: Vec<CodedEvidenceId>,
+    /// Canonical integer score update ordered by hypothesis id.
+    pub score_update: Vec<AnomalyHypothesisScore>,
+    /// Optional bounded fixture/noise class for anomaly tests.
+    pub evidence_class: Option<AnomalyEvidenceClass>,
+    /// Deterministic payload bytes inherited from the Phase 1 evidence record.
+    pub payload_bytes: u32,
+}
+
+impl EvidenceVectorRecord {
+    /// Build an evidence-vector record from validated Phase 1 evidence.
+    pub fn try_from_evidence(
+        landscape: &AnomalyLandscape,
+        evidence: &CodedEvidenceRecord,
+        contribution_id: ContributionLedgerId,
+        mut score_update: Vec<AnomalyHypothesisScore>,
+        evidence_class: Option<AnomalyEvidenceClass>,
+    ) -> Result<Self, EvidenceVectorRecordError> {
+        if score_update.is_empty() {
+            return Err(EvidenceVectorRecordError::EmptyScoreUpdate);
+        }
+        if evidence.target_id != landscape.hypotheses.target_id {
+            return Err(EvidenceVectorRecordError::TargetMismatch);
+        }
+        if !evidence.contribution_ledger_ids.contains(&contribution_id) {
+            return Err(EvidenceVectorRecordError::ContributionNotInEvidence);
+        }
+        validate_evidence_vector_origin(evidence)?;
+        canonicalize_anomaly_scores(&landscape.hypotheses, &mut score_update)
+            .map_err(|_| EvidenceVectorRecordError::MalformedScoreUpdate)?;
+
+        Ok(Self {
+            task_id: landscape.hypotheses.task_id,
+            target_id: evidence.target_id,
+            evidence_id: evidence.evidence_id,
+            contribution_id,
+            origin_mode: evidence.origin_mode,
+            local_observation_id: evidence.local_observation_id,
+            parent_evidence_ids: evidence.parent_evidence_ids.clone(),
+            score_update,
+            evidence_class,
+            payload_bytes: evidence.payload_bytes,
+        })
+    }
+}
+
+/// Canonical batch of score updates for one inference landscape.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EvidenceVectorBatch {
+    /// Inference task updated by this batch.
+    pub task_id: InferenceTaskId,
+    /// Canonical records ordered by contribution id.
+    pub records: Vec<EvidenceVectorRecord>,
+}
+
+impl EvidenceVectorBatch {
+    /// Build a canonical batch and reject duplicate contribution updates.
+    pub fn try_new(
+        task_id: InferenceTaskId,
+        mut records: Vec<EvidenceVectorRecord>,
+    ) -> Result<Self, EvidenceVectorRecordError> {
+        if records.is_empty() {
+            return Err(EvidenceVectorRecordError::EmptyBatch);
+        }
+        records.sort_unstable_by_key(|record| record.contribution_id);
+        for (index, record) in records.iter().enumerate() {
+            if record.task_id != task_id {
+                return Err(EvidenceVectorRecordError::MixedInferenceTask);
+            }
+            if index > 0 && records[index - 1].contribution_id == record.contribution_id {
+                return Err(EvidenceVectorRecordError::DuplicateContributionUpdate);
+            }
+        }
+
+        Ok(Self { task_id, records })
+    }
+}
+
 impl AnomalyLandscape {
     /// Build a canonical anomaly landscape from candidate scores.
     pub fn try_new(
@@ -801,6 +922,29 @@ fn anomaly_uncertainty_permille(margin: i32) -> u16 {
     let positive_margin = u32::try_from(margin.max(0)).unwrap_or(u32::MAX);
     let uncertainty = 1000_u32.saturating_sub(positive_margin.saturating_mul(20));
     u16::try_from(uncertainty).unwrap_or(0)
+}
+
+fn validate_evidence_vector_origin(
+    evidence: &CodedEvidenceRecord,
+) -> Result<(), EvidenceVectorRecordError> {
+    match evidence.origin_mode {
+        EvidenceOriginMode::SourceCoded => {
+            if evidence.local_observation_id.is_some() {
+                return Err(EvidenceVectorRecordError::MalformedLocalObservationReference);
+            }
+        }
+        EvidenceOriginMode::LocallyGenerated => {
+            if evidence.local_observation_id.is_none() {
+                return Err(EvidenceVectorRecordError::MalformedLocalObservationReference);
+            }
+        }
+        EvidenceOriginMode::RecodedAggregated => {
+            if evidence.parent_evidence_ids.is_empty() {
+                return Err(EvidenceVectorRecordError::AmbiguousRecodedLineage);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Classification of one received fragment relative to receiver state.
@@ -1312,6 +1456,184 @@ mod tests {
         assert_eq!(landscape.summary.top_hypothesis_margin, 12);
         assert_eq!(landscape.summary.uncertainty_permille, 760);
         assert_eq!(landscape.summary.energy_gap, 12);
+    }
+
+    #[test]
+    fn evidence_vector_accepts_source_coded_score_update() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+        let evidence = source_record(1, 2, 3);
+
+        let record = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &evidence,
+            ContributionLedgerId(3),
+            anomaly_scores(&[(4, 0), (3, 9), (2, 0), (1, 0), (0, 0)]),
+            Some(AnomalyEvidenceClass(1)),
+        )
+        .expect("source-coded evidence vector");
+
+        assert_eq!(record.evidence_id, CodedEvidenceId(1));
+        assert_eq!(record.contribution_id, ContributionLedgerId(3));
+        assert_eq!(record.origin_mode, EvidenceOriginMode::SourceCoded);
+        assert_eq!(record.local_observation_id, None);
+        assert_eq!(record.parent_evidence_ids, Vec::new());
+        assert_eq!(record.payload_bytes, 32);
+        assert_eq!(
+            record
+                .score_update
+                .iter()
+                .map(|score| score.hypothesis_id)
+                .collect::<Vec<_>>(),
+            landscape.hypotheses.candidate_hypotheses
+        );
+    }
+
+    #[test]
+    fn evidence_vector_preserves_local_observation_origin() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+        let local = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(2),
+            origin_mode: EvidenceOriginMode::LocallyGenerated,
+            fragment_id: None,
+            rank_id: None,
+            local_observation_id: Some(LocalObservationId(44)),
+            contribution_ledger_ids: vec![ContributionLedgerId(10_044)],
+            ..source_input()
+        })
+        .expect("local evidence");
+
+        let record = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &local,
+            ContributionLedgerId(10_044),
+            anomaly_scores(&[(0, -1), (1, 0), (2, 1), (3, 5), (4, 0)]),
+            Some(AnomalyEvidenceClass(2)),
+        )
+        .expect("local evidence vector");
+
+        assert_eq!(record.origin_mode, EvidenceOriginMode::LocallyGenerated);
+        assert_eq!(record.local_observation_id, Some(LocalObservationId(44)));
+        assert_eq!(record.evidence_class, Some(AnomalyEvidenceClass(2)));
+    }
+
+    #[test]
+    fn evidence_vector_preserves_recoded_parent_lineage() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+        let recoded = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            origin_mode: EvidenceOriginMode::RecodedAggregated,
+            fragment_id: None,
+            rank_id: None,
+            local_observation_id: Some(LocalObservationId(45)),
+            parent_evidence_ids: vec![CodedEvidenceId(2), CodedEvidenceId(1)],
+            contribution_ledger_ids: vec![ContributionLedgerId(100), ContributionLedgerId(3)],
+            ..source_input()
+        })
+        .expect("recoded evidence");
+
+        let record = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &recoded,
+            ContributionLedgerId(100),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 6), (4, 1)]),
+            Some(AnomalyEvidenceClass(3)),
+        )
+        .expect("recoded evidence vector");
+
+        assert_eq!(record.origin_mode, EvidenceOriginMode::RecodedAggregated);
+        assert_eq!(
+            record.parent_evidence_ids,
+            vec![CodedEvidenceId(1), CodedEvidenceId(2)]
+        );
+        assert_eq!(record.local_observation_id, Some(LocalObservationId(45)));
+    }
+
+    #[test]
+    fn evidence_vector_rejects_incompatible_contribution_or_shape() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+        let evidence = source_record(1, 2, 3);
+
+        assert_eq!(
+            EvidenceVectorRecord::try_from_evidence(
+                &landscape,
+                &evidence,
+                ContributionLedgerId(9),
+                anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 9), (4, 0)]),
+                None,
+            ),
+            Err(EvidenceVectorRecordError::ContributionNotInEvidence)
+        );
+        assert_eq!(
+            EvidenceVectorRecord::try_from_evidence(
+                &landscape,
+                &evidence,
+                ContributionLedgerId(3),
+                Vec::new(),
+                None,
+            ),
+            Err(EvidenceVectorRecordError::EmptyScoreUpdate)
+        );
+        assert_eq!(
+            EvidenceVectorRecord::try_from_evidence(
+                &landscape,
+                &evidence,
+                ContributionLedgerId(3),
+                anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 9)]),
+                None,
+            ),
+            Err(EvidenceVectorRecordError::MalformedScoreUpdate)
+        );
+    }
+
+    #[test]
+    fn evidence_vector_batch_rejects_duplicate_contribution_ids() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]),
+            anomaly_guard(),
+        )
+        .expect("anomaly landscape");
+        let first = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(1, 2, 3),
+            ContributionLedgerId(3),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 9), (4, 0)]),
+            None,
+        )
+        .expect("first evidence vector");
+        let second = EvidenceVectorRecord::try_from_evidence(
+            &landscape,
+            &source_record(2, 3, 3),
+            ContributionLedgerId(3),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 7), (4, 0)]),
+            None,
+        )
+        .expect("second evidence vector");
+
+        assert_eq!(
+            EvidenceVectorBatch::try_new(landscape.hypotheses.task_id, vec![second, first]),
+            Err(EvidenceVectorRecordError::DuplicateContributionUpdate)
+        );
     }
 
     #[test]
