@@ -906,6 +906,33 @@ mod tests {
         }
     }
 
+    fn source_record(
+        evidence_id: u32,
+        fragment_fill: u8,
+        contribution_id: u32,
+    ) -> CodedEvidenceRecord {
+        CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(evidence_id),
+            fragment_id: Some(DiffusionFragmentId(id16(fragment_fill))),
+            rank_id: Some(CodingRankId(contribution_id)),
+            contribution_ledger_ids: vec![ContributionLedgerId(contribution_id)],
+            ..source_input()
+        })
+        .expect("source-coded evidence record")
+    }
+
+    fn record_evidence_contributions(
+        state: &mut ReceiverRankState,
+        evidence: &CodedEvidenceRecord,
+        observed_at_tick: Tick,
+    ) {
+        for contribution_id in &evidence.contribution_ledger_ids {
+            state
+                .record_contribution_arrival(*contribution_id, observed_at_tick)
+                .expect("record contribution arrival");
+        }
+    }
+
     #[test]
     fn coded_evidence_origin_modes_are_distinct_and_validated() {
         let source = CodedEvidenceRecord::try_new(source_input()).expect("source-coded record");
@@ -1218,6 +1245,100 @@ mod tests {
         }
         assert_eq!(state.independent_rank, 2);
         assert_eq!(state.duplicate_arrivals, 2);
+    }
+
+    #[test]
+    fn source_coded_exact_reconstruction_fixture_reaches_k() {
+        let mut state = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 2)
+            .expect("receiver rank state");
+        let first = source_record(1, 2, 3);
+        let second = source_record(2, 3, 4);
+
+        record_evidence_contributions(&mut state, &first, Tick(10));
+        assert_eq!(state.reconstructed_at_tick, None);
+        record_evidence_contributions(&mut state, &second, Tick(11));
+
+        assert_eq!(state.independent_rank, 2);
+        assert_eq!(state.reconstructed_at_tick, Some(Tick(11)));
+        assert!(state.is_reconstructed());
+    }
+
+    #[test]
+    fn duplicate_arrival_fixture_repeats_without_rank_growth() {
+        let mut state = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 2)
+            .expect("receiver rank state");
+        let first = source_record(1, 2, 3);
+
+        record_evidence_contributions(&mut state, &first, Tick(10));
+        record_evidence_contributions(&mut state, &first, Tick(11));
+        record_evidence_contributions(&mut state, &first, Tick(12));
+
+        assert_eq!(state.independent_rank, 1);
+        assert_eq!(state.innovative_arrivals, 1);
+        assert_eq!(state.duplicate_arrivals, 2);
+        assert_eq!(state.reconstructed_at_tick, None);
+    }
+
+    #[test]
+    fn increasing_k_makes_recovery_harder_at_fixed_evidence_budget() {
+        let mut lower_k = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 2)
+            .expect("lower-k receiver rank state");
+        let mut higher_k = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 3)
+            .expect("higher-k receiver rank state");
+        let evidence = [source_record(1, 2, 3), source_record(2, 3, 4)];
+
+        for record in &evidence {
+            record_evidence_contributions(&mut lower_k, record, Tick(10));
+            record_evidence_contributions(&mut higher_k, record, Tick(10));
+        }
+
+        assert!(lower_k.is_reconstructed());
+        assert!(!higher_k.is_reconstructed());
+        assert_eq!(lower_k.independent_rank, higher_k.independent_rank);
+    }
+
+    #[test]
+    fn useful_fragment_diversity_improves_recovery_at_fixed_k() {
+        let mut low_diversity =
+            ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 2)
+                .expect("low-diversity receiver rank state");
+        let mut high_diversity =
+            ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 2)
+                .expect("high-diversity receiver rank state");
+        let first = source_record(1, 2, 3);
+        let second = source_record(2, 3, 4);
+
+        record_evidence_contributions(&mut low_diversity, &first, Tick(10));
+        record_evidence_contributions(&mut low_diversity, &first, Tick(11));
+        record_evidence_contributions(&mut high_diversity, &first, Tick(10));
+        record_evidence_contributions(&mut high_diversity, &second, Tick(11));
+
+        assert!(!low_diversity.is_reconstructed());
+        assert!(high_diversity.is_reconstructed());
+        assert_eq!(low_diversity.independent_rank, 1);
+        assert_eq!(high_diversity.independent_rank, 2);
+    }
+
+    #[test]
+    fn locally_generated_evidence_counts_without_central_encoder() {
+        let local = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(2),
+            origin_mode: EvidenceOriginMode::LocallyGenerated,
+            fragment_id: None,
+            rank_id: None,
+            local_observation_id: Some(LocalObservationId(44)),
+            contribution_ledger_ids: vec![ContributionLedgerId(10_044)],
+            ..source_input()
+        })
+        .expect("local evidence record");
+        let mut state = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 1)
+            .expect("receiver rank state");
+
+        record_evidence_contributions(&mut state, &local, Tick(10));
+
+        assert_eq!(local.origin_mode, EvidenceOriginMode::LocallyGenerated);
+        assert_eq!(state.independent_rank, 1);
+        assert_eq!(state.reconstructed_at_tick, Some(Tick(10)));
     }
 
     #[test]
