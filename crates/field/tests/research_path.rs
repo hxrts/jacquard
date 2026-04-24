@@ -41,6 +41,8 @@ fn research_boundary_exposes_coded_diffusion_vocabulary() {
         "CodingRankId",
         "LocalObservationId",
         "ContributionLedgerId",
+        "ContributionLedgerKind",
+        "ContributionLedgerRecord",
         "EvidenceOriginMode",
         "CodedEvidenceRecord",
         "CodingWindow",

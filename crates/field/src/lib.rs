@@ -70,11 +70,13 @@ pub use choreography::{
 pub use research::{
     CodedEvidenceId, CodedEvidenceRecord, CodedEvidenceRecordError, CodedEvidenceRecordInput,
     CodedEvidenceValidity, CodedTargetId, CodingRankId, CodingWindow, ContributionLedgerId,
-    DelayedFragmentEvent, DiffusionFragmentId, DiffusionMessageId, DiffusionOrderParameters,
-    DiffusionPressure, EvidenceOriginMode, FragmentArrivalClass, FragmentCustody,
-    FragmentReplayEvent, FragmentRetentionPolicy, FragmentSpreadBelief, LocalObservationId,
-    NearCriticalControlState, PayloadBudgetError, PayloadBudgetKind, PayloadBudgetMetadata,
-    PrivateProtocolRole, ReceiverRankError, ReceiverRankState, ReconstructionQuorum,
+    ContributionLedgerKind, ContributionLedgerRecord, ContributionLedgerRecordError,
+    ContributionLedgerRecordInput, DelayedFragmentEvent, DiffusionFragmentId, DiffusionMessageId,
+    DiffusionOrderParameters, DiffusionPressure, EvidenceOriginMode, FragmentArrivalClass,
+    FragmentCustody, FragmentReplayEvent, FragmentRetentionPolicy, FragmentSpreadBelief,
+    LocalObservationId, NearCriticalControlState, PayloadBudgetError, PayloadBudgetKind,
+    PayloadBudgetMetadata, PrivateProtocolRole, ReceiverRankError, ReceiverRankState,
+    ReconstructionQuorum,
 };
 
 /// Baseline-only corridor-routing compatibility exports.

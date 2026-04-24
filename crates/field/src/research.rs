@@ -36,6 +36,86 @@ pub struct LocalObservationId(pub u32);
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ContributionLedgerId(pub u32);
 
+/// How one contribution ledger entry is justified.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ContributionLedgerKind {
+    /// Independent rank contribution from a source-coded fragment.
+    SourceCodedRank,
+    /// Independent contribution from a local observation.
+    LocalObservation,
+    /// Recoded output that forwards parent contribution ids without adding rank.
+    ParentLedgerUnion,
+    /// Recoded aggregate that adds one valid local observation contribution.
+    AggregateWithLocalObservation,
+}
+
+/// Validation failure for contribution-ledger records.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ContributionLedgerRecordError {
+    /// Original source/local contribution records must not name parent contributions.
+    UnexpectedParentContribution,
+    /// Local-observation contributions must name the local observation.
+    MissingLocalObservation,
+    /// Source-coded rank contributions must not name a local observation.
+    UnexpectedLocalObservation,
+    /// Recoded contribution records must name at least one parent contribution.
+    RecodedWithoutParentContributions,
+    /// Parent contribution ids must be unique after deterministic ordering.
+    DuplicateParentContribution,
+    /// Parent-ledger unions can only forward contribution ids that are already parents.
+    ParentLedgerUnionIntroducesContribution,
+    /// Aggregate contributions must include a local observation contribution.
+    AggregateWithoutLocalObservation,
+}
+
+/// Construction input for an auditable contribution-ledger record.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ContributionLedgerRecordInput {
+    /// Evidence record whose contribution is being ledgered.
+    pub evidence_id: CodedEvidenceId,
+    /// Contribution id counted by receiver rank or aggregate logic.
+    pub contribution_id: ContributionLedgerId,
+    /// Justification class for the contribution.
+    pub contribution_kind: ContributionLedgerKind,
+    /// Parent contribution ids used by recoded evidence.
+    pub parent_contribution_ids: Vec<ContributionLedgerId>,
+    /// Local observation used by local or aggregate evidence.
+    pub local_observation_id: Option<LocalObservationId>,
+}
+
+/// Auditable record explaining why one contribution id is valid.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ContributionLedgerRecord {
+    /// Evidence record whose contribution is being ledgered.
+    pub evidence_id: CodedEvidenceId,
+    /// Contribution id counted by receiver rank or aggregate logic.
+    pub contribution_id: ContributionLedgerId,
+    /// Justification class for the contribution.
+    pub contribution_kind: ContributionLedgerKind,
+    /// Canonical parent contribution ids used by recoded evidence.
+    pub parent_contribution_ids: Vec<ContributionLedgerId>,
+    /// Local observation used by local or aggregate evidence.
+    pub local_observation_id: Option<LocalObservationId>,
+}
+
+impl ContributionLedgerRecord {
+    /// Build a canonical contribution-ledger record.
+    pub fn try_new(
+        mut input: ContributionLedgerRecordInput,
+    ) -> Result<Self, ContributionLedgerRecordError> {
+        canonicalize_contribution_ids(&mut input.parent_contribution_ids)?;
+        validate_contribution_record_shape(&input)?;
+
+        Ok(Self {
+            evidence_id: input.evidence_id,
+            contribution_id: input.contribution_id,
+            contribution_kind: input.contribution_kind,
+            parent_contribution_ids: input.parent_contribution_ids,
+            local_observation_id: input.local_observation_id,
+        })
+    }
+}
+
 /// Source of one coded-evidence record.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum EvidenceOriginMode {
@@ -77,6 +157,16 @@ pub enum CodedEvidenceRecordError {
     DuplicateContributionLedger,
     /// Evidence payloads must consume at least one byte.
     ZeroPayloadBytes,
+    /// Recoding validation was requested for a non-recoded evidence record.
+    NotRecodedEvidence,
+    /// Recoded evidence is missing a ledger record for one contribution id.
+    MissingContributionLedgerRecord,
+    /// A ledger record names an evidence id different from the recoded record.
+    UnexpectedContributionLedgerRecord,
+    /// A recoded ledger union tried to introduce a non-parent contribution id.
+    InvalidParentLedgerUnion,
+    /// A recoded aggregate contribution did not carry valid local-observation support.
+    InvalidAggregateContribution,
 }
 
 /// Construction input for one reconstruction or inference evidence record.
@@ -173,6 +263,126 @@ impl CodedEvidenceRecord {
             validity: CodedEvidenceValidity::Valid,
         })
     }
+
+    /// Validate contribution-ledger records for auditable recoded evidence.
+    pub fn validate_recoding_ledger(
+        &self,
+        ledger_records: &[ContributionLedgerRecord],
+    ) -> Result<Vec<ContributionLedgerId>, CodedEvidenceRecordError> {
+        if self.origin_mode != EvidenceOriginMode::RecodedAggregated {
+            return Err(CodedEvidenceRecordError::NotRecodedEvidence);
+        }
+
+        let mut accepted_contribution_ids = Vec::with_capacity(self.contribution_ledger_ids.len());
+        for contribution_id in &self.contribution_ledger_ids {
+            let ledger_record =
+                find_ledger_record(self.evidence_id, *contribution_id, ledger_records)?;
+            validate_recoded_ledger_record(ledger_record)?;
+            accepted_contribution_ids.push(*contribution_id);
+        }
+        if accepted_contribution_ids.len() != ledger_records.len() {
+            return Err(CodedEvidenceRecordError::UnexpectedContributionLedgerRecord);
+        }
+
+        Ok(accepted_contribution_ids)
+    }
+}
+
+fn validate_contribution_record_shape(
+    input: &ContributionLedgerRecordInput,
+) -> Result<(), ContributionLedgerRecordError> {
+    match input.contribution_kind {
+        ContributionLedgerKind::SourceCodedRank => {
+            if !input.parent_contribution_ids.is_empty() {
+                return Err(ContributionLedgerRecordError::UnexpectedParentContribution);
+            }
+            if input.local_observation_id.is_some() {
+                return Err(ContributionLedgerRecordError::UnexpectedLocalObservation);
+            }
+        }
+        ContributionLedgerKind::LocalObservation => {
+            if !input.parent_contribution_ids.is_empty() {
+                return Err(ContributionLedgerRecordError::UnexpectedParentContribution);
+            }
+            if input.local_observation_id.is_none() {
+                return Err(ContributionLedgerRecordError::MissingLocalObservation);
+            }
+        }
+        ContributionLedgerKind::ParentLedgerUnion => {
+            if input.parent_contribution_ids.is_empty() {
+                return Err(ContributionLedgerRecordError::RecodedWithoutParentContributions);
+            }
+            if !input
+                .parent_contribution_ids
+                .contains(&input.contribution_id)
+            {
+                return Err(ContributionLedgerRecordError::ParentLedgerUnionIntroducesContribution);
+            }
+        }
+        ContributionLedgerKind::AggregateWithLocalObservation => {
+            if input.parent_contribution_ids.is_empty() {
+                return Err(ContributionLedgerRecordError::RecodedWithoutParentContributions);
+            }
+            if input.local_observation_id.is_none() {
+                return Err(ContributionLedgerRecordError::AggregateWithoutLocalObservation);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn canonicalize_contribution_ids(
+    values: &mut Vec<ContributionLedgerId>,
+) -> Result<(), ContributionLedgerRecordError> {
+    values.sort_unstable();
+    if values.windows(2).any(|window| window[0] == window[1]) {
+        return Err(ContributionLedgerRecordError::DuplicateParentContribution);
+    }
+    Ok(())
+}
+
+fn find_ledger_record(
+    evidence_id: CodedEvidenceId,
+    contribution_id: ContributionLedgerId,
+    ledger_records: &[ContributionLedgerRecord],
+) -> Result<&ContributionLedgerRecord, CodedEvidenceRecordError> {
+    let mut found = None;
+    for ledger_record in ledger_records {
+        if ledger_record.evidence_id != evidence_id {
+            return Err(CodedEvidenceRecordError::UnexpectedContributionLedgerRecord);
+        }
+        if ledger_record.contribution_id == contribution_id {
+            if found.is_some() {
+                return Err(CodedEvidenceRecordError::DuplicateContributionLedger);
+            }
+            found = Some(ledger_record);
+        }
+    }
+    found.ok_or(CodedEvidenceRecordError::MissingContributionLedgerRecord)
+}
+
+fn validate_recoded_ledger_record(
+    ledger_record: &ContributionLedgerRecord,
+) -> Result<(), CodedEvidenceRecordError> {
+    match ledger_record.contribution_kind {
+        ContributionLedgerKind::ParentLedgerUnion => {
+            if !ledger_record
+                .parent_contribution_ids
+                .contains(&ledger_record.contribution_id)
+            {
+                return Err(CodedEvidenceRecordError::InvalidParentLedgerUnion);
+            }
+        }
+        ContributionLedgerKind::AggregateWithLocalObservation => {
+            if ledger_record.local_observation_id.is_none() {
+                return Err(CodedEvidenceRecordError::InvalidAggregateContribution);
+            }
+        }
+        ContributionLedgerKind::SourceCodedRank | ContributionLedgerKind::LocalObservation => {
+            return Err(CodedEvidenceRecordError::UnexpectedContributionLedgerRecord);
+        }
+    }
+    Ok(())
 }
 
 fn validate_origin_shape(input: &CodedEvidenceRecordInput) -> Result<(), CodedEvidenceRecordError> {
@@ -794,6 +1004,220 @@ mod tests {
             }),
             Err(CodedEvidenceRecordError::DuplicateParentEvidence)
         );
+    }
+
+    #[test]
+    fn contribution_ledger_records_validate_parent_and_aggregate_rules() {
+        let parent_union = ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            contribution_id: ContributionLedgerId(3),
+            contribution_kind: ContributionLedgerKind::ParentLedgerUnion,
+            parent_contribution_ids: vec![ContributionLedgerId(9), ContributionLedgerId(3)],
+            local_observation_id: None,
+        })
+        .expect("parent-union ledger record");
+        assert_eq!(
+            parent_union.parent_contribution_ids,
+            vec![ContributionLedgerId(3), ContributionLedgerId(9)]
+        );
+
+        let aggregate = ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            contribution_id: ContributionLedgerId(100),
+            contribution_kind: ContributionLedgerKind::AggregateWithLocalObservation,
+            parent_contribution_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+            local_observation_id: Some(LocalObservationId(45)),
+        })
+        .expect("aggregate ledger record");
+        assert_eq!(aggregate.local_observation_id, Some(LocalObservationId(45)));
+
+        assert_eq!(
+            ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+                evidence_id: CodedEvidenceId(7),
+                contribution_id: ContributionLedgerId(100),
+                contribution_kind: ContributionLedgerKind::ParentLedgerUnion,
+                parent_contribution_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+                local_observation_id: None,
+            }),
+            Err(ContributionLedgerRecordError::ParentLedgerUnionIntroducesContribution)
+        );
+        assert_eq!(
+            ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+                evidence_id: CodedEvidenceId(7),
+                contribution_id: ContributionLedgerId(100),
+                contribution_kind: ContributionLedgerKind::AggregateWithLocalObservation,
+                parent_contribution_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+                local_observation_id: None,
+            }),
+            Err(ContributionLedgerRecordError::AggregateWithoutLocalObservation)
+        );
+    }
+
+    #[test]
+    fn recoding_validity_accepts_parent_union_and_local_aggregate() {
+        let recoded = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            origin_mode: EvidenceOriginMode::RecodedAggregated,
+            fragment_id: None,
+            rank_id: None,
+            local_observation_id: Some(LocalObservationId(45)),
+            parent_evidence_ids: vec![CodedEvidenceId(1), CodedEvidenceId(2)],
+            contribution_ledger_ids: vec![ContributionLedgerId(100), ContributionLedgerId(3)],
+            ..source_input()
+        })
+        .expect("recoded record");
+        let parent_union = ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            contribution_id: ContributionLedgerId(3),
+            contribution_kind: ContributionLedgerKind::ParentLedgerUnion,
+            parent_contribution_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+            local_observation_id: None,
+        })
+        .expect("parent-union ledger record");
+        let aggregate = ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            contribution_id: ContributionLedgerId(100),
+            contribution_kind: ContributionLedgerKind::AggregateWithLocalObservation,
+            parent_contribution_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+            local_observation_id: Some(LocalObservationId(45)),
+        })
+        .expect("aggregate ledger record");
+
+        assert_eq!(
+            recoded.validate_recoding_ledger(&[aggregate, parent_union]),
+            Ok(vec![ContributionLedgerId(3), ContributionLedgerId(100)])
+        );
+    }
+
+    #[test]
+    fn recoding_validity_rejects_missing_or_ambiguous_lineage() {
+        let recoded = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            origin_mode: EvidenceOriginMode::RecodedAggregated,
+            fragment_id: None,
+            rank_id: None,
+            parent_evidence_ids: vec![CodedEvidenceId(1), CodedEvidenceId(2)],
+            contribution_ledger_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+            ..source_input()
+        })
+        .expect("recoded record");
+        let parent_union = ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            contribution_id: ContributionLedgerId(3),
+            contribution_kind: ContributionLedgerKind::ParentLedgerUnion,
+            parent_contribution_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+            local_observation_id: None,
+        })
+        .expect("parent-union ledger record");
+        let wrong_evidence = ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+            evidence_id: CodedEvidenceId(8),
+            contribution_id: ContributionLedgerId(9),
+            contribution_kind: ContributionLedgerKind::ParentLedgerUnion,
+            parent_contribution_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+            local_observation_id: None,
+        })
+        .expect("wrong-evidence ledger record");
+
+        assert_eq!(
+            recoded.validate_recoding_ledger(&[parent_union.clone()]),
+            Err(CodedEvidenceRecordError::MissingContributionLedgerRecord)
+        );
+        assert_eq!(
+            recoded.validate_recoding_ledger(&[parent_union, wrong_evidence]),
+            Err(CodedEvidenceRecordError::UnexpectedContributionLedgerRecord)
+        );
+    }
+
+    #[test]
+    fn recoded_duplicate_contributions_do_not_inflate_receiver_rank() {
+        let mut state = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 3)
+            .expect("receiver rank state");
+        state
+            .record_contribution_arrival(ContributionLedgerId(3), Tick(10))
+            .expect("initial contribution");
+
+        let recoded = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            origin_mode: EvidenceOriginMode::RecodedAggregated,
+            fragment_id: None,
+            rank_id: None,
+            parent_evidence_ids: vec![CodedEvidenceId(1)],
+            contribution_ledger_ids: vec![ContributionLedgerId(3)],
+            ..source_input()
+        })
+        .expect("recoded record");
+        let parent_union = ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            contribution_id: ContributionLedgerId(3),
+            contribution_kind: ContributionLedgerKind::ParentLedgerUnion,
+            parent_contribution_ids: vec![ContributionLedgerId(3)],
+            local_observation_id: None,
+        })
+        .expect("parent-union ledger record");
+        let accepted = recoded
+            .validate_recoding_ledger(&[parent_union])
+            .expect("valid recoded ledger");
+
+        for contribution_id in accepted {
+            assert_eq!(
+                state.record_contribution_arrival(contribution_id, Tick(11)),
+                Ok(FragmentArrivalClass::Duplicate)
+            );
+        }
+        assert_eq!(state.independent_rank, 1);
+        assert_eq!(state.duplicate_arrivals, 1);
+    }
+
+    #[test]
+    fn recoded_parent_only_lineage_is_non_innovative_when_already_counted() {
+        let mut state = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 4)
+            .expect("receiver rank state");
+        for contribution_id in [ContributionLedgerId(3), ContributionLedgerId(9)] {
+            state
+                .record_contribution_arrival(contribution_id, Tick(10))
+                .expect("initial contribution");
+        }
+
+        let recoded = CodedEvidenceRecord::try_new(CodedEvidenceRecordInput {
+            evidence_id: CodedEvidenceId(7),
+            origin_mode: EvidenceOriginMode::RecodedAggregated,
+            fragment_id: None,
+            rank_id: None,
+            parent_evidence_ids: vec![CodedEvidenceId(1), CodedEvidenceId(2)],
+            contribution_ledger_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+            ..source_input()
+        })
+        .expect("recoded record");
+        let ledger_records = [
+            ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+                evidence_id: CodedEvidenceId(7),
+                contribution_id: ContributionLedgerId(3),
+                contribution_kind: ContributionLedgerKind::ParentLedgerUnion,
+                parent_contribution_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+                local_observation_id: None,
+            })
+            .expect("first parent-union ledger record"),
+            ContributionLedgerRecord::try_new(ContributionLedgerRecordInput {
+                evidence_id: CodedEvidenceId(7),
+                contribution_id: ContributionLedgerId(9),
+                contribution_kind: ContributionLedgerKind::ParentLedgerUnion,
+                parent_contribution_ids: vec![ContributionLedgerId(3), ContributionLedgerId(9)],
+                local_observation_id: None,
+            })
+            .expect("second parent-union ledger record"),
+        ];
+
+        for contribution_id in recoded
+            .validate_recoding_ledger(&ledger_records)
+            .expect("valid parent-only recoded ledger")
+        {
+            assert_eq!(
+                state.record_contribution_arrival(contribution_id, Tick(11)),
+                Ok(FragmentArrivalClass::Duplicate)
+            );
+        }
+        assert_eq!(state.independent_rank, 2);
+        assert_eq!(state.duplicate_arrivals, 2);
     }
 
     #[test]
