@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod baselines;
 mod catalog;
 mod coded_inference;
+mod local_policy;
 mod model;
 mod posture;
 mod runtime;
