@@ -8,9 +8,12 @@ use serde::{Deserialize, Serialize};
 
 use super::coded_inference::{CodedArrivalClassification, CodedContactTraceEvent};
 
+mod baseline;
 mod reducer;
 mod score;
 
+#[allow(unused_imports)]
+pub(crate) use baseline::run_local_evidence_policy_baseline;
 #[allow(unused_imports)]
 pub(crate) use reducer::{
     reduce_local_policy_forwarding, LocalPolicyDecisionRecord, LocalPolicyFragmentCandidate,

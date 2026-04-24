@@ -21,10 +21,13 @@ use super::{
     BaselineContractError, BaselineFixedBudget, BaselinePayloadMode, BaselinePolicyId,
     BaselineRunInput, BaselineRunSummary, BASELINE_ARTIFACT_NAMESPACE, EQUAL_PAYLOAD_BYTES_LABEL,
 };
-use crate::diffusion::catalog::scenarios::build_coded_inference_readiness_scenario;
+use crate::diffusion::{
+    catalog::scenarios::build_coded_inference_readiness_scenario,
+    local_policy::{run_local_evidence_policy_baseline, LocalPolicyDecisionRecord},
+};
 
 const COMPARISON_PAYLOAD_BYTE_BUDGET: u32 = 4_096;
-const REQUIRED_BASELINE_COUNT: u32 = 5;
+const REQUIRED_BASELINE_COUNT: u32 = 6;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct BaselineComparisonAggregate {
@@ -47,6 +50,7 @@ pub(crate) struct BaselineComparisonArtifact {
     pub fixed_budget_label: String,
     pub fixed_payload_budget_bytes: u32,
     pub summaries: Vec<BaselineRunSummary>,
+    pub local_policy_decisions: Vec<LocalPolicyDecisionRecord>,
     pub aggregate: BaselineComparisonAggregate,
 }
 
@@ -60,12 +64,14 @@ pub(crate) fn run_equal_budget_baseline_comparison(
         scenario.coded_inference.uncoded_message_payload_bytes,
         scenario.coded_inference.fragment_payload_bytes,
     )?;
+    let (local_policy_summary, local_policy_decisions) = run_local_policy(seed, budget.clone())?;
     let mut summaries = vec![
         run_uncoded(seed, budget.clone())?,
         run_epidemic(seed, budget.clone())?,
         run_spray(seed, budget.clone())?,
         run_uncontrolled(seed, budget.clone())?,
         run_controlled(seed, budget.clone())?,
+        local_policy_summary,
     ];
     summaries.sort_by_key(|summary| summary.policy_id);
     validate_required_roster(&summaries)?;
@@ -79,6 +85,7 @@ pub(crate) fn run_equal_budget_baseline_comparison(
         fixed_budget_label: EQUAL_PAYLOAD_BYTES_LABEL.to_string(),
         fixed_payload_budget_bytes: COMPARISON_PAYLOAD_BYTE_BUDGET,
         summaries,
+        local_policy_decisions,
         aggregate,
     })
 }
@@ -158,6 +165,14 @@ fn run_controlled(
     summarize_coded_diffusion_baseline(&input, &log, &readiness_log, true)
 }
 
+fn run_local_policy(
+    seed: u64,
+    budget: BaselineFixedBudget,
+) -> Result<(BaselineRunSummary, Vec<LocalPolicyDecisionRecord>), BaselineContractError> {
+    let input = comparison_input(seed, BaselinePolicyId::LocalEvidencePolicy, budget)?;
+    run_local_evidence_policy_baseline(&input)
+}
+
 fn comparison_input(
     seed: u64,
     policy_id: BaselinePolicyId,
@@ -182,6 +197,7 @@ fn validate_required_roster(summaries: &[BaselineRunSummary]) -> Result<(), Base
         BaselinePolicyId::SprayAndWait,
         BaselinePolicyId::UncontrolledCodedDiffusion,
         BaselinePolicyId::ControlledCodedDiffusion,
+        BaselinePolicyId::LocalEvidencePolicy,
     ] {
         if !present.contains(&required) {
             return Err(BaselineContractError::MissingRequiredBaseline);
@@ -250,8 +266,13 @@ mod tests {
                 BaselinePolicyId::SprayAndWait,
                 BaselinePolicyId::UncontrolledCodedDiffusion,
                 BaselinePolicyId::ControlledCodedDiffusion,
+                BaselinePolicyId::LocalEvidencePolicy,
             ]
         );
+        assert!(artifact
+            .local_policy_decisions
+            .iter()
+            .any(|row| row.selected));
     }
 
     #[test]

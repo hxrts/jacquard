@@ -22,6 +22,7 @@ pub(crate) enum BaselinePolicyId {
     SprayAndWait,
     UncontrolledCodedDiffusion,
     ControlledCodedDiffusion,
+    LocalEvidencePolicy,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -31,6 +32,7 @@ pub(crate) enum BaselinePolicyClass {
     BoundedCopy,
     CodedUncontrolled,
     CodedControlled,
+    LocalEvidencePolicy,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -230,6 +232,7 @@ impl BaselinePolicyId {
             "spray-and-wait" => Ok(Self::SprayAndWait),
             "uncontrolled-coded-diffusion" => Ok(Self::UncontrolledCodedDiffusion),
             "controlled-coded-diffusion" => Ok(Self::ControlledCodedDiffusion),
+            "local-evidence-policy" => Ok(Self::LocalEvidencePolicy),
             _ => Err(BaselineContractError::UnknownBaselineId),
         }
     }
@@ -242,6 +245,7 @@ impl BaselinePolicyId {
             Self::SprayAndWait => "spray-and-wait",
             Self::UncontrolledCodedDiffusion => "uncontrolled-coded-diffusion",
             Self::ControlledCodedDiffusion => "controlled-coded-diffusion",
+            Self::LocalEvidencePolicy => "local-evidence-policy",
         }
     }
 
@@ -253,6 +257,7 @@ impl BaselinePolicyId {
             Self::SprayAndWait => BaselinePolicyClass::BoundedCopy,
             Self::UncontrolledCodedDiffusion => BaselinePolicyClass::CodedUncontrolled,
             Self::ControlledCodedDiffusion => BaselinePolicyClass::CodedControlled,
+            Self::LocalEvidencePolicy => BaselinePolicyClass::LocalEvidencePolicy,
         }
     }
 }
@@ -564,6 +569,11 @@ mod tests {
                 "controlled-coded-diffusion",
                 BaselinePolicyId::ControlledCodedDiffusion,
                 BaselinePolicyClass::CodedControlled,
+            ),
+            (
+                "local-evidence-policy",
+                BaselinePolicyId::LocalEvidencePolicy,
+                BaselinePolicyClass::LocalEvidencePolicy,
             ),
         ];
 

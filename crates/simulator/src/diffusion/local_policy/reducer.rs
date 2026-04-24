@@ -39,6 +39,7 @@ pub(crate) enum LocalPolicyRejectionReason {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct LocalPolicyDecisionRecord {
+    pub policy_id: String,
     pub peer_node_id: u32,
     pub fragment_id: u32,
     pub selected: bool,
@@ -160,6 +161,7 @@ fn decision_record(
     rejection_reason: Option<LocalPolicyRejectionReason>,
 ) -> LocalPolicyDecisionRecord {
     LocalPolicyDecisionRecord {
+        policy_id: "local-evidence-policy".to_string(),
         peer_node_id: pair.peer.peer_node_id,
         fragment_id: pair.fragment.fragment_id,
         selected: rejection_reason.is_none(),
