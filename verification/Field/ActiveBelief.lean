@@ -268,4 +268,74 @@ theorem demand_priority_does_not_change_acceptance
   -- Acceptance ignores demand contents; changing priority metadata is harmless.
   cases proposal.validEvidence <;> rfl
 
+/-! ## Propagated Host/Bridge Demand Soundness -/
+
+inductive ActiveDemandExecutionSurface where
+  | simulatorLocal
+  | hostBridgeReplay
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+/-- Replay-visible host/bridge demand carries custody metadata, not evidence. -/
+structure PropagatedDemandRecord where
+  surface : ActiveDemandExecutionSurface
+  summary : DemandSummary
+  bridgeBatchId : Nat
+  ingressRound : Nat
+  replayVisible : Bool
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+def validPropagatedDemandRecord
+    (record : PropagatedDemandRecord) : Prop :=
+  record.surface = ActiveDemandExecutionSurface.hostBridgeReplay ∧
+    validDemandSummary record.summary ∧
+    record.replayVisible = true
+
+theorem propagated_demand_is_replay_visible
+    (record : PropagatedDemandRecord)
+    (hValid : validPropagatedDemandRecord record) :
+    record.replayVisible = true := by
+  -- Host/bridge demand must be visible to replay to remain auditable.
+  exact hValid.right.right
+
+theorem propagated_demand_uses_host_bridge_surface
+    (record : PropagatedDemandRecord)
+    (hValid : validPropagatedDemandRecord record) :
+    record.surface = ActiveDemandExecutionSurface.hostBridgeReplay := by
+  -- The strong phase distinguishes host/bridge demand from simulator-local demand.
+  exact hValid.left
+
+theorem propagated_demand_carries_no_contribution
+    (record : PropagatedDemandRecord) :
+    (ActiveMessage.demand record.summary).contributionId? = none := by
+  -- Propagation changes custody and replay metadata, not demand semantics.
+  exact demand_message_carries_no_contribution record.summary
+
+theorem propagated_demand_cannot_validate_invalid_evidence
+    (record : PropagatedDemandRecord)
+    (proposal : EvidenceProposal)
+    (rank : ReceiverRank)
+    (hValidRecord : validPropagatedDemandRecord record)
+    (hInvalid : proposal.validEvidence = false) :
+    demandAwareAccept record.summary proposal rank = rank := by
+  -- Even on the host/bridge path, invalid evidence is rejected by evidence validity.
+  have _live : 0 < record.summary.ttl :=
+    valid_demand_is_live record.summary hValidRecord.right.left
+  exact demand_cannot_validate_invalid_evidence
+    record.summary proposal rank hInvalid
+
+theorem propagated_demand_duplicate_non_inflation
+    (record : PropagatedDemandRecord)
+    (proposal : EvidenceProposal)
+    (rank : ReceiverRank)
+    (hValidRecord : validPropagatedDemandRecord record)
+    (hValidEvidence : proposal.validEvidence = true)
+    (hPresent : proposal.contributionId ∈ rank.contributionIds) :
+    receiverRank (demandAwareAccept record.summary proposal rank) =
+      receiverRank rank := by
+  -- Propagated demand cannot turn an already-seen contribution into new rank.
+  have _visible : record.replayVisible = true :=
+    propagated_demand_is_replay_visible record hValidRecord
+  exact demand_duplicate_non_inflation
+    record.summary proposal rank hValidEvidence hPresent
+
 end FieldActiveBelief

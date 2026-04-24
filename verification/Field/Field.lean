@@ -1,4 +1,5 @@
 import Field.CodedDiffusion
+import Field.CodedDiffusionStrong
 import Field.ActiveBelief
 import Field.LocalModel
 import Field.PrivateProtocol
@@ -15,7 +16,8 @@ import Field.Quality
 
 /-! # Field — master composition of all Field subsystems
 
-`Field.CodedDiffusion` is the active research theorem path. Router, Search, and
-Quality imports remain available as legacy corridor-routing baseline context
-while the coded-diffusion proof stack is split out.
+`Field.CodedDiffusion` and `Field.CodedDiffusionStrong` are the active research
+theorem paths. Router, Search, and Quality imports remain available as legacy
+corridor-routing baseline context while the coded-diffusion proof stack is
+split out.
 -/

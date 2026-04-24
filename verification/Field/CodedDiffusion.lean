@@ -336,31 +336,6 @@ theorem finite_work_step_monotone
   -- Finite work at the next horizon adds a nonnegative opportunity count.
   simp [finiteWork]
 
-/-! ## Final Proposal Boundary And Inference Potential -/
-
-inductive TheoremTargetStatus where
-  | provedDeterministicCore
-  | narrowedToMeasuredExperiment
-  deriving Inhabited, Repr, DecidableEq, BEq
-
-def receiverArrivalStochasticBoundStatus : TheoremTargetStatus :=
-  TheoremTargetStatus.narrowedToMeasuredExperiment
-
-def anomalyMarginConcentrationStatus : TheoremTargetStatus :=
-  TheoremTargetStatus.narrowedToMeasuredExperiment
-
-theorem receiver_arrival_stochastic_bound_is_narrowed :
-    receiverArrivalStochasticBoundStatus =
-      TheoremTargetStatus.narrowedToMeasuredExperiment := by
-  -- The final paper treats receiver-arrival probability as measured, not proved.
-  rfl
-
-theorem anomaly_margin_concentration_is_narrowed :
-    anomalyMarginConcentrationStatus =
-      TheoremTargetStatus.narrowedToMeasuredExperiment := by
-  -- Margin concentration is outside the deterministic theorem core.
-  rfl
-
 structure InferencePotential where
   uncertainty : Nat
   wrongBasinMass : Nat

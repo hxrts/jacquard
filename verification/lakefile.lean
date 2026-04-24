@@ -39,6 +39,7 @@ lean_lib JacquardVerification where
     `Field.Architecture,
     `Field.ActiveBelief,
     `Field.CodedDiffusion,
+    `Field.CodedDiffusionStrong,
     `Field.CostAPI,
     `Field.Field,
     `Field.LocalModel,

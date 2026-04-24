@@ -6,8 +6,10 @@ This map describes the current organization of `verification/Field`.
 
 - `Field/CodedDiffusion.lean`
   - active coded-diffusion theorem path for Phase 1 evidence-origin modes, contribution ledgers, k-of-n reconstruction, duplicate non-inflation, recoding soundness, observer projection, diffusion-potential accounting, and finite deterministic work recurrence
+- `Field/CodedDiffusionStrong.lean`
+  - strong coded-diffusion theorem path for finite-horizon probability assumptions, receiver-arrival bounds, useful-inference arrival bounds, anomaly-margin bounds, guarded false-commitment bounds, and inference-potential drift
 - `Field/ActiveBelief.lean`
-  - active belief diffusion theorem path for Phase 8 receiver-indexed belief state, first-class bounded demand messages, evidence messages, demand soundness, duplicate non-inflation under demand-driven forwarding, commitment lead-time accounting, stale-demand safety, and multi-receiver compatibility
+  - active belief diffusion theorem path for Phase 8 receiver-indexed belief state, first-class bounded demand messages, evidence messages, demand soundness, duplicate non-inflation under demand-driven forwarding, commitment lead-time accounting, stale-demand safety, multi-receiver compatibility, and propagated host/bridge demand soundness
 - `Field/Architecture.lean`
   - shared enum vocabulary for projection kinds, refinement-ladder stages, lineage stages, and semantic-versus-proof-artifact roles
 - `Field/CostAPI.lean`
@@ -40,7 +42,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Assumptions.lean`
   - imports the proof-contract vocabulary and theorem-packaging surface used across the field stack
 - `Field/Field.lean`
-  - umbrella import for the current field verification stack; imports `Field/CodedDiffusion.lean` and `Field/ActiveBelief.lean` as the active research theorem path and keeps older route/corridor packs as legacy baseline context
+  - umbrella import for the current field verification stack; imports `Field/CodedDiffusion.lean`, `Field/CodedDiffusionStrong.lean`, and `Field/ActiveBelief.lean` as the active research theorem path and keeps older route/corridor packs as legacy baseline context
 
 ## Active Coded-Diffusion Path
 
@@ -79,27 +81,55 @@ This map describes the current organization of `verification/Field`.
     - `phase1_potential_accounting_duplicate`
     - `finite_work_recurrence`
     - `finite_work_step_monotone`
-    - `receiver_arrival_stochastic_bound_is_narrowed`
-    - `anomaly_margin_concentration_is_narrowed`
     - `inference_progress_uncertainty_nonincreasing`
     - `inference_potential_total_is_accounted_sum`
     - `majority_duplicate_non_inflation`
     - `majority_positive_innovative_increases_vote_count`
-  - final proposal boundary:
-    - receiver-arrival stochastic reconstruction and anomaly-margin
-      concentration are deliberately narrowed to measured experimental claims
-      rather than presented as proved Lean probability theorems.
+  - Rust alignment:
+    - `EvidenceOriginMode`, `ContributionLedgerKind`, `ContributionLedgerRecord`, `CodingWindow`, `ReceiverRank`, and reconstruction/recoding theorem names intentionally mirror `crates/field/src/research.rs`.
+
+## Strong Coded-Diffusion Path
+
+- `Field/CodedDiffusionStrong.lean`
+  - owns the strong proof vocabulary:
+    - `TemporalContactProbabilityModel`, `ContactDependenceAssumption`, and
+      `ReceiverArrivalBound` for the finite-horizon receiver-arrival
+      assumption surface
+    - `UsefulInferenceArrivalBound` for task-relevant contribution arrival
+      before full recovery
+    - `BoundedScoreVectorUpdateModel` and `AnomalyCommitmentGuard` for
+      anomaly-margin and false-commitment theorem assumptions
+    - `InferenceDriftAssumption` for the strong progress/drift potential
+      statement
+  - completed theorem names:
+    - `receiver_arrival_reconstruction_bound`
+    - `useful_inference_arrival_bound`
+    - `anomaly_margin_lower_tail_bound`
+    - `guarded_commitment_false_probability_bounded`
+    - `inference_potential_drift_progress`
+  - strong proposal boundary:
+    - receiver-arrival reconstruction, useful-inference arrival, and
+      anomaly-margin conclusions are theorem-backed under explicit
+      finite-horizon assumption records. The proofs do not hide mobility,
+      independence, or lower-tail assumptions; experiment rows must report
+      which regimes satisfy them.
     - `InferencePotential` mirrors the implemented uncertainty, wrong-basin,
       duplicate, storage, and transmission pressure terms.
+    - `InferenceDriftAssumption` upgrades accounting into a progress/drift
+      statement under explicit controller assumptions.
     - `MajorityThresholdState` supplies the stronger second mergeable task
       boundary beyond set-union reconstruction.
   - Telltale-family mapping:
     - Reuses conceptually, but does not import directly in the Phase 1 local model, `Distributed/Families/DataAvailability.*` for reconstruction quorum and retrievability vocabulary.
     - Emulates locally the finite, deterministic subset of `Runtime/Proofs/Lyapunov.lean`, `Runtime/Proofs/ProtocolMachinePotential.lean`, and `Classical/Families/FosterLyapunovHarris.lean` through `DiffusionPotential`, `phase1_potential_accounting_*`, and `finiteWork`.
     - Reuses conceptually `Runtime/Proofs/ObserverProjection.lean`, `Protocol/InformationCost.lean`, and `Protocol/Noninterference*.lean` for the observer projection/erasure story; only Phase 1 projection preservation is proved here.
-    - Leaves probability-heavy concentration support in `Classical/Families/ConcentrationInequalities.lean` as an explicit Phase 2 target.
+    - Keeps probability-heavy concentration support local to the strong
+      assumption records rather than importing a broader probability framework.
   - Rust alignment:
-    - `EvidenceOriginMode`, `ContributionLedgerKind`, `ContributionLedgerRecord`, `CodingWindow`, `ReceiverRank`, and reconstruction/recoding theorem names intentionally mirror `crates/field/src/research.rs`.
+    - `ReceiverArrivalBound`, `UsefulInferenceArrivalBound`,
+      `BoundedScoreVectorUpdateModel`, `AnomalyCommitmentGuard`, and
+      `InferenceDriftAssumption` map to strong experiment theorem-assumption
+      metadata rows added in the simulator artifact surface.
 
 ## Active Belief Diffusion Path
 
@@ -115,6 +145,8 @@ This map describes the current organization of `verification/Field`.
     - `CommitmentTimeline` and `commitmentLeadTime` for logged lead-time accounting
     - `GuardedCommitment` and `compatibleCommitments` for multi-receiver compatibility without consensus
     - `demandPriorityScore` for proof-facing priority metadata that does not affect evidence acceptance
+    - `ActiveDemandExecutionSurface` and `PropagatedDemandRecord` for
+      host/bridge replay-visible active demand
   - completed theorem names:
     - `demand_bounded_by_entry_cap`
     - `demand_bounded_by_byte_cap`
@@ -129,13 +161,23 @@ This map describes the current organization of `verification/Field`.
     - `same_guarded_basin_compatible`
     - `compatible_commitments_have_same_hypothesis`
     - `demand_priority_does_not_change_acceptance`
+    - `propagated_demand_is_replay_visible`
+    - `propagated_demand_uses_host_bridge_surface`
+    - `propagated_demand_carries_no_contribution`
+    - `propagated_demand_cannot_validate_invalid_evidence`
+    - `propagated_demand_duplicate_non_inflation`
   - non-claims:
     - demand is first-class replay-visible communication data, but it is not evidence
     - receiver compatibility is agreement on a guarded local decision, not consensus, common knowledge, or globally identical beliefs
     - commitment lead time is a replay metric over logged events, not a correctness theorem
     - active demand is not claimed optimal under arbitrary mobility or adversarial traces
+    - propagated host/bridge demand remains non-evidential; bridge custody and
+      replay metadata do not change contribution identity or evidence validity
   - Rust alignment target:
     - `DemandSummary`, `DemandEntry`, receiver-indexed belief summaries, commitment lead-time rows, receiver agreement rows, demand satisfaction rows, and stale-demand rejection counters are mirrored by the Phase 9 Rust/replay artifacts listed below.
+    - `PropagatedDemandRecord` maps to the strong host/bridge replay artifact
+      surface that distinguishes simulator-local demand from host/bridge
+      demand.
 
 ### Phase 11 Rust Correspondence Freeze
 
