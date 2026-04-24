@@ -18,6 +18,8 @@ pub mod fail_closed_ordering;
 pub mod field_code_map;
 #[path = "../../../checks/rust/invariant_specs.rs"]
 pub mod invariant_specs;
+#[path = "../../../checks/rust/long_file.rs"]
+pub mod long_file;
 #[path = "../../../checks/rust/no_scratch_refs_in_rust.rs"]
 pub mod no_scratch_refs_in_rust;
 #[path = "../../../checks/rust/no_usize_in_models.rs"]
@@ -69,6 +71,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         "field-code-map" => field_code_map::run(),
         "fail-closed-ordering" => fail_closed_ordering::run(),
         "invariant-specs" => invariant_specs::run(),
+        "long-file" => long_file::run(),
         "no-scratch-refs-in-rust" => no_scratch_refs_in_rust::run(),
         "no-usize-in-models" => no_usize_in_models::run(),
         "ownership-invariants" => ownership_invariants::run(),

@@ -95,7 +95,7 @@ Run generic policy checks with `./scripts/toolkit-shell.sh toolkit-xtask check <
 - **Boundary**: `adapter-boundary`, `crate-boundary`, `engine-service-boundary`, `pathway-async-boundary`, `transport-authoring-boundary`, `transport-ownership-boundary`, `reference-bridge-boundary`
 - **Routing invariants**: `routing-invariants`, `fail-closed-ordering`, `router-round-boundary`, `pathway-choreography` (pass `--validate` to run fixtures)
 - **Docs**: `docs-link-check`, `docs-semantic-drift`, `invariant-specs`, `no-scratch-refs-in-rust`
-- **Surface / DX**: `dx-surface`, `surface-classification`, `trait-purity`, `result-must-use`, `proof-bearing-actions`, `proc-macro-scope`, `ownership-invariants`
+- **Surface / DX**: `dx-surface`, `surface-classification`, `trait-purity`, `result-must-use`, `proof-bearing-actions`, `proc-macro-scope`, `ownership-invariants`, `long-file`
 - **Model**: `no-usize-in-models`, `checkpoint-namespacing`, `test-boundaries`
 
 For nightly compiler-backed lint parity, use the toolkit wrappers for portable lints and the repo nightly shell for Jacquard-specific lints:
@@ -164,3 +164,21 @@ the signature are allowed. The reason text must be non-empty so every
 exception stays auditable in code review. Prefer splitting the function
 first; reach for the exception marker only when extraction would obscure
 the mapping.
+
+## long-file-exception
+
+The `long-file` xtask check caps each `.rs` file under `crates/` at 800
+total source lines. Oversized files should be split into submodules
+grouped by concern (types, pure reducers, effectful entry points,
+protocol/choreography, per-object state) rather than by size. Two
+escape hatches exist:
+
+- a `// long-file-exception: <non-empty reason>` comment inside the
+  first 40 lines of the file, for deliberate long-lived exceptions, or
+- a `[[toolkit.exemptions.long_file]]` entry in `toolkit/toolkit.toml`
+  with a `path` and `reason`, for inherited oversized files tracked
+  for a future split.
+
+Prefer splitting the file first; reach for the marker only when
+splitting would obscure the code. Every toml exemption is tracked tech
+debt — delete the entry once the file is split below the cap.

@@ -340,3 +340,134 @@ reason = "long-block-exception: rule coordination workflow"
 [[toolkit.exemptions.ownership_permits]]
 name = "mem-link-profile-test-only"
 reason = "test infrastructure crate; mirrors reference-client"
+
+# long_file exemptions: each entry is a pre-existing oversized Rust
+# source file tracked for a future split into concern-grouped submodules.
+# Delete the entry once the file is split below the 800-line cap.
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/experiments/comparison.rs"
+reason = "tracked for split: separate per-experiment-family comparison surfaces"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/field/src/research.rs"
+reason = "tracked for split: separate coded-diffusion research scaffolding by concern"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/experiments/summary.rs"
+reason = "tracked for split: separate summary aggregation by metric family"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/experiments/suite.rs"
+reason = "tracked for split: separate suite orchestration from suite-family configuration"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/field/src/runtime/routing.rs"
+reason = "tracked for split: separate route-phase runtime logic from route-record plumbing"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/diffusion/catalog/scenarios.rs"
+reason = "tracked for split: separate scenario families into per-family modules"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/experiments/types.rs"
+reason = "tracked for split: separate experiment-domain types into per-domain modules"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/diffusion/runtime/execution.rs"
+reason = "tracked for split: separate round execution phases from reducers and logging"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/field/src/choreography.rs"
+reason = "tracked for split: separate protocol families in the private choreography surface"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/field/src/control.rs"
+reason = "tracked for split: separate control-plane passes (compression, regime, posture, prices)"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/diffusion/coded_inference.rs"
+reason = "tracked for split: separate coded-inference stages (encoding, diffusion, reconstruction)"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/experiments/common.rs"
+reason = "tracked for split: separate shared experiment utilities by concern"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/pathway/src/topology.rs"
+reason = "tracked for split: separate topology construction, views, and mutation surfaces"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/batman-bellman/src/private_state.rs"
+reason = "tracked for split: separate originator, topology, Bellman-Ford, and TQ state families"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/field/src/engine/replay.rs"
+reason = "tracked for split: separate replay snapshot, export, and reduced-replay surfaces"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/scatter/src/runtime.rs"
+reason = "tracked for split: separate retention, replication, and handoff runtime concerns"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/field/src/planner/surface.rs"
+reason = "tracked for split: separate planner snapshot, candidate, and projection surfaces"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/pathway/src/engine/support.rs"
+reason = "tracked for split: separate engine support by support concern"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/reference-client/src/clients.rs"
+reason = "tracked for split: separate per-client-family builder/composition modules"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/pathway/src/engine/runtime/maintenance.rs"
+reason = "tracked for split: separate maintenance phases (repair, topology, replay)"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/field/src/summary.rs"
+reason = "tracked for split: separate posterior, corridor, and reduced-summary families"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/mercator/src/corridor.rs"
+reason = "tracked for split: separate evidence graph, planner, and corridor state"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/reduced_replay.rs"
+reason = "tracked for split: separate reduced replay surface classes"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/router/src/middleware.rs"
+reason = "tracked for split: separate middleware phases from router-round plumbing"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/bin/tuning_matrix.rs"
+reason = "tracked for split: separate tuning-matrix orchestration from CLI and reporting"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/babel/src/private_state.rs"
+reason = "tracked for split: separate route, feasibility, metric, and seqno state families"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/pathway/src/choreography/runtime.rs"
+reason = "tracked for split: separate choreography runtime by protocol"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/host-support/src/topology.rs"
+reason = "tracked for split: separate mailbox, peer directory, and topology projector helpers"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/olsrv2/src/private_state.rs"
+reason = "tracked for split: separate HELLO, neighbor, MPR, TC, and SPF state families"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/field/tests/search.rs"
+reason = "tracked for split: separate field-search tests by scenario family"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/olsrv2/src/runtime.rs"
+reason = "tracked for split: separate OLSRv2 runtime by protocol phase"
+
+[[toolkit.exemptions.long_file]]
+path = "crates/simulator/src/experiments/batman.rs"
+reason = "tracked for split: separate BATMAN experiment variants into per-variant modules"

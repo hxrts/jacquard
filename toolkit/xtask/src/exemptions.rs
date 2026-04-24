@@ -25,6 +25,8 @@ struct ExemptionsConfig {
     style_guide: Vec<StyleGuideException>,
     #[serde(default)]
     ownership_permits: Vec<OwnershipPermit>,
+    #[serde(default)]
+    long_file: Vec<LongFileException>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -36,6 +38,12 @@ struct StyleGuideException {
 #[derive(Clone, Debug, Deserialize)]
 struct OwnershipPermit {
     name: String,
+    reason: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct LongFileException {
+    path: String,
     reason: String,
 }
 
@@ -81,5 +89,15 @@ pub fn ownership_permits() -> Result<Vec<(String, String)>> {
         .ownership_permits
         .iter()
         .map(|entry| (entry.name.clone(), entry.reason.clone()))
+        .collect())
+}
+
+pub fn long_file_exemptions() -> Result<Vec<(String, String)>> {
+    Ok(config()?
+        .toolkit
+        .exemptions
+        .long_file
+        .iter()
+        .map(|entry| (entry.path.clone(), entry.reason.clone()))
         .collect())
 }
