@@ -22,6 +22,7 @@ const CORE_EXPERIMENT_BUDGET_LABEL: &str = "equal-payload-bytes";
 const CORE_WINDOW_START_ROUND: u32 = 4;
 const CORE_WINDOW_END_ROUND: u32 = 12;
 const EXPERIMENT_A_SCENARIO_ID: &str = "clustered-path-free-landscape";
+const EXPERIMENT_B_SCENARIO_ID: &str = "intermittent-bridge-path-free-recovery";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub(crate) enum CoreExperimentId {
@@ -109,6 +110,9 @@ pub(crate) struct CoreExperimentArtifactRow {
     pub energy_gap: i32,
     pub available_evidence_count: u32,
     pub useful_contribution_count: u32,
+    pub recovery_probability_permille: u32,
+    pub path_free_success_permille: u32,
+    pub cost_to_recover_bytes: u32,
     pub byte_count: u32,
     pub duplicate_count: u32,
     pub latency_rounds: u32,
@@ -290,6 +294,12 @@ pub(crate) fn experiment_a_landscape_rows(
             energy_gap: readiness_summary.energy_gap,
             available_evidence_count: summary.forwarding_events,
             useful_contribution_count: summary.receiver_rank,
+            recovery_probability_permille: summary.recovery_probability_permille,
+            path_free_success_permille: path_free_success_permille(
+                &path_evidence,
+                summary.recovery_probability_permille,
+            ),
+            cost_to_recover_bytes: summary.bytes_transmitted,
             byte_count: summary.bytes_transmitted,
             duplicate_count: summary.duplicate_arrival_count,
             latency_rounds: summary
@@ -346,6 +356,64 @@ pub(crate) fn experiment_a2_evidence_mode_rows(
     Ok(rows)
 }
 
+pub(crate) fn experiment_b_path_free_recovery_rows(
+    seed: u64,
+) -> Result<Vec<CoreExperimentArtifactRow>, BaselineContractError> {
+    let scenario = build_coded_inference_readiness_scenario();
+    let comparison = run_equal_budget_baseline_comparison(seed)?;
+    let path_evidence = core_path_evidence(&deterministic_core_fixture_edges(), 1, 5);
+    let mut rows = comparison
+        .summaries
+        .iter()
+        .enumerate()
+        .map(|(index, summary)| {
+            let path_free_success_permille =
+                path_free_success_permille(&path_evidence, summary.recovery_probability_permille);
+            CoreExperimentArtifactRow {
+                identity: core_experiment_identity(
+                    CoreExperimentId::PathFreeRecovery,
+                    EXPERIMENT_B_SCENARIO_ID,
+                    seed,
+                    summary.policy_id.as_str(),
+                ),
+                mergeable_statistic: set_union_rank_descriptor(),
+                path_evidence: path_evidence.clone(),
+                round_index: summary
+                    .reconstruction_round
+                    .or(summary.commitment_round)
+                    .unwrap_or(0),
+                ordering_key: u32::try_from(index).unwrap_or(u32::MAX),
+                hidden_hypothesis_id: scenario.coded_inference.hidden_anomaly_cluster_id,
+                hypothesis_id: 0,
+                top_hypothesis_id: 0,
+                scaled_score: summary.top_hypothesis_margin,
+                energy_gap: summary.top_hypothesis_margin,
+                available_evidence_count: summary.forwarding_events,
+                useful_contribution_count: summary.receiver_rank,
+                recovery_probability_permille: summary.recovery_probability_permille,
+                path_free_success_permille,
+                cost_to_recover_bytes: summary.bytes_transmitted,
+                byte_count: summary.bytes_transmitted,
+                duplicate_count: summary.duplicate_arrival_count,
+                latency_rounds: summary
+                    .reconstruction_round
+                    .or(summary.commitment_round)
+                    .unwrap_or(0),
+                storage_pressure_bytes: summary.peak_stored_payload_bytes_per_node,
+                receiver_rank: summary.receiver_rank,
+                top_hypothesis_margin: summary.top_hypothesis_margin,
+                uncertainty_permille: 1000_u32
+                    .saturating_sub(summary.recovery_probability_permille),
+                quality_permille: summary.recovery_probability_permille,
+                merged_statistic_quality_permille: summary.recovery_probability_permille,
+                observer_advantage_permille: 0,
+            }
+        })
+        .collect::<Vec<_>>();
+    sort_core_experiment_rows(&mut rows);
+    Ok(rows)
+}
+
 fn experiment_a_landscape_event_row(
     seed: u64,
     log: &CodedInferenceReadinessLog,
@@ -371,6 +439,9 @@ fn experiment_a_landscape_event_row(
         energy_gap: event.energy_gap,
         available_evidence_count: forwarding_events_at_or_before(log, event.round_index),
         useful_contribution_count: receiver_rank_at_or_before(log, event.round_index),
+        recovery_probability_permille: 0,
+        path_free_success_permille: 0,
+        cost_to_recover_bytes: cumulative_payload_bytes(log, event.round_index),
         byte_count: cumulative_payload_bytes(log, event.round_index),
         duplicate_count: duplicate_arrivals_at_or_before(log, event.round_index),
         latency_rounds: event.round_index,
@@ -408,6 +479,9 @@ fn experiment_a_oracle_row(
         energy_gap: summary.energy_gap,
         available_evidence_count: summary.coded_fragment_count,
         useful_contribution_count: summary.coded_fragment_count,
+        recovery_probability_permille: 1000,
+        path_free_success_permille: 1000,
+        cost_to_recover_bytes: summary.uncoded_fixed_payload_budget_bytes,
         byte_count: summary.uncoded_fixed_payload_budget_bytes,
         duplicate_count: 0,
         latency_rounds: final_round,
@@ -450,6 +524,12 @@ fn origin_mode_row(
         energy_gap: summary.energy_gap,
         available_evidence_count: accumulator.available_evidence_count,
         useful_contribution_count: accumulator.useful_contribution_count(),
+        recovery_probability_permille: summary.recovery_probability_permille,
+        path_free_success_permille: path_free_success_permille(
+            path_evidence,
+            summary.recovery_probability_permille,
+        ),
+        cost_to_recover_bytes: accumulator.byte_count,
         byte_count: accumulator.byte_count,
         duplicate_count: accumulator.duplicate_count,
         latency_rounds: accumulator.latest_arrival_round,
@@ -547,6 +627,17 @@ fn origin_mode_quality_permille(
                 0
             }
         }
+    }
+}
+
+fn path_free_success_permille(
+    path_evidence: &CoreExperimentPathEvidence,
+    recovery_probability_permille: u32,
+) -> u32 {
+    if path_evidence.no_static_path_in_core_window {
+        recovery_probability_permille
+    } else {
+        0
     }
 }
 
@@ -719,6 +810,9 @@ mod tests {
             energy_gap: 12,
             available_evidence_count: 5,
             useful_contribution_count: 3,
+            recovery_probability_permille: 1000,
+            path_free_success_permille: 1000,
+            cost_to_recover_bytes: 64,
             byte_count: 64,
             duplicate_count: 1,
             latency_rounds: 4,
@@ -943,5 +1037,55 @@ mod tests {
         );
         assert!(recoded.useful_contribution_count <= contribution_universe);
         assert!(recoded.merged_statistic_quality_permille > 0);
+    }
+
+    #[test]
+    fn experiment_b_path_free_recovery_includes_required_roster() {
+        let rows = experiment_b_path_free_recovery_rows(41).expect("rows");
+
+        for policy in [
+            "controlled-coded-diffusion",
+            "uncontrolled-coded-diffusion",
+            "uncoded-replication",
+            "epidemic-forwarding",
+            "spray-and-wait",
+        ] {
+            assert!(rows.iter().any(|row| row.identity.policy_or_mode == policy));
+        }
+        assert!(rows
+            .iter()
+            .all(|row| row.identity.experiment_id == CoreExperimentId::PathFreeRecovery));
+    }
+
+    #[test]
+    fn experiment_b_path_free_recovery_conditions_success_on_no_static_path() {
+        let rows = experiment_b_path_free_recovery_rows(41).expect("rows");
+
+        assert!(rows
+            .iter()
+            .all(|row| row.path_evidence.no_static_path_in_core_window));
+        assert!(rows
+            .iter()
+            .all(|row| row.path_evidence.time_respecting_evidence_journey_exists));
+        assert!(rows
+            .iter()
+            .all(|row| { row.path_free_success_permille == row.recovery_probability_permille }));
+        assert!(rows
+            .iter()
+            .any(|row| row.path_free_success_permille > 0 && row.cost_to_recover_bytes > 0));
+    }
+
+    #[test]
+    fn experiment_b_path_free_recovery_excludes_route_style_research_rows() {
+        let rows = experiment_b_path_free_recovery_rows(41).expect("rows");
+
+        assert!(rows.iter().all(|row| {
+            !row.identity.policy_or_mode.contains("route")
+                && !row.identity.policy_or_mode.contains("field-corridor")
+                && !row.identity.policy_or_mode.contains("legacy")
+        }));
+        assert!(rows.iter().all(|row| {
+            row.mergeable_statistic.statistic_kind == MergeableStatisticKind::SetUnionRank
+        }));
     }
 }
