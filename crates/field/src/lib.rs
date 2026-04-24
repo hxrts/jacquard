@@ -69,19 +69,20 @@ pub use choreography::{
     FieldRoundDisposition,
 };
 pub use research::{
-    reduce_landscape_updates, AnomalyClusterId, AnomalyDecisionGuard, AnomalyEvidenceClass,
-    AnomalyHypothesisScore, AnomalyHypothesisSet, AnomalyLandscape, AnomalyLandscapeError,
-    AnomalyLandscapeSummary, CodedEvidenceId, CodedEvidenceRecord, CodedEvidenceRecordError,
-    CodedEvidenceRecordInput, CodedEvidenceValidity, CodedTargetId, CodingRankId, CodingWindow,
-    ContributionLedgerId, ContributionLedgerKind, ContributionLedgerRecord,
-    ContributionLedgerRecordError, ContributionLedgerRecordInput, DelayedFragmentEvent,
-    DiffusionFragmentId, DiffusionMessageId, DiffusionOrderParameters, DiffusionPressure,
-    EvidenceOriginMode, EvidenceVectorBatch, EvidenceVectorRecord, EvidenceVectorRecordError,
-    FragmentArrivalClass, FragmentCustody, FragmentReplayEvent, FragmentRetentionPolicy,
-    FragmentSpreadBelief, InferenceTaskId, LandscapeUpdateError, LandscapeUpdateEvent,
-    LandscapeUpdateOutcome, LocalObservationId, NearCriticalControlState, PayloadBudgetError,
-    PayloadBudgetKind, PayloadBudgetMetadata, PrivateProtocolRole, ReceiverRankError,
-    ReceiverRankState, ReconstructionQuorum, ANOMALY_HYPOTHESIS_COUNT_MAX,
+    reduce_landscape_updates, AnomalyClusterId, AnomalyDecisionGuard,
+    AnomalyDecisionProgressSummary, AnomalyEvidenceClass, AnomalyHypothesisScore,
+    AnomalyHypothesisSet, AnomalyLandscape, AnomalyLandscapeError, AnomalyLandscapeSummary,
+    CodedEvidenceId, CodedEvidenceRecord, CodedEvidenceRecordError, CodedEvidenceRecordInput,
+    CodedEvidenceValidity, CodedTargetId, CodingRankId, CodingWindow, ContributionLedgerId,
+    ContributionLedgerKind, ContributionLedgerRecord, ContributionLedgerRecordError,
+    ContributionLedgerRecordInput, DecisionCommitmentError, DecisionCommitmentState,
+    DelayedFragmentEvent, DiffusionFragmentId, DiffusionMessageId, DiffusionOrderParameters,
+    DiffusionPressure, EvidenceOriginMode, EvidenceVectorBatch, EvidenceVectorRecord,
+    EvidenceVectorRecordError, FragmentArrivalClass, FragmentCustody, FragmentReplayEvent,
+    FragmentRetentionPolicy, FragmentSpreadBelief, InferenceTaskId, LandscapeUpdateError,
+    LandscapeUpdateEvent, LandscapeUpdateOutcome, LocalObservationId, NearCriticalControlState,
+    PayloadBudgetError, PayloadBudgetKind, PayloadBudgetMetadata, PrivateProtocolRole,
+    ReceiverRankError, ReceiverRankState, ReconstructionQuorum, ANOMALY_HYPOTHESIS_COUNT_MAX,
 };
 
 /// Baseline-only corridor-routing compatibility exports.

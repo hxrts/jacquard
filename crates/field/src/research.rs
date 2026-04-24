@@ -643,6 +643,15 @@ pub enum LandscapeUpdateError {
     ReceiverRankUpdateFailed,
 }
 
+/// Validation failure for anomaly decision commitment.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum DecisionCommitmentError {
+    /// Commitment state must belong to the landscape inference task.
+    TaskMismatch,
+    /// Commitment state must belong to the landscape coded target.
+    TargetMismatch,
+}
+
 /// One deterministic integer score for one anomaly hypothesis.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AnomalyHypothesisScore {
@@ -866,6 +875,111 @@ pub struct LandscapeUpdateOutcome {
     pub innovative_update_count: u16,
     /// Number of duplicate updates that left scores unchanged.
     pub duplicate_update_count: u16,
+}
+
+/// Idempotent decision-commitment state for one anomaly landscape.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DecisionCommitmentState {
+    /// Inference task governed by this commitment state.
+    pub task_id: InferenceTaskId,
+    /// Coded target governed by this commitment state.
+    pub target_id: CodedTargetId,
+    /// Hypothesis committed by the first successful check.
+    pub committed_hypothesis: Option<AnomalyClusterId>,
+    /// Tick when margin and independent-evidence guard first passed.
+    pub committed_at_tick: Option<Tick>,
+    /// Quality summary observed at the first successful commitment.
+    pub summary_at_commitment: Option<AnomalyLandscapeSummary>,
+}
+
+impl DecisionCommitmentState {
+    /// Construct empty commitment state for one landscape.
+    #[must_use]
+    pub fn new(task_id: InferenceTaskId, target_id: CodedTargetId) -> Self {
+        Self {
+            task_id,
+            target_id,
+            committed_hypothesis: None,
+            committed_at_tick: None,
+            summary_at_commitment: None,
+        }
+    }
+
+    /// Record the first commitment tick when both declared guards pass.
+    pub fn check_commitment(
+        &mut self,
+        landscape: &AnomalyLandscape,
+        receiver_rank: &ReceiverRankState,
+        observed_at_tick: Tick,
+    ) -> Result<Option<Tick>, DecisionCommitmentError> {
+        self.validate_landscape(landscape)?;
+        if self.committed_at_tick.is_some() {
+            return Ok(self.committed_at_tick);
+        }
+        if receiver_rank.independent_rank < landscape.decision_guard.minimum_independent_evidence {
+            return Ok(None);
+        }
+        if landscape.summary.top_hypothesis_margin < landscape.decision_guard.margin_threshold {
+            return Ok(None);
+        }
+
+        self.committed_hypothesis = Some(landscape.summary.top_hypothesis);
+        self.committed_at_tick = Some(observed_at_tick);
+        self.summary_at_commitment = Some(landscape.summary);
+        Ok(self.committed_at_tick)
+    }
+
+    fn validate_landscape(
+        self,
+        landscape: &AnomalyLandscape,
+    ) -> Result<(), DecisionCommitmentError> {
+        if self.task_id != landscape.hypotheses.task_id {
+            return Err(DecisionCommitmentError::TaskMismatch);
+        }
+        if self.target_id != landscape.hypotheses.target_id {
+            return Err(DecisionCommitmentError::TargetMismatch);
+        }
+        Ok(())
+    }
+}
+
+/// Point-in-time inference progress separate from exact reconstruction.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AnomalyDecisionProgressSummary {
+    /// Inference task represented by this summary.
+    pub task_id: InferenceTaskId,
+    /// Coded target represented by this summary.
+    pub target_id: CodedTargetId,
+    /// Receiver whose rank is summarized.
+    pub receiver: NodeId,
+    /// Current independent receiver rank.
+    pub receiver_rank: u16,
+    /// Exact reconstruction tick from Phase 1 receiver state.
+    pub reconstructed_at_tick: Option<Tick>,
+    /// Decision commitment tick from Phase 2 commitment state.
+    pub committed_at_tick: Option<Tick>,
+    /// Current landscape quality, available before reconstruction or commitment.
+    pub landscape_summary: AnomalyLandscapeSummary,
+}
+
+impl AnomalyDecisionProgressSummary {
+    /// Build a progress summary without mutating rank, landscape, or commitment state.
+    pub fn from_state(
+        landscape: &AnomalyLandscape,
+        receiver_rank: &ReceiverRankState,
+        commitment: &DecisionCommitmentState,
+    ) -> Result<Self, DecisionCommitmentError> {
+        commitment.validate_landscape(landscape)?;
+        Ok(Self {
+            task_id: landscape.hypotheses.task_id,
+            target_id: landscape.hypotheses.target_id,
+            receiver: receiver_rank.receiver,
+            receiver_rank: receiver_rank.independent_rank,
+            reconstructed_at_tick: receiver_rank.reconstructed_at_tick,
+            committed_at_tick: commitment.committed_at_tick,
+            landscape_summary: landscape.summary,
+        })
+    }
 }
 
 impl EvidenceVectorBatch {
@@ -1931,6 +2045,151 @@ mod tests {
                 .map(|outcome| outcome.innovative_update_count),
             Err(LandscapeUpdateError::DuplicateContributionUpdate)
         );
+    }
+
+    #[test]
+    fn commitment_can_occur_before_exact_reconstruction() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 24), (4, 4)]),
+            AnomalyDecisionGuard::try_new(12, 2).expect("decision guard"),
+        )
+        .expect("anomaly landscape");
+        let mut receiver_rank =
+            ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 5)
+                .expect("receiver rank");
+        receiver_rank
+            .record_contribution_arrival(ContributionLedgerId(3), Tick(20))
+            .expect("first contribution");
+        receiver_rank
+            .record_contribution_arrival(ContributionLedgerId(4), Tick(21))
+            .expect("second contribution");
+        let mut commitment = DecisionCommitmentState::new(
+            landscape.hypotheses.task_id,
+            landscape.hypotheses.target_id,
+        );
+
+        assert_eq!(
+            commitment.check_commitment(&landscape, &receiver_rank, Tick(22)),
+            Ok(Some(Tick(22)))
+        );
+        assert_eq!(receiver_rank.reconstructed_at_tick, None);
+        assert_eq!(commitment.committed_hypothesis, Some(AnomalyClusterId(3)));
+    }
+
+    #[test]
+    fn reconstruction_can_occur_without_decision_commitment() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 1), (2, 0), (3, 1), (4, 0)]),
+            AnomalyDecisionGuard::try_new(10, 1).expect("decision guard"),
+        )
+        .expect("anomaly landscape");
+        let mut receiver_rank =
+            ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 2)
+                .expect("receiver rank");
+        receiver_rank
+            .record_contribution_arrival(ContributionLedgerId(3), Tick(20))
+            .expect("first contribution");
+        receiver_rank
+            .record_contribution_arrival(ContributionLedgerId(4), Tick(21))
+            .expect("second contribution");
+        let mut commitment = DecisionCommitmentState::new(
+            landscape.hypotheses.task_id,
+            landscape.hypotheses.target_id,
+        );
+
+        assert!(receiver_rank.is_reconstructed());
+        assert_eq!(
+            commitment.check_commitment(&landscape, &receiver_rank, Tick(22)),
+            Ok(None)
+        );
+        assert_eq!(commitment.committed_at_tick, None);
+    }
+
+    #[test]
+    fn commitment_requires_minimum_independent_evidence_guard() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 30), (4, 1)]),
+            AnomalyDecisionGuard::try_new(12, 2).expect("decision guard"),
+        )
+        .expect("anomaly landscape");
+        let mut receiver_rank =
+            ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 5)
+                .expect("receiver rank");
+        receiver_rank
+            .record_contribution_arrival(ContributionLedgerId(3), Tick(20))
+            .expect("first contribution");
+        let mut commitment = DecisionCommitmentState::new(
+            landscape.hypotheses.task_id,
+            landscape.hypotheses.target_id,
+        );
+
+        assert_eq!(
+            commitment.check_commitment(&landscape, &receiver_rank, Tick(21)),
+            Ok(None)
+        );
+        assert_eq!(commitment.committed_at_tick, None);
+    }
+
+    #[test]
+    fn repeated_commitment_checks_preserve_first_tick() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 0), (2, 0), (3, 24), (4, 4)]),
+            AnomalyDecisionGuard::try_new(12, 1).expect("decision guard"),
+        )
+        .expect("anomaly landscape");
+        let mut receiver_rank =
+            ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 5)
+                .expect("receiver rank");
+        receiver_rank
+            .record_contribution_arrival(ContributionLedgerId(3), Tick(20))
+            .expect("first contribution");
+        let mut commitment = DecisionCommitmentState::new(
+            landscape.hypotheses.task_id,
+            landscape.hypotheses.target_id,
+        );
+
+        assert_eq!(
+            commitment.check_commitment(&landscape, &receiver_rank, Tick(21)),
+            Ok(Some(Tick(21)))
+        );
+        assert_eq!(
+            commitment.check_commitment(&landscape, &receiver_rank, Tick(30)),
+            Ok(Some(Tick(21)))
+        );
+        assert_eq!(commitment.committed_at_tick, Some(Tick(21)));
+    }
+
+    #[test]
+    fn decision_progress_summary_reports_quality_before_thresholds() {
+        let landscape = AnomalyLandscape::try_new(
+            anomaly_hypotheses(),
+            anomaly_scores(&[(0, 0), (1, 4), (2, 0), (3, 9), (4, 1)]),
+            AnomalyDecisionGuard::try_new(12, 2).expect("decision guard"),
+        )
+        .expect("anomaly landscape");
+        let receiver_rank = ReceiverRankState::try_new(DiffusionMessageId(id16(1)), node_id(7), 5)
+            .expect("receiver rank");
+        let commitment = DecisionCommitmentState::new(
+            landscape.hypotheses.task_id,
+            landscape.hypotheses.target_id,
+        );
+
+        let summary =
+            AnomalyDecisionProgressSummary::from_state(&landscape, &receiver_rank, &commitment)
+                .expect("progress summary");
+
+        assert_eq!(summary.receiver_rank, 0);
+        assert_eq!(summary.reconstructed_at_tick, None);
+        assert_eq!(summary.committed_at_tick, None);
+        assert_eq!(
+            summary.landscape_summary.top_hypothesis,
+            AnomalyClusterId(3)
+        );
+        assert_eq!(summary.landscape_summary.top_hypothesis_margin, 5);
     }
 
     #[test]
