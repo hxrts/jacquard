@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::model::CodedInferenceReadinessScenario;
 
+mod epidemic;
 mod uncoded;
 
 pub(crate) const BASELINE_ARTIFACT_NAMESPACE: &str = "artifacts/coded-inference/baselines";
