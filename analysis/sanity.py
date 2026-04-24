@@ -83,6 +83,18 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
         "unrecovered_after_loss_count_mean",
         "repair_metric_status",
     ),
+    "observer_ambiguity_summary.csv": (
+        "observer_projection_identity",
+        "attacker_target",
+        "fragment_dispersion_permille",
+        "attacker_top1_accuracy_permille",
+        "posterior_uncertainty_permille",
+        "hidden_projection_proxy_permille",
+        "ambiguity_cost_frontier_area",
+        "cost_bytes",
+        "latency_rounds",
+        "quality_permille",
+    ),
 }
 
 
@@ -105,6 +117,7 @@ HEADLINE_SERIES: dict[str, tuple[str, ...]] = {
         "route_present_total_window_permille_mean",
     ),
     "diffusion_engine_comparison.csv": ("delivery_probability_permille_mean",),
+    "observer_ambiguity_summary.csv": ("hidden_projection_proxy_permille",),
 }
 
 
@@ -120,6 +133,10 @@ FIGURE_DATASETS: dict[str, str] = {
     "routing_fitness_stale_repair": "routing_fitness_stale_repair_summary.csv",
     "diffusion_delivery_coverage": "diffusion_engine_comparison.csv",
     "diffusion_resource_boundedness": "diffusion_engine_comparison.csv",
+    "observer_attacker_advantage": "observer_ambiguity_summary.csv",
+    "observer_uncertainty": "observer_ambiguity_summary.csv",
+    "observer_ambiguity_cost_frontier": "observer_ambiguity_summary.csv",
+    "observer_dispersion_cost_latency": "observer_ambiguity_summary.csv",
 }
 
 MERCATOR_REQUIRED_FIGURES = {
@@ -146,6 +163,11 @@ PERMILLE_COLUMN_TOKENS = (
     "delivery_probability",
     "objective_route_presence",
     "observer_leakage",
+    "attacker_top1_accuracy",
+    "hidden_projection_proxy",
+    "posterior_uncertainty",
+    "forwarding_contact_proxy",
+    "quality",
     "recovery_success",
     "route_present",
     "storage_utilization",
@@ -159,7 +181,9 @@ NONNEGATIVE_COLUMN_TOKENS = (
     "_round",
     "_rounds",
     "churn",
+    "cost_bytes",
     "energy",
+    "latency_rounds",
     "run_count",
     "stress_score",
     "transmissions",

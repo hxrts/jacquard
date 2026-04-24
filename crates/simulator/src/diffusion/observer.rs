@@ -2,12 +2,15 @@
 
 #![allow(dead_code)]
 
+mod artifacts;
 mod attacker;
 mod metrics;
 mod projection;
 mod robustness;
 mod sweep;
 
+#[allow(unused_imports)]
+pub(crate) use artifacts::{observer_artifact_rows, ObserverArtifactBundle, ObserverArtifactRow};
 #[allow(unused_imports)]
 pub(crate) use attacker::{
     run_observer_attacker, ObserverAttackerConfig, ObserverAttackerHypothesisScore,
