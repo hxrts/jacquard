@@ -8,8 +8,14 @@ use serde::{Deserialize, Serialize};
 
 use super::coded_inference::{CodedArrivalClassification, CodedContactTraceEvent};
 
+mod reducer;
 mod score;
 
+#[allow(unused_imports)]
+pub(crate) use reducer::{
+    reduce_local_policy_forwarding, LocalPolicyDecisionRecord, LocalPolicyFragmentCandidate,
+    LocalPolicyPeerCandidate, LocalPolicyReducerBudget, LocalPolicyRejectionReason,
+};
 #[allow(unused_imports)]
 pub(crate) use score::{
     compare_scored_candidates, local_policy_score_from_input, LocalPolicyScoreBreakdown,
