@@ -8,7 +8,7 @@ use super::{
 };
 
 #[allow(dead_code)]
-pub(super) fn build_coded_inference_readiness_scenario() -> CodedInferenceReadinessScenario {
+pub(crate) fn build_coded_inference_readiness_scenario() -> CodedInferenceReadinessScenario {
     let cluster_count = 5;
     let hidden_anomaly_cluster_id = 3;
     let mut nodes = clustered_nodes_with_strides(100, cluster_count, true, 17, 23);

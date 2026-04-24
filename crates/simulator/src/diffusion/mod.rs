@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 mod catalog;
+mod coded_inference;
 mod model;
 mod posture;
 mod runtime;
