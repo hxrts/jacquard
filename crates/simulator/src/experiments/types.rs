@@ -29,6 +29,7 @@ pub(super) const NODE_D: NodeId = NodeId([4; 32]);
 pub(super) const NODE_E: NodeId = NodeId([5; 32]);
 pub(super) const NODE_F: NodeId = NodeId([6; 32]);
 pub(super) type FieldBootstrapSeed = (NodeId, u16, u8, u8, Option<u16>);
+pub const ROUTE_VISIBLE_ARTIFACT_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Error)]
 pub enum ExperimentError {
@@ -1345,12 +1346,18 @@ pub struct ExperimentBreakdownSummary {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ExperimentManifest {
+    #[serde(default = "default_route_visible_artifact_schema_version")]
+    pub schema_version: u32,
     pub suite_id: String,
     pub generated_at_unix_seconds: u64,
     pub run_count: u32,
     pub aggregate_count: u32,
     pub breakdown_count: u32,
     pub model_artifact_count: u32,
+}
+
+fn default_route_visible_artifact_schema_version() -> u32 {
+    ROUTE_VISIBLE_ARTIFACT_SCHEMA_VERSION
 }
 
 #[derive(Clone, Debug)]

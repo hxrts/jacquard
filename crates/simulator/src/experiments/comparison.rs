@@ -1710,6 +1710,7 @@ fn mixed_multi_flow_shared_corridor_objectives() -> Vec<BoundObjective> {
     ]
 }
 
+// long-block-exception: topology fixture keeps the full multi-flow corridor shape explicit.
 fn mixed_multi_flow_shared_corridor_topology() -> Observation<Configuration> {
     routing_observation(Configuration {
         epoch: RouteEpoch(1),

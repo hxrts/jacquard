@@ -178,3 +178,4 @@ mod tests {
         assert!(first.quality_permille > 0);
     }
 }
+// proc-macro-scope: observer robustness rows are replay schema, not shared model vocabulary.

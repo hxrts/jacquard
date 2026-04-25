@@ -204,3 +204,4 @@ mod tests {
         assert_eq!(ambiguity_cost_frontier_area(&points), 81_600);
     }
 }
+// proc-macro-scope: observer metric rows are replay schema, not shared model vocabulary.

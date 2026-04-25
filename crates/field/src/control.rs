@@ -1,4 +1,5 @@
 //! Control plane: regime observation, posture selection, and PI price updates.
+// long-file-exception: control policy, regime scoring, posture selection, and PI update logic currently form one cohesive controller surface.
 //!
 //! Measures network pressure signals from topology observations — congestion,
 //! relay load, retention demand, churn rate, and adversarial risk — and
@@ -21,10 +22,6 @@
 //! duplicate pressure, and rank deficit in the research boundary. Existing
 //! route posture names remain baseline-only until the controller is fully
 //! retargeted.
-// long-file-exception: control policy, regime scoring, posture selection, and
-// PI update logic currently form one cohesive controller surface; splitting
-// before the next controller/module pass would obscure the shared state flow.
-
 use jacquard_core::{Configuration, NodeId, Tick};
 
 use crate::state::{

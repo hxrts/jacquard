@@ -8,6 +8,7 @@ use super::{
 };
 
 #[allow(dead_code)]
+// long-block-exception: scenario fixture keeps all coded-inference dimensions in one auditable constructor.
 pub(crate) fn build_coded_inference_readiness_scenario() -> CodedInferenceReadinessScenario {
     let cluster_count = 5;
     let hidden_anomaly_cluster_id = 3;
@@ -722,6 +723,7 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: fixture validates the full route-independent coded-inference scenario contract.
     fn coded_inference_readiness_scenario_is_deterministic_and_route_independent() {
         let first = build_coded_inference_readiness_scenario();
         let second = build_coded_inference_readiness_scenario();

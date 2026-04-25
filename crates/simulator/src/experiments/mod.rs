@@ -77,5 +77,5 @@ pub use summary::{aggregate_runs, summarize_breakdowns};
 pub use types::{
     ExperimentAggregateSummary, ExperimentArtifacts, ExperimentBreakdownSummary, ExperimentError,
     ExperimentManifest, ExperimentModelArtifact, ExperimentParameterSet, ExperimentRunSummary,
-    ExperimentSuite, RegimeDescriptor,
+    ExperimentSuite, RegimeDescriptor, ROUTE_VISIBLE_ARTIFACT_SCHEMA_VERSION,
 };

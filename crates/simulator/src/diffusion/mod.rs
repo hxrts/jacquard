@@ -10,15 +10,13 @@ mod local_policy;
 mod model;
 mod near_critical;
 mod observer;
+mod paper;
 mod posture;
 mod runtime;
 mod scoring;
 mod stats;
 
-use model::{
-    DiffusionContactEvent, DiffusionFieldPosture, DiffusionMessageMode, DiffusionMobilityProfile,
-    DiffusionNodeSpec, DiffusionScenarioSpec, DiffusionTransportKind,
-};
+use model::{DiffusionContactEvent, DiffusionFieldPosture, DiffusionScenarioSpec};
 #[allow(unused_imports)]
 use posture::{
     classify_field_transfer, compute_field_posture_signals, count_field_posture_round,
@@ -47,9 +45,15 @@ use runtime::{
 
 pub use catalog::{diffusion_local_stage_suite, diffusion_local_suite, diffusion_smoke_suite};
 pub use model::{
-    DiffusionAggregateSummary, DiffusionArtifacts, DiffusionBoundarySummary,
-    DiffusionForwardingStyle, DiffusionManifest, DiffusionPolicyConfig, DiffusionRegimeDescriptor,
-    DiffusionRunSummary, DiffusionSuite,
+    CustomDiffusionRunSpec, CustomDiffusionScenarioSpec, DiffusionAggregateSummary,
+    DiffusionArtifacts, DiffusionBoundarySummary, DiffusionForwardingStyle, DiffusionManifest,
+    DiffusionMessageMode, DiffusionMobilityProfile, DiffusionNodeSpec, DiffusionPolicyConfig,
+    DiffusionRegimeDescriptor, DiffusionRunSummary, DiffusionSuite, DiffusionSuiteBuildError,
+    DiffusionTransportKind, DIFFUSION_ARTIFACT_SCHEMA_VERSION,
+};
+pub use paper::{
+    active_belief_artifact_contract, PaperExperimentArtifactContract,
+    ACTIVE_BELIEF_REQUIRED_CSV_FILES,
 };
 pub use runtime::{aggregate_diffusion_runs, run_diffusion_suite, summarize_diffusion_boundaries};
 

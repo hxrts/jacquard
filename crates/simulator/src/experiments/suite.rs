@@ -492,7 +492,7 @@ fn build_pathway_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experim
     expand_runs(suite_id, "pathway", seeds, &parameter_sets, &families)
 }
 
-// long-block-exception: the legacy Field family catalog is kept in one function
+// long-block-exception: the Field family catalog is kept in one function
 // so historical corridor-specific tuning artifacts remain auditable in one place.
 #[allow(dead_code)]
 fn build_field_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {

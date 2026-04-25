@@ -232,3 +232,4 @@ mod tests {
         assert_eq!(first, second);
     }
 }
+// proc-macro-scope: observer sweep rows are replay schema, not shared model vocabulary.

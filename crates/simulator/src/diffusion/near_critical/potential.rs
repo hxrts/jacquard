@@ -268,3 +268,4 @@ mod tests {
         assert_eq!(row, row);
     }
 }
+// proc-macro-scope: near-critical potential rows are artifact schema, not shared model vocabulary.

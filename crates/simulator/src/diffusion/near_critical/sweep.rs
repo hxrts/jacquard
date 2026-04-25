@@ -223,7 +223,7 @@ mod tests {
         let second = run_near_critical_sweep(41);
 
         assert_eq!(first, second);
-        assert_eq!(first.len(), 18);
+        assert_eq!(first.len(), 36);
     }
 
     #[test]
@@ -320,3 +320,4 @@ mod tests {
         assert_ne!(full.emitted_opportunities, ablation.emitted_opportunities);
     }
 }
+// proc-macro-scope: near-critical sweep rows are artifact schema, not shared model vocabulary.

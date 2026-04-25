@@ -132,8 +132,9 @@ mod tests {
         let second = near_critical_artifact_rows(41);
 
         assert_eq!(first, second);
-        assert_eq!(first.summary.row_count, 18);
+        assert_eq!(first.summary.row_count, 36);
         assert!(first.summary.w_infer_max > 0);
         assert!(first.summary.w_diff_max > 0);
     }
 }
+// proc-macro-scope: near-critical artifact rows are replay schema, not shared model vocabulary.

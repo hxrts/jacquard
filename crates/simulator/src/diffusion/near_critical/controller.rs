@@ -290,3 +290,4 @@ mod tests {
         assert_eq!(first, second);
     }
 }
+// proc-macro-scope: near-critical controller records are artifact schema, not shared model vocabulary.

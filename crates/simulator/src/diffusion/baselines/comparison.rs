@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     coded::{
         run_controlled_coded_diffusion_baseline, run_uncontrolled_coded_diffusion_baseline,
-        summarize_coded_diffusion_baseline,
+        summarize_coded_diffusion_baseline, CodedBaselineControl,
     },
     epidemic::{
         run_epidemic_forwarding_baseline, summarize_epidemic_forwarding_baseline,
@@ -153,7 +153,12 @@ fn run_uncontrolled(
 ) -> Result<BaselineRunSummary, BaselineContractError> {
     let input = comparison_input(seed, BaselinePolicyId::UncontrolledCodedDiffusion, budget)?;
     let (log, readiness_log) = run_uncontrolled_coded_diffusion_baseline(&input)?;
-    summarize_coded_diffusion_baseline(&input, &log, &readiness_log, false)
+    summarize_coded_diffusion_baseline(
+        &input,
+        &log,
+        &readiness_log,
+        CodedBaselineControl::Uncontrolled,
+    )
 }
 
 fn run_controlled(
@@ -162,7 +167,12 @@ fn run_controlled(
 ) -> Result<BaselineRunSummary, BaselineContractError> {
     let input = comparison_input(seed, BaselinePolicyId::ControlledCodedDiffusion, budget)?;
     let (log, readiness_log) = run_controlled_coded_diffusion_baseline(&input)?;
-    summarize_coded_diffusion_baseline(&input, &log, &readiness_log, true)
+    summarize_coded_diffusion_baseline(
+        &input,
+        &log,
+        &readiness_log,
+        CodedBaselineControl::Controlled,
+    )
 }
 
 fn run_local_policy(
@@ -321,3 +331,4 @@ mod tests {
         assert!(!serialized.contains("routing_analysis_filter_id"));
     }
 }
+// proc-macro-scope: baseline comparison rows are artifact schema, not shared model vocabulary.

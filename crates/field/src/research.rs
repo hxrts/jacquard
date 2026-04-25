@@ -1,9 +1,11 @@
 //! Coded-diffusion research-path boundary.
+// long-file-exception: the research-path boundary keeps artifact schema, reducers, and proof-facing fixtures together while the paper extraction surface is stabilized.
+// proc-macro-scope: research replay schema uses serde derives for artifact contracts, not shared model macros.
 //!
 //! This module is the feature-neutral namespace for the experimental coded
 //! reconstruction path. It owns only fragment movement, rank, custody,
 //! duplicate/innovative arrivals, diffusion pressure, and reconstruction
-//! quorum vocabulary. It must remain independent of the legacy planner stack.
+//! quorum vocabulary. It must remain independent of the route planner stack.
 
 use jacquard_core::{DurationMs, NodeId, Tick};
 use serde::{Deserialize, Serialize};
@@ -1177,7 +1179,7 @@ pub struct ActiveDemandSummaryInput {
     /// Declared maximum encoded demand bytes.
     pub byte_cap: u32,
     /// Demand lifetime as typed duration, not raw wall-clock time.
-    pub ttl: DurationMs,
+    pub ttl_duration_ms: DurationMs,
     /// Tick when the demand summary was issued.
     pub issued_at_tick: Tick,
     /// Last tick where this demand may shape priority or custody.
@@ -1200,7 +1202,7 @@ pub struct ActiveDemandSummary {
     /// Declared maximum encoded demand bytes.
     pub byte_cap: u32,
     /// Demand lifetime as typed duration.
-    pub ttl: DurationMs,
+    pub ttl_duration_ms: DurationMs,
     /// Tick when the demand summary was issued.
     pub issued_at_tick: Tick,
     /// Last tick where this demand may shape priority or custody.
@@ -1215,7 +1217,7 @@ impl ActiveDemandSummary {
         validate_demand_caps(
             input.entry_cap,
             input.byte_cap,
-            input.ttl,
+            input.ttl_duration_ms,
             input.issued_at_tick,
             input.expires_at_tick,
         )?;
@@ -1238,7 +1240,7 @@ impl ActiveDemandSummary {
             entries: input.entries,
             entry_cap: input.entry_cap,
             byte_cap: input.byte_cap,
-            ttl: input.ttl,
+            ttl_duration_ms: input.ttl_duration_ms,
             issued_at_tick: input.issued_at_tick,
             expires_at_tick: input.expires_at_tick,
             encoded_bytes,
@@ -1248,7 +1250,7 @@ impl ActiveDemandSummary {
     /// Whether this demand summary is still live.
     #[must_use]
     pub fn is_live(&self) -> bool {
-        self.ttl.0 > 0
+        self.ttl_duration_ms.0 > 0
     }
 
     /// Whether this demand summary may still shape priority at the observed tick.
@@ -1342,7 +1344,7 @@ pub struct ActiveDemandGenerationInput {
     /// Declared maximum encoded demand bytes.
     pub byte_cap: u32,
     /// Demand lifetime as typed duration.
-    pub ttl: DurationMs,
+    pub ttl_duration_ms: DurationMs,
     /// Tick when the demand summary is issued.
     pub issued_at_tick: Tick,
     /// Last tick where this demand may shape priority or custody.
@@ -1379,7 +1381,7 @@ pub fn generate_active_demand_summary(
         entries,
         entry_cap: input.entry_cap,
         byte_cap: input.byte_cap,
-        ttl: input.ttl,
+        ttl_duration_ms: input.ttl_duration_ms,
         issued_at_tick: input.issued_at_tick,
         expires_at_tick: input.expires_at_tick,
     })
@@ -1431,6 +1433,23 @@ pub enum ActiveDemandExecutionSurface {
     HostBridgeReplay,
 }
 
+/// Replay visibility state for host/bridge demand records.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct ReplayVisibility(bool);
+
+impl ReplayVisibility {
+    /// Replay-visible demand record.
+    pub const VISIBLE: Self = Self(true);
+    /// Non-visible record used only to validate fail-closed construction.
+    pub const HIDDEN: Self = Self(false);
+
+    #[must_use]
+    pub fn is_visible(self) -> bool {
+        self.0
+    }
+}
+
 /// Construction failure for propagated host/bridge demand records.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum PropagatedDemandRecordError {
@@ -1456,7 +1475,7 @@ pub struct PropagatedDemandRecord {
     /// Demand message carried by the bridge.
     pub message: ActiveBeliefMessage,
     /// Demand records must remain replay-visible.
-    pub replay_visible: bool,
+    pub visibility: ReplayVisibility,
 }
 
 impl PropagatedDemandRecord {
@@ -1466,12 +1485,12 @@ impl PropagatedDemandRecord {
         bridge_batch_id: u32,
         ingress_tick: Tick,
         message: ActiveBeliefMessage,
-        replay_visible: bool,
+        visibility: ReplayVisibility,
     ) -> Result<Self, PropagatedDemandRecordError> {
         if execution_surface != ActiveDemandExecutionSurface::HostBridgeReplay {
             return Err(PropagatedDemandRecordError::NotHostBridgeReplay);
         }
-        if !replay_visible {
+        if !visibility.is_visible() {
             return Err(PropagatedDemandRecordError::NotReplayVisible);
         }
         if !message.is_demand_summary() {
@@ -1485,7 +1504,7 @@ impl PropagatedDemandRecord {
             bridge_batch_id,
             ingress_tick,
             message,
-            replay_visible,
+            visibility,
         })
     }
 }
@@ -1609,7 +1628,7 @@ impl ReceiverInferenceQualitySummary {
 fn validate_demand_caps(
     entry_cap: u16,
     byte_cap: u32,
-    ttl: DurationMs,
+    ttl_duration_ms: DurationMs,
     issued_at_tick: Tick,
     expires_at_tick: Tick,
 ) -> Result<(), ActiveDemandSummaryError> {
@@ -1622,7 +1641,7 @@ fn validate_demand_caps(
     if byte_cap == 0 {
         return Err(ActiveDemandSummaryError::ZeroByteCap);
     }
-    if ttl.0 == 0 {
+    if ttl_duration_ms.0 == 0 {
         return Err(ActiveDemandSummaryError::ZeroTimeToLive);
     }
     if expires_at_tick <= issued_at_tick {
@@ -2198,18 +2217,32 @@ pub struct FragmentRetentionPolicy {
     pub evict_duplicates_first: bool,
 }
 
+/// Duplicate eviction preference for bounded fragment retention.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum FragmentEvictionPreference {
+    DuplicatesFirst,
+    PreserveArrivalOrder,
+}
+
+impl FragmentEvictionPreference {
+    #[must_use]
+    fn evicts_duplicates_first(self) -> bool {
+        matches!(self, Self::DuplicatesFirst)
+    }
+}
+
 impl FragmentRetentionPolicy {
     /// Construct a normalized bounded retention policy.
     #[must_use]
     pub fn new(
         fragment_budget: u16,
         custody_threshold_permille: u16,
-        evict_duplicates_first: bool,
+        eviction_preference: FragmentEvictionPreference,
     ) -> Self {
         Self {
             fragment_budget,
             custody_threshold_permille: custody_threshold_permille.min(1000),
-            evict_duplicates_first,
+            evict_duplicates_first: eviction_preference.evicts_duplicates_first(),
         }
     }
 }
@@ -2321,7 +2354,7 @@ mod tests {
             entries: vec![demand_entry(2, 50), demand_entry(1, 80)],
             entry_cap: 4,
             byte_cap: 64,
-            ttl: DurationMs(250),
+            ttl_duration_ms: DurationMs(250),
             issued_at_tick: Tick(10),
             expires_at_tick: Tick(20),
         })
@@ -2398,7 +2431,7 @@ mod tests {
             entries: vec![demand_entry(1, 50), demand_entry(1, 80)],
             entry_cap: 4,
             byte_cap: 64,
-            ttl: DurationMs(250),
+            ttl_duration_ms: DurationMs(250),
             issued_at_tick: Tick(1),
             expires_at_tick: Tick(2),
         });
@@ -2408,7 +2441,7 @@ mod tests {
         );
 
         let expired = ActiveDemandSummary::try_new(ActiveDemandSummaryInput {
-            ttl: DurationMs(0),
+            ttl_duration_ms: DurationMs(0),
             entries: vec![demand_entry(1, 50)],
             target_id: CodedTargetId(10),
             task_id: InferenceTaskId(20),
@@ -2421,7 +2454,7 @@ mod tests {
         assert_eq!(expired, Err(ActiveDemandSummaryError::ZeroTimeToLive));
 
         let stale_at_issue = ActiveDemandSummary::try_new(ActiveDemandSummaryInput {
-            ttl: DurationMs(250),
+            ttl_duration_ms: DurationMs(250),
             entries: vec![demand_entry(1, 50)],
             target_id: CodedTargetId(10),
             task_id: InferenceTaskId(20),
@@ -2485,7 +2518,7 @@ mod tests {
             42,
             Tick(10),
             demand,
-            true,
+            ReplayVisibility::VISIBLE,
         )
         .expect("propagated demand");
 
@@ -2493,7 +2526,7 @@ mod tests {
             record.execution_surface,
             ActiveDemandExecutionSurface::HostBridgeReplay
         );
-        assert!(record.replay_visible);
+        assert_eq!(record.visibility, ReplayVisibility::VISIBLE);
         assert_eq!(record.bridge_batch_id, 42);
         assert!(record.message.contribution_ledger_ids().is_empty());
 
@@ -2504,7 +2537,7 @@ mod tests {
                 42,
                 Tick(10),
                 evidence,
-                true,
+                ReplayVisibility::VISIBLE,
             ),
             Err(PropagatedDemandRecordError::MissingDemandSummary)
         );
@@ -2514,7 +2547,7 @@ mod tests {
                 42,
                 Tick(10),
                 ActiveBeliefMessage::DemandSummary(demand_summary()),
-                true,
+                ReplayVisibility::VISIBLE,
             ),
             Err(PropagatedDemandRecordError::NotHostBridgeReplay)
         );
@@ -2549,7 +2582,7 @@ mod tests {
             coverage_gap_permille: 700,
             entry_cap: 4,
             byte_cap: 64,
-            ttl: DurationMs(250),
+            ttl_duration_ms: DurationMs(250),
             issued_at_tick: Tick(5),
             expires_at_tick: Tick(9),
         })
@@ -2575,7 +2608,7 @@ mod tests {
             coverage_gap_permille: 0,
             entry_cap: 4,
             byte_cap: 64,
-            ttl: DurationMs(250),
+            ttl_duration_ms: DurationMs(250),
             issued_at_tick: Tick(5),
             expires_at_tick: Tick(9),
         });
@@ -3282,6 +3315,7 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: fixture asserts the full quality-summary accounting contract in one place.
     fn quality_summary_distinguishes_reconstruction_commitment_and_duplicates() {
         let landscape = AnomalyLandscape::try_new(
             anomaly_hypotheses(),
@@ -3373,6 +3407,7 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: fixture enumerates all origin counters in the public summary contract.
     fn quality_summary_counts_source_local_and_recoded_origins() {
         let before = AnomalyLandscapeSummary {
             top_hypothesis: AnomalyClusterId(3),
@@ -4157,7 +4192,7 @@ mod tests {
     #[test]
     fn retention_policy_clamps_custody_threshold() {
         assert_eq!(
-            FragmentRetentionPolicy::new(8, 1200, true),
+            FragmentRetentionPolicy::new(8, 1200, FragmentEvictionPreference::DuplicatesFirst),
             FragmentRetentionPolicy {
                 fragment_budget: 8,
                 custody_threshold_permille: 1000,

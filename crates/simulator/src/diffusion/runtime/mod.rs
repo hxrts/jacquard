@@ -175,6 +175,7 @@ pub fn run_diffusion_suite(
     let aggregates = aggregate_diffusion_runs(&runs);
     let boundaries = summarize_diffusion_boundaries(&aggregates);
     let manifest = super::model::DiffusionManifest {
+        schema_version: super::model::DIFFUSION_ARTIFACT_SCHEMA_VERSION,
         suite_id: suite.suite_id.clone(),
         run_count: u32::try_from(runs.len()).unwrap_or(u32::MAX),
         aggregate_count: u32::try_from(aggregates.len()).unwrap_or(u32::MAX),

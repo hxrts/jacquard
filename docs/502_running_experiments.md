@@ -76,46 +76,123 @@ The head-to-head corpus runs the same regimes under explicit single-engine stack
 
 ## Assembling A Custom Suite
 
-A 3rd party who needs an experiment the in-tree corpus does not cover assembles a suite directly against the simulator library. The main tools are `ExperimentSuite`, `ExperimentParameterSet`, `RegimeDescriptor`, and the `run_tuning_suite` entry point. All live in `jacquard_simulator` and are re-exported at the crate root.
+A 3rd party who needs an experiment the in-tree corpus does not cover should
+assemble it through the public runner facade. The maintained tuning corpus is
+available under `jacquard_simulator::builtin_suites`, while custom suites use
+`ExperimentSuiteSpec`, `RouteVisibleRunSpec`, `ExperimentRunner`, and
+`ArtifactSink`.
 
 ```rust
-use jacquard_simulator::{
-    ExperimentParameterSet, ExperimentSuite, RegimeDescriptor,
-    JacquardSimulator, ReferenceClientAdapter, run_tuning_suite,
-};
 use jacquard_core::SimulationSeed;
+use jacquard_simulator::{
+    ArtifactSink, ExperimentRunner, ExperimentSuiteSpec, RouteVisibleRunSpec,
+};
 
-let mut suite = ExperimentSuite::new("custom-pathway-budget");
-for seed in [SimulationSeed(41), SimulationSeed(43), SimulationSeed(47)] {
-    for budget in [2u32, 3, 4, 6] {
-        suite.add_run(
-            RegimeDescriptor::default(),
-            ExperimentParameterSet::pathway(budget),
-            seed,
-        );
-    }
-}
+let suite = ExperimentSuiteSpec::route_visible(
+    "custom-connected-line",
+    vec![RouteVisibleRunSpec::new(
+        "custom-connected-line-seed-41",
+        "custom-connected-line-family",
+        "batman-bellman",
+        SimulationSeed(41),
+        scenario,
+        environment,
+    )],
+);
 
-let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-let artifacts = run_tuning_suite(&mut simulator, &suite, "artifacts/custom-pathway/")
+let artifacts = ExperimentRunner::default()
+    .run_route_visible_suite(
+        &suite,
+        &ArtifactSink::directory("artifacts/custom-connected-line"),
+    )
     .expect("run custom suite");
 ```
 
-The call returns an `ExperimentArtifacts` handle that exposes the `runs.jsonl` path, the aggregate and breakdown summaries, and any model-lane artifacts written during the run. The artifact directory follows the same `{suite}/{timestamp}/` convention as the in-tree suites, so the Python report pipeline can ingest them without modification.
+The call returns a `RouteVisibleArtifacts` handle with an in-memory manifest and
+per-run summaries. With a directory sink, it writes external_manifest.json and
+external_runs.jsonl. With `ArtifactSink::disabled()`, it executes without
+writing files and without invoking Python.
 
-When the default `aggregate_runs` reduction does not answer the question being asked, the artifact layout supports two follow-up paths. A Rust post-processor can reload `runs.jsonl` and apply a custom aggregation. A Python analysis can derive alternate CSV tables or plots from the same artifact set through the `analysis/` package entry points.
+The custom facade is deliberately separate from the maintained report writer.
+Use it for downstream experiments, minimal consumer tests, and extraction
+preparation. Use the built-in tuning suites when the output must feed the
+current router report without an adapter.
 
 ## Catalog Extensibility Limits
 
-The in-tree family catalog is crate-private, which means a 3rd party cannot add a new family directly through the library API without modifying the simulator crate. Two workarounds apply. One: upstream the family into `jacquard-simulator` itself so the catalog exposes it through the standard `tuning_matrix` entry. Two: duplicate the suite-assembly flow in a dependent crate, assembling runs with public `ExperimentSuite` and `ExperimentParameterSet` APIs.
+The in-tree family catalog is intentionally separate from external suite
+assembly. Built-in local, smoke, staged, comparison, head-to-head, diffusion,
+and model-lane suites live behind `builtin_suites` and remain the source of the
+standard `tuning_matrix` corpus. External suites do not import those modules
+unless they intentionally want the maintained Jacquard corpus.
 
-The canonical reference for programmatic suite composition is the `tuning_matrix` binary at `crates/simulator/src/bin/tuning_matrix.rs`. It demonstrates CLI parsing, seed selection, stage filtering, suite dispatch, and report generation. A 3rd party assembling a custom harness outside the simulator crate can mirror its structure.
+There is no crates/simulator/EXTERNAL_API.md. The external usage contract is
+documented here and in [Running Simulations](501_running_simulations.md), so a
+downstream developer can work from the 500-series guides without chasing a
+crate-local API note.
 
 ## Diffusion Suites
 
-Diffusion suites follow the same shape as tuning suites with a different type family. `DiffusionSuite` assembles runs, `DiffusionPolicyConfig` parameterizes individual runs, and `run_diffusion_suite` executes them. The artifacts written are `diffusion_runs.jsonl` plus the diffusion aggregate and boundary summaries.
+Diffusion suites use the same runner facade and the standard diffusion artifact
+writer. A downstream crate builds a `DiffusionSuite` from
+`CustomDiffusionRunSpec` values. Each run provides a
+`CustomDiffusionScenarioSpec`, a `DiffusionPolicyConfig`, and an explicit seed.
 
-The in-tree diffusion catalog is similarly crate-private. The same two workarounds apply: upstream new scenarios into the simulator, or duplicate the suite-assembly flow in a dependent crate.
+```rust
+use jacquard_simulator::{
+    ArtifactSink, CustomDiffusionRunSpec, DiffusionSuite, ExperimentRunner,
+};
+
+let suite = DiffusionSuite::from_custom_runs(
+    "custom-diffusion",
+    vec![CustomDiffusionRunSpec {
+        family_id: "external-diffusion-family".to_string(),
+        seed: 41,
+        policy,
+        scenario,
+    }],
+)
+.expect("valid diffusion suite");
+
+let artifacts = ExperimentRunner::default()
+    .run_diffusion_suite(&suite, &ArtifactSink::directory("artifacts/custom-diffusion"))
+    .expect("run diffusion suite");
+assert_eq!(artifacts.manifest.run_count, 1);
+```
+
+The writer emits diffusion_manifest.json, diffusion_runs.jsonl,
+diffusion_aggregates.json, and diffusion_boundaries.json. The manifest
+contains `schema_version: 1`. Existing `analysis/` plots depend on this
+standard diffusion layout, so extraction work must preserve these files or
+provide a compatibility writer.
+
+External diffusion families whose id starts with `external-` use a deterministic
+default contact model. Maintained Jacquard families continue to use their
+family-specific contact probabilities.
+
+## Artifact Compatibility
+
+The route-visible report path consumes the standard in-tree files:
+manifest.json, runs.jsonl, aggregates.json, breakdowns.json, optional
+model_artifacts.jsonl, and the diffusion files listed above. Both
+manifest.json and diffusion_manifest.json carry explicit schema versions.
+Schema changes must be additive or accompanied by a compatibility writer before
+the `analysis/` report can move.
+
+The external route-visible facade writes external_manifest.json and
+external_runs.jsonl; those files are intentionally not consumed by the
+current `analysis/` report. They are for downstream harnesses, consumer tests,
+and future extraction work.
+
+The paper-facing active-belief/coded-diffusion artifacts are a separate
+`analysis_2/` surface. The simulator exposes their contract through
+`active_belief_artifact_contract()`: the contract identifies `analysis_2` as the
+consumer, marks the rows as not consumed by route analysis, and lists required
+CSV files such as `active_belief_raw_rounds.csv`,
+`active_belief_receiver_runs.csv`,
+`coded_inference_experiment_c_phase_diagram.csv`, and
+`coded_inference_experiment_e_observer_frontier.csv`. Moving paper-facing code
+must not remove or rename artifacts required by `analysis/`.
 
 ## Review Guidance
 

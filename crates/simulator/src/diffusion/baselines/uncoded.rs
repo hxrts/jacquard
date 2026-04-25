@@ -1,12 +1,13 @@
 //! Uncoded full-message replication baseline.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use super::{
-    BaselineArrivalClassification, BaselineArrivalCounters, BaselineBudgetEvent,
-    BaselineContractError, BaselineForwardingEvent, BaselinePayloadDescriptor, BaselinePayloadMode,
-    BaselinePolicyClass, BaselinePolicyId, BaselineReceiverEvent, BaselineRunInput, BaselineRunLog,
-    BaselineRunSummary, BaselineRunSummaryDraft, BaselineStorageEvent,
+    peak_storage_by_node, receiver_arrival_counters, BaselineArrivalClassification,
+    BaselineBudgetEvent, BaselineContractError, BaselineForwardingEvent, BaselinePayloadDescriptor,
+    BaselinePayloadMode, BaselinePolicyClass, BaselinePolicyId, BaselineReceiverEvent,
+    BaselineRunInput, BaselineRunLog, BaselineRunSummary, BaselineRunSummaryDraft,
+    BaselineStorageEvent,
 };
 use crate::diffusion::runtime::execution::generate_contacts;
 
@@ -258,36 +259,6 @@ impl UncodedReplicationState {
     }
 }
 
-fn receiver_arrival_counters(log: &BaselineRunLog) -> BaselineArrivalCounters {
-    let mut counters = BaselineArrivalCounters::default();
-    for event in &log.receiver_events {
-        match event.arrival_classification {
-            BaselineArrivalClassification::Innovative => {
-                counters.innovative_arrivals = counters.innovative_arrivals.saturating_add(1);
-            }
-            BaselineArrivalClassification::Duplicate => {
-                counters.duplicate_arrivals = counters.duplicate_arrivals.saturating_add(1);
-            }
-        }
-    }
-    counters
-}
-
-fn peak_storage_by_node(log: &BaselineRunLog) -> (u32, u32) {
-    let mut unit_peak_by_node = BTreeMap::<u32, u32>::new();
-    let mut byte_peak_by_node = BTreeMap::<u32, u32>::new();
-    for event in &log.storage_events {
-        let unit_peak = unit_peak_by_node.entry(event.node_id).or_default();
-        *unit_peak = (*unit_peak).max(event.stored_payload_units);
-        let byte_peak = byte_peak_by_node.entry(event.node_id).or_default();
-        *byte_peak = (*byte_peak).max(event.stored_payload_bytes);
-    }
-    (
-        unit_peak_by_node.values().copied().max().unwrap_or(0),
-        byte_peak_by_node.values().copied().max().unwrap_or(0),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
@@ -491,3 +462,4 @@ mod tests {
         }
     }
 }
+// proc-macro-scope: uncoded baseline rows are artifact schema, not shared model vocabulary.

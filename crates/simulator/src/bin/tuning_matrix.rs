@@ -10,16 +10,19 @@ use std::{
 };
 
 use jacquard_simulator::{
-    aggregate_diffusion_runs, aggregate_tuning_runs, diffusion_local_stage_suite,
-    diffusion_local_suite, diffusion_smoke_suite, run_diffusion_suite, run_tuning_suite,
-    summarize_diffusion_boundaries, summarize_tuning_breakdowns,
-    tuning_babel_equivalence_smoke_suite, tuning_babel_model_smoke_suite,
-    tuning_batman_bellman_model_smoke_suite, tuning_batman_classic_model_smoke_suite,
-    tuning_field_model_smoke_suite, tuning_local_stage_suite,
-    tuning_local_stage_suite_with_seeds_and_config, tuning_olsrv2_model_smoke_suite,
-    tuning_pathway_model_smoke_suite, tuning_scatter_model_smoke_suite, tuning_smoke_suite,
-    DiffusionManifest, DiffusionRunSummary, ExperimentManifest, ExperimentModelArtifact,
-    ExperimentRunSummary, ExperimentSuite, JacquardSimulator, ReferenceClientAdapter,
+    aggregate_diffusion_runs, aggregate_tuning_runs,
+    builtin_suites::{
+        diffusion_local_stage_suite, diffusion_local_suite, diffusion_smoke_suite,
+        tuning_babel_equivalence_smoke_suite, tuning_babel_model_smoke_suite,
+        tuning_batman_bellman_model_smoke_suite, tuning_batman_classic_model_smoke_suite,
+        tuning_field_model_smoke_suite, tuning_local_stage_suite,
+        tuning_local_stage_suite_with_seeds_and_config, tuning_olsrv2_model_smoke_suite,
+        tuning_pathway_model_smoke_suite, tuning_scatter_model_smoke_suite, tuning_smoke_suite,
+    },
+    summarize_diffusion_boundaries, summarize_tuning_breakdowns, ArtifactSink, DiffusionManifest,
+    DiffusionRunSummary, ExperimentManifest, ExperimentModelArtifact, ExperimentRunSummary,
+    ExperimentRunner, ExperimentSuite, JacquardSimulator, ReferenceClientAdapter,
+    DIFFUSION_ARTIFACT_SCHEMA_VERSION, ROUTE_VISIBLE_ARTIFACT_SCHEMA_VERSION,
 };
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -162,11 +165,28 @@ fn print_diffusion_summary(artifacts: &jacquard_simulator::DiffusionArtifacts) {
     );
 }
 
+fn run_single_tuning_suite(
+    suite: &jacquard_simulator::ExperimentSuite,
+    output_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+    let artifacts = ExperimentRunner::default().run_tuning_suite(
+        &mut simulator,
+        suite,
+        &ArtifactSink::directory(output_dir),
+    )?;
+    print_tuning_summary(&artifacts);
+    remove_report_dir(output_dir);
+    update_latest_symlink(output_dir);
+    Ok(())
+}
+
 fn run_single_diffusion_suite(
     suite: &jacquard_simulator::DiffusionSuite,
     output_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let artifacts = run_diffusion_suite(suite, output_dir)?;
+    let artifacts = ExperimentRunner::default()
+        .run_diffusion_suite(suite, &ArtifactSink::directory(output_dir))?;
     print_diffusion_summary(&artifacts);
     update_latest_symlink(output_dir);
     Ok(())
@@ -180,9 +200,14 @@ fn run_tuning_mode(
     jobs: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-    let artifacts = run_tuning_suite(&mut simulator, suite, output_dir)?;
+    let artifacts = ExperimentRunner::default().run_tuning_suite(
+        &mut simulator,
+        suite,
+        &ArtifactSink::directory(output_dir),
+    )?;
     print_tuning_summary(&artifacts);
-    let diffusion_artifacts = run_diffusion_suite(diffusion_suite, output_dir)?;
+    let diffusion_artifacts = ExperimentRunner::default()
+        .run_diffusion_suite(diffusion_suite, &ArtifactSink::directory(output_dir))?;
     print_diffusion_summary(&diffusion_artifacts);
     update_latest_symlink(output_dir);
     if generate_report {
@@ -372,6 +397,7 @@ fn merge_tuning_stage_outputs(
     let aggregates = aggregate_tuning_runs(&runs);
     let breakdowns = summarize_tuning_breakdowns(&aggregates);
     let manifest = ExperimentManifest {
+        schema_version: ROUTE_VISIBLE_ARTIFACT_SCHEMA_VERSION,
         suite_id: "local".to_string(),
         generated_at_unix_seconds: 0,
         run_count: u32::try_from(runs.len()).unwrap_or(u32::MAX),
@@ -408,6 +434,7 @@ fn merge_diffusion_stage_outputs(
     let aggregates = aggregate_diffusion_runs(&runs);
     let boundaries = summarize_diffusion_boundaries(&aggregates);
     let manifest = DiffusionManifest {
+        schema_version: DIFFUSION_ARTIFACT_SCHEMA_VERSION,
         suite_id: "diffusion-local".to_string(),
         run_count: u32::try_from(runs.len()).unwrap_or(u32::MAX),
         aggregate_count: u32::try_from(aggregates.len()).unwrap_or(u32::MAX),
@@ -513,100 +540,28 @@ fn run_selected_suite(
         "diffusion-smoke" => run_single_diffusion_suite(&diffusion_smoke_suite(), output_dir),
         "local" => run_local_staged_mode(output_dir, jobs),
         "babel-model-smoke" => {
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(
-                &mut simulator,
-                &tuning_babel_model_smoke_suite(),
-                output_dir,
-            )?;
-            print_tuning_summary(&artifacts);
-            remove_report_dir(output_dir);
-            update_latest_symlink(output_dir);
-            Ok(())
+            run_single_tuning_suite(&tuning_babel_model_smoke_suite(), output_dir)
         }
         "babel-equivalence-smoke" => {
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(
-                &mut simulator,
-                &tuning_babel_equivalence_smoke_suite(),
-                output_dir,
-            )?;
-            print_tuning_summary(&artifacts);
-            remove_report_dir(output_dir);
-            update_latest_symlink(output_dir);
-            Ok(())
+            run_single_tuning_suite(&tuning_babel_equivalence_smoke_suite(), output_dir)
         }
         "field-model-smoke" => {
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(
-                &mut simulator,
-                &tuning_field_model_smoke_suite(),
-                output_dir,
-            )?;
-            print_tuning_summary(&artifacts);
-            remove_report_dir(output_dir);
-            update_latest_symlink(output_dir);
-            Ok(())
+            run_single_tuning_suite(&tuning_field_model_smoke_suite(), output_dir)
         }
         "batman-bellman-model-smoke" => {
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(
-                &mut simulator,
-                &tuning_batman_bellman_model_smoke_suite(),
-                output_dir,
-            )?;
-            print_tuning_summary(&artifacts);
-            remove_report_dir(output_dir);
-            update_latest_symlink(output_dir);
-            Ok(())
+            run_single_tuning_suite(&tuning_batman_bellman_model_smoke_suite(), output_dir)
         }
         "batman-classic-model-smoke" => {
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(
-                &mut simulator,
-                &tuning_batman_classic_model_smoke_suite(),
-                output_dir,
-            )?;
-            print_tuning_summary(&artifacts);
-            remove_report_dir(output_dir);
-            update_latest_symlink(output_dir);
-            Ok(())
+            run_single_tuning_suite(&tuning_batman_classic_model_smoke_suite(), output_dir)
         }
         "olsrv2-model-smoke" => {
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(
-                &mut simulator,
-                &tuning_olsrv2_model_smoke_suite(),
-                output_dir,
-            )?;
-            print_tuning_summary(&artifacts);
-            remove_report_dir(output_dir);
-            update_latest_symlink(output_dir);
-            Ok(())
+            run_single_tuning_suite(&tuning_olsrv2_model_smoke_suite(), output_dir)
         }
         "pathway-model-smoke" => {
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(
-                &mut simulator,
-                &tuning_pathway_model_smoke_suite(),
-                output_dir,
-            )?;
-            print_tuning_summary(&artifacts);
-            remove_report_dir(output_dir);
-            update_latest_symlink(output_dir);
-            Ok(())
+            run_single_tuning_suite(&tuning_pathway_model_smoke_suite(), output_dir)
         }
         "scatter-model-smoke" => {
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(
-                &mut simulator,
-                &tuning_scatter_model_smoke_suite(),
-                output_dir,
-            )?;
-            print_tuning_summary(&artifacts);
-            remove_report_dir(output_dir);
-            update_latest_symlink(output_dir);
-            Ok(())
+            run_single_tuning_suite(&tuning_scatter_model_smoke_suite(), output_dir)
         }
         "smoke" => run_tuning_mode(
             &tuning_smoke_suite(),
@@ -616,14 +571,9 @@ fn run_selected_suite(
             jobs,
         ),
         _ if resolve_tuning_stage_suite(suite, seed, config_id).is_some() => {
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
             let stage_suite =
                 resolve_tuning_stage_suite(suite, seed, config_id).expect("checked is_some above");
-            let artifacts = run_tuning_suite(&mut simulator, &stage_suite, output_dir)?;
-            print_tuning_summary(&artifacts);
-            remove_report_dir(output_dir);
-            update_latest_symlink(output_dir);
-            Ok(())
+            run_single_tuning_suite(&stage_suite, output_dir)
         }
         _ if diffusion_local_stage_suite(suite).is_some() => run_single_diffusion_suite(
             &diffusion_local_stage_suite(suite).expect("checked is_some above"),

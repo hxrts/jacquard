@@ -125,7 +125,7 @@ fn field_docs_keep_runtime_boundary_reduced() {
 }
 
 #[test]
-fn field_docs_mark_corridor_routing_as_legacy_engine_baseline() {
+fn field_docs_mark_corridor_routing_as_engine_baseline() {
     let crate_docs = repo_text("crates/field/src/lib.rs");
     let planner = repo_text("crates/field/src/planner/mod.rs");
     let search = repo_text("crates/field/src/search/mod.rs");

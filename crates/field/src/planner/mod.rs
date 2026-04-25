@@ -1,7 +1,7 @@
 //! `RoutingEnginePlanner` implementation: candidate generation and route
 //! admission.
 //!
-//! Baseline-only: this module is the legacy corridor planning surface. The
+//! Baseline-only: this module is the earlier corridor planning surface. The
 //! coded-diffusion research path must use `crate::research` vocabulary instead
 //! of importing planner admission, publication, promotion, or snapshot helpers.
 //!

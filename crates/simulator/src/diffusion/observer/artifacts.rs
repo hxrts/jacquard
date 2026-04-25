@@ -105,3 +105,4 @@ mod tests {
         assert!(first.summary.ambiguity_cost_frontier_area > 0);
     }
 }
+// proc-macro-scope: observer artifact rows are replay schema, not shared model vocabulary.

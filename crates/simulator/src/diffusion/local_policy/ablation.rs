@@ -403,3 +403,4 @@ mod tests {
         assert_eq!(first[0].decision.score.total_score, 0);
     }
 }
+// proc-macro-scope: local-policy ablation rows are artifact schema, not shared model vocabulary.

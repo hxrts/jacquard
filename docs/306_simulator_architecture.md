@@ -2,7 +2,7 @@
 
 `jacquard-simulator` is the deterministic scenario and experiment harness for Jacquard. It sits above the shared routing boundaries and reuses the real reference-client host composition. It does not own canonical route truth. Canonical ownership remains on the router and engine crates.
 
-The four core types are `JacquardScenario`, `ScriptedEnvironmentModel`, `JacquardSimulator`, and `JacquardReplayArtifact`. See [Running Simulations](501_running_simulations.md) for the step-by-step walkthrough a library consumer follows.
+The four core types are `JacquardScenario`, `ScriptedEnvironmentModel`, `JacquardSimulator`, and `JacquardReplayArtifact`. See [Running Simulations](501_running_simulations.md) for the step-by-step walkthrough a library consumer follows. For downstream experiment crates, the stable import path is the 500-series facade documented in [Running Simulations](501_running_simulations.md#running-through-the-external-facade) and [Running Experiments](502_running_experiments.md#assembling-a-custom-suite), not a crate-local external API file.
 
 ## Internal Lanes
 
@@ -14,7 +14,7 @@ Execution has three modes. `full-stack` runs the maintained comparative families
 
 ## Engine Selection Per Host
 
-The simulator selects engines per host through `EngineLane`. Single-engine variants cover `Pathway`, `BatmanBellman`, `BatmanClassic`, `Babel`, `OlsrV2`, `Scatter`, `Field`, and `Mercator`. Mixed-engine variants include `PathwayAndBatmanBellman`, `PathwayAndBabel`, `PathwayAndOlsrV2`, `PathwayAndField`, `BabelAndBatmanBellman`, `OlsrV2AndBatmanBellman`, `FieldAndBatmanBellman`, `AllEngines`, and `RouteVisibleEngines`. `RouteVisibleEngines` is the routing-comparison lane and excludes Field so the legacy corridor-routing baseline is not appended to route-visible comparison tables.
+The simulator selects engines per host through `EngineLane`. Single-engine variants cover `Pathway`, `BatmanBellman`, `BatmanClassic`, `Babel`, `OlsrV2`, `Scatter`, `Field`, and `Mercator`. Mixed-engine variants include `PathwayAndBatmanBellman`, `PathwayAndBabel`, `PathwayAndOlsrV2`, `PathwayAndField`, `BabelAndBatmanBellman`, `OlsrV2AndBatmanBellman`, `FieldAndBatmanBellman`, `AllEngines`, and `RouteVisibleEngines`. `RouteVisibleEngines` is the routing-comparison lane and excludes Field so corridor-routing baseline rows are not appended to route-visible comparison tables.
 
 All engines share one host bridge per node. The bridge owns ingress draining and `Tick` stamping. Engines keep private runtime state below the shared routing boundary.
 
@@ -56,3 +56,18 @@ Model-lane runs use their own fixture outputs instead of host-round replay artif
 That file is additive. The maintained full-stack artifact contract remains the full-stack run log plus the aggregate and breakdown JSON outputs, plus the diffusion artifact set for deferred-delivery analysis. The report pipeline does not score `model_artifacts.jsonl`. It uses it for model-lane inspection and equivalence debugging only.
 
 The model-lane selectors are `babel-model-smoke`, `babel-equivalence-smoke`, `batman-bellman-model-smoke`, `batman-classic-model-smoke`, `olsrv2-model-smoke`, `field-model-smoke`, `pathway-model-smoke`, and `scatter-model-smoke` in the `tuning_matrix` binary. They exercise engine-owned planner seeds, planner snapshots, reducer state, and restore inputs through the shared model-trait family.
+
+## Public Runner Boundary
+
+`ExperimentRunner` is the external runner facade. It delegates built-in tuning
+and diffusion execution to the existing artifact writers, and it runs custom
+route-visible suites through `ExperimentSuiteSpec` without requiring access to
+the maintained suite catalog. `ArtifactSink::directory` writes artifacts;
+`ArtifactSink::disabled` supports in-memory smoke checks without report
+generation.
+
+The maintained corpus remains a consumer of the runner boundary through
+`builtin_suites` and the `tuning_matrix` binary. That split keeps extraction
+preparation additive: downstream crates can import the simulator and define
+custom suites, while the current `analysis/` report still receives the same
+standard files.

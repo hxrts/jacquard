@@ -1,4 +1,5 @@
 //! Deterministic observer projections and ambiguity artifacts.
+// proc-macro-scope: observer artifact rows use serde derives for replay schema, not shared model macros.
 
 #![allow(dead_code)]
 

@@ -3,6 +3,9 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+pub const DIFFUSION_ARTIFACT_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DiffusionPolicyConfig {
@@ -53,7 +56,7 @@ pub struct DiffusionRegimeDescriptor {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) enum DiffusionMobilityProfile {
+pub enum DiffusionMobilityProfile {
     Static,
     LocalMover,
     Bridger,
@@ -62,14 +65,14 @@ pub(crate) enum DiffusionMobilityProfile {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) enum DiffusionTransportKind {
+pub enum DiffusionTransportKind {
     Ble,
     WifiAware,
     LoRa,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) enum DiffusionMessageMode {
+pub enum DiffusionMessageMode {
     Unicast,
     Broadcast,
 }
@@ -96,7 +99,7 @@ pub(crate) enum CodedContributionValidityRule {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) struct DiffusionNodeSpec {
+pub struct DiffusionNodeSpec {
     pub node_id: u32,
     pub cluster_id: u8,
     pub mobility_profile: DiffusionMobilityProfile,
@@ -213,12 +216,53 @@ impl DiffusionScenarioSpec {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CustomDiffusionScenarioSpec {
+    pub family_id: String,
+    pub regime: DiffusionRegimeDescriptor,
+    pub round_count: u32,
+    pub creation_round: u32,
+    pub payload_bytes: u32,
+    pub message_mode: DiffusionMessageMode,
+    pub source_node_id: u32,
+    pub destination_node_id: Option<u32>,
+    pub nodes: Vec<DiffusionNodeSpec>,
+}
+
+impl CustomDiffusionScenarioSpec {
+    #[must_use]
+    pub(crate) fn into_scenario_spec(self) -> DiffusionScenarioSpec {
+        DiffusionScenarioSpec {
+            family_id: self.family_id,
+            regime: self.regime,
+            round_count: self.round_count,
+            creation_round: self.creation_round,
+            payload_bytes: self.payload_bytes,
+            message_mode: self.message_mode,
+            source_node_id: self.source_node_id,
+            destination_node_id: self.destination_node_id,
+            nodes: self.nodes,
+            node_index_by_id: BTreeMap::new(),
+            pair_descriptors: Vec::new(),
+        }
+        .with_runtime_indexes()
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct DiffusionRunSpec {
     pub suite_id: String,
     pub family_id: String,
     pub seed: u64,
     pub policy: DiffusionPolicyConfig,
     pub scenario: DiffusionScenarioSpec,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CustomDiffusionRunSpec {
+    pub family_id: String,
+    pub seed: u64,
+    pub policy: DiffusionPolicyConfig,
+    pub scenario: CustomDiffusionScenarioSpec,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -369,6 +413,8 @@ pub struct DiffusionBoundarySummary {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DiffusionManifest {
+    #[serde(default = "default_diffusion_artifact_schema_version")]
+    pub schema_version: u32,
     pub suite_id: String,
     pub run_count: u32,
     pub aggregate_count: u32,
@@ -391,10 +437,141 @@ pub struct DiffusionSuite {
 }
 
 impl DiffusionSuite {
+    pub fn from_custom_runs(
+        suite_id: impl Into<String>,
+        runs: Vec<CustomDiffusionRunSpec>,
+    ) -> Result<Self, DiffusionSuiteBuildError> {
+        let suite_id = suite_id.into();
+        validate_suite_id(&suite_id)?;
+        let mut seen = BTreeMap::<(String, String, u64), String>::new();
+        let mut materialized = Vec::with_capacity(runs.len());
+        for run in runs {
+            validate_suite_id(&run.family_id)?;
+            validate_suite_id(&run.policy.config_id)?;
+            validate_diffusion_scenario(&run.scenario)?;
+            let key = (
+                run.family_id.clone(),
+                run.policy.config_id.clone(),
+                run.seed,
+            );
+            if let Some(previous) = seen.insert(key.clone(), run.family_id.clone()) {
+                return Err(DiffusionSuiteBuildError::DuplicateRun {
+                    family_id: key.0,
+                    config_id: key.1,
+                    seed: key.2,
+                    previous_family_id: previous,
+                });
+            }
+            materialized.push(DiffusionRunSpec {
+                suite_id: suite_id.clone(),
+                family_id: run.family_id,
+                seed: run.seed,
+                policy: run.policy,
+                scenario: run.scenario.into_scenario_spec(),
+            });
+        }
+        if materialized.is_empty() {
+            return Err(DiffusionSuiteBuildError::EmptySuite { suite_id });
+        }
+        Ok(Self {
+            suite_id,
+            runs: materialized,
+        })
+    }
+
     #[must_use]
     pub fn suite_id(&self) -> &str {
         &self.suite_id
     }
+
+    #[must_use]
+    pub fn run_count(&self) -> usize {
+        self.runs.len()
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum DiffusionSuiteBuildError {
+    #[error("diffusion suite id must not be empty")]
+    EmptySuiteId,
+    #[error("diffusion suite '{suite_id}' has no runs")]
+    EmptySuite { suite_id: String },
+    #[error("diffusion id '{id}' contains unsupported characters")]
+    InvalidId { id: String },
+    #[error("diffusion scenario '{family_id}' has no nodes")]
+    EmptyScenario { family_id: String },
+    #[error("diffusion scenario '{family_id}' source node {source_node_id} is missing")]
+    MissingSourceNode {
+        family_id: String,
+        source_node_id: u32,
+    },
+    #[error("diffusion scenario '{family_id}' destination node {destination_node_id} is missing")]
+    MissingDestinationNode {
+        family_id: String,
+        destination_node_id: u32,
+    },
+    #[error("diffusion scenario '{family_id}' has duplicate node id {node_id}")]
+    DuplicateNodeId { family_id: String, node_id: u32 },
+    #[error(
+        "duplicate diffusion run for family '{family_id}', config '{config_id}', seed {seed}; previous family id '{previous_family_id}'"
+    )]
+    DuplicateRun {
+        family_id: String,
+        config_id: String,
+        seed: u64,
+        previous_family_id: String,
+    },
+}
+
+fn default_diffusion_artifact_schema_version() -> u32 {
+    DIFFUSION_ARTIFACT_SCHEMA_VERSION
+}
+
+fn validate_suite_id(id: &str) -> Result<(), DiffusionSuiteBuildError> {
+    if id.is_empty() {
+        return Err(DiffusionSuiteBuildError::EmptySuiteId);
+    }
+    if id
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+    {
+        return Ok(());
+    }
+    Err(DiffusionSuiteBuildError::InvalidId { id: id.to_string() })
+}
+
+fn validate_diffusion_scenario(
+    scenario: &CustomDiffusionScenarioSpec,
+) -> Result<(), DiffusionSuiteBuildError> {
+    if scenario.nodes.is_empty() {
+        return Err(DiffusionSuiteBuildError::EmptyScenario {
+            family_id: scenario.family_id.clone(),
+        });
+    }
+    let mut seen = BTreeMap::<u32, ()>::new();
+    for node in &scenario.nodes {
+        if seen.insert(node.node_id, ()).is_some() {
+            return Err(DiffusionSuiteBuildError::DuplicateNodeId {
+                family_id: scenario.family_id.clone(),
+                node_id: node.node_id,
+            });
+        }
+    }
+    if !seen.contains_key(&scenario.source_node_id) {
+        return Err(DiffusionSuiteBuildError::MissingSourceNode {
+            family_id: scenario.family_id.clone(),
+            source_node_id: scenario.source_node_id,
+        });
+    }
+    if let Some(destination_node_id) = scenario.destination_node_id {
+        if !seen.contains_key(&destination_node_id) {
+            return Err(DiffusionSuiteBuildError::MissingDestinationNode {
+                family_id: scenario.family_id.clone(),
+                destination_node_id,
+            });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -409,7 +586,7 @@ mod tests {
         ] {
             assert!(
                 !source.contains(forbidden),
-                "diffusion research model exposes legacy token `{forbidden}`"
+                "diffusion research model exposes route-stack token `{forbidden}`"
             );
         }
         assert!(source.contains("ContinuityBiased"));

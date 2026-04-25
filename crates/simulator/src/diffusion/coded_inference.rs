@@ -1,4 +1,6 @@
 //! Deterministic coded-inference readiness logs derived from diffusion scenarios.
+// long-file-exception: coded-inference replay generation keeps contact, forwarding, and receiver-state reducers together for auditability.
+// proc-macro-scope: coded-inference replay logs use serde derives for artifact schema, not shared model macros.
 
 #![allow(dead_code)]
 
@@ -231,6 +233,7 @@ struct LogBuildState {
     evidence_ledger_by_id: BTreeMap<u32, Vec<u32>>,
 }
 
+// long-block-exception: readiness-log generation keeps contact, forwarding, and receiver accounting in deterministic order.
 pub(crate) fn build_coded_inference_readiness_log(
     seed: u64,
     scenario: &CodedInferenceReadinessScenario,
@@ -885,6 +888,7 @@ struct RecodedRankGuardSummary {
     recoded_duplicate_rank_inflation_count: u32,
 }
 
+// long-block-exception: rank-guard summary folds the full replay table for artifact parity.
 fn recoded_rank_guard_summary(
     scenario: &CodedInferenceReadinessScenario,
     log: &CodedInferenceReadinessLog,

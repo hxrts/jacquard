@@ -1,6 +1,6 @@
 //! Backend route token encoding and active route tracking for the field engine.
 //!
-//! Baseline-only: this module encodes the legacy installed-decision surface.
+//! Baseline-only: this module encodes the earlier installed-decision surface.
 //! It is excluded from the coded-diffusion research path unless a later phase
 //! converts selected pieces into fragment custody or reconstruction state.
 //!

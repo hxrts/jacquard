@@ -33,7 +33,7 @@ Jacquard also allows a host-owned policy engine to compose routing engines throu
 Jacquard ships eight in-tree routing engines as concrete demonstrations of the contract:
 
 - `pathway` for explicit-path routing
-- `field` for the legacy corridor-envelope baseline
+- `field` for the corridor-envelope baseline
 - `batman-bellman` for Bellman-Ford-enhanced next-hop routing
 - `batman-classic` for spec-faithful BATMAN IV next-hop routing
 - `babel` for RFC 8966 distance-vector routing with bidirectional ETX and feasibility distances
@@ -41,7 +41,7 @@ Jacquard ships eight in-tree routing engines as concrete demonstrations of the c
 - `scatter` for bounded deferred-delivery diffusion routing
 - `mercator` for hybrid corridor routing with stale-safe repair and bounded custody posture
 
-These engines differ in what they publish. Pathway exposes an explicit path, field's legacy baseline and mercator publish corridor envelopes, the proactive engines only next-hop visibility, and scatter an opaque viability claim. The shared routing contract carries canonical identity and lifecycle regardless of that published shape.
+These engines differ in what they publish. Pathway exposes an explicit path, field's baseline and mercator publish corridor envelopes, the proactive engines only next-hop visibility, and scatter an opaque viability claim. The shared routing contract carries canonical identity and lifecycle regardless of that published shape.
 
 ## Design Commitments
 

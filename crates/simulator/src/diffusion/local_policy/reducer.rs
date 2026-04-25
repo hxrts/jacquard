@@ -375,3 +375,4 @@ mod tests {
         }));
     }
 }
+// proc-macro-scope: local-policy reducer rows are artifact schema, not shared model vocabulary.

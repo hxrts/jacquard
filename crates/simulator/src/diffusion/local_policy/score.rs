@@ -283,3 +283,4 @@ mod tests {
         );
     }
 }
+// proc-macro-scope: local-policy score rows are artifact schema, not shared model vocabulary.

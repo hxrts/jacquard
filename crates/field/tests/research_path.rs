@@ -5,7 +5,7 @@ fn research_source() -> &'static str {
 }
 
 #[test]
-fn research_boundary_does_not_import_legacy_route_stack() {
+fn research_boundary_does_not_import_route_stack() {
     let source = research_source();
     let forbidden_imports = [
         "crate::planner",
@@ -25,7 +25,7 @@ fn research_boundary_does_not_import_legacy_route_stack() {
     for forbidden in forbidden_imports {
         assert!(
             !source.contains(forbidden),
-            "research boundary must not depend on legacy route stack token `{forbidden}`"
+            "research boundary must not depend on route stack token `{forbidden}`"
         );
     }
 }

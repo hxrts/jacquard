@@ -1,4 +1,5 @@
 //! Simulator-local near-critical control and potential accounting.
+// proc-macro-scope: near-critical artifact rows use serde derives for replay schema, not shared model macros.
 
 #![allow(dead_code)]
 

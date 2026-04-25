@@ -1,6 +1,10 @@
 //! Shared deterministic baseline contract for coded-inference comparisons.
+// long-file-exception: baseline schema and shared reducers are kept together while the paper extraction boundary is stabilized.
+// proc-macro-scope: baseline contracts use serde derives for analysis artifacts, not shared model macros.
 
 #![allow(dead_code)]
+
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -445,6 +449,99 @@ impl BaselineRunSummary {
             measured_reproduction_permille: draft.measured_reproduction_permille,
         })
     }
+}
+
+pub(crate) fn receiver_arrival_counters(log: &BaselineRunLog) -> BaselineArrivalCounters {
+    let mut counters = BaselineArrivalCounters::default();
+    for event in &log.receiver_events {
+        match event.arrival_classification {
+            BaselineArrivalClassification::Innovative => {
+                counters.innovative_arrivals = counters.innovative_arrivals.saturating_add(1);
+            }
+            BaselineArrivalClassification::Duplicate => {
+                counters.duplicate_arrivals = counters.duplicate_arrivals.saturating_add(1);
+            }
+        }
+    }
+    counters
+}
+
+pub(crate) fn peak_storage_by_node(log: &BaselineRunLog) -> (u32, u32) {
+    let mut unit_peak_by_node = BTreeMap::<u32, u32>::new();
+    let mut byte_peak_by_node = BTreeMap::<u32, u32>::new();
+    for event in &log.storage_events {
+        let unit_peak = unit_peak_by_node.entry(event.node_id).or_default();
+        *unit_peak = (*unit_peak).max(event.stored_payload_units);
+        let byte_peak = byte_peak_by_node.entry(event.node_id).or_default();
+        *byte_peak = (*byte_peak).max(event.stored_payload_bytes);
+    }
+    (
+        unit_peak_by_node.values().copied().max().unwrap_or(0),
+        byte_peak_by_node.values().copied().max().unwrap_or(0),
+    )
+}
+
+// long-block-exception: summary assembly mirrors the shared baseline metric schema.
+pub(crate) fn summarize_store_forward_baseline(
+    input: &BaselineRunInput,
+    log: &BaselineRunLog,
+    payload_mode: BaselinePayloadMode,
+) -> Result<BaselineRunSummary, BaselineContractError> {
+    let reconstruction_round = log
+        .receiver_events
+        .iter()
+        .find_map(|event| event.reconstruction_round);
+    let commitment_round = log
+        .receiver_events
+        .iter()
+        .find_map(|event| event.commitment_round);
+    let counters = receiver_arrival_counters(log);
+    let receiver_rank = log
+        .receiver_events
+        .last()
+        .map(|event| event.rank_after)
+        .unwrap_or(0);
+    let bytes_transmitted = log
+        .forwarding_events
+        .iter()
+        .map(|event| event.payload.byte_count)
+        .fold(0_u32, u32::saturating_add);
+    let (peak_units, peak_bytes) = peak_storage_by_node(log);
+    let margin = if commitment_round.is_some() {
+        input.scenario.coded_inference.decision_margin_threshold
+    } else {
+        0
+    };
+
+    BaselineRunSummary::try_from_draft(BaselineRunSummaryDraft {
+        artifact_namespace: log.artifact_namespace.clone(),
+        family_id: log.family_id.clone(),
+        policy_id: Some(input.policy_id),
+        payload_mode: Some(payload_mode),
+        fixed_budget_label: Some(input.fixed_budget.label.clone()),
+        fixed_payload_budget_bytes: Some(input.fixed_budget.payload_byte_budget),
+        recovery_probability_permille: Some(if reconstruction_round.is_some() {
+            1000
+        } else {
+            0
+        }),
+        decision_accuracy_permille: Some(if commitment_round.is_some() { 1000 } else { 0 }),
+        reconstruction_round: Some(reconstruction_round),
+        commitment_round: Some(commitment_round),
+        receiver_rank: Some(receiver_rank),
+        top_hypothesis_margin: Some(margin),
+        bytes_transmitted: Some(bytes_transmitted),
+        forwarding_events: Some(u32::try_from(log.forwarding_events.len()).unwrap_or(u32::MAX)),
+        peak_stored_payload_units_per_node: Some(peak_units),
+        peak_stored_payload_bytes_per_node: Some(peak_bytes),
+        duplicate_rate_permille: Some(counters.duplicate_rate_permille()),
+        innovative_arrival_rate_permille: Some(counters.innovative_arrival_rate_permille()),
+        duplicate_arrival_count: Some(counters.duplicate_arrivals),
+        innovative_arrival_count: Some(counters.innovative_arrivals),
+        target_reproduction_min_permille: None,
+        target_reproduction_max_permille: None,
+        measured_reproduction_permille: None,
+    })
 }
 
 fn validate_budget_for_scenario(

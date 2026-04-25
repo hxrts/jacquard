@@ -1082,6 +1082,7 @@ fn same_cluster_bridged_probability(
 
 pub(super) fn family_cluster_probabilities(family_id: &str) -> Option<(u32, u32, u32)> {
     match family_id {
+        _ if family_id.starts_with("external-") => Some((1000, 1000, 1000)),
         "diffusion-partitioned-clusters" => Some((720, 260, 28)),
         "diffusion-random-waypoint-sanity" => Some((440, 180, 120)),
         "diffusion-disaster-broadcast" => Some((660, 210, 55)),

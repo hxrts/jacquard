@@ -27,54 +27,63 @@ replay/projection facts.
 
 ## Top-Level Theorem Packs
 
-- `Field/CodedDiffusion.lean`
+- **Field/CodedDiffusion.lean**
   - active coded-diffusion theorem path for evidence-origin modes, contribution ledgers, k-of-n reconstruction, duplicate non-inflation, recoding soundness, observer projection, diffusion-potential accounting, and finite deterministic work recurrence
-- `Field/CodedDiffusionStrong.lean`
+- **Field/CodedDiffusionStrong.lean**
   - strong coded-diffusion theorem path for finite-horizon probability assumptions, receiver-arrival bounds, useful-inference arrival bounds, anomaly-margin bounds, guarded false-commitment bounds, and inference-potential drift
-- `Field/ActiveBelief.lean`
+- **Field/ActiveBelief.lean**
   - active belief diffusion theorem path for receiver-indexed belief state, first-class bounded demand messages, evidence messages, demand soundness, duplicate non-inflation under demand-driven forwarding, commitment lead-time accounting, stale-demand safety, multi-receiver compatibility, and propagated host/bridge demand soundness
-- `Field/ActiveBeliefStrong.lean`
+- **Field/ActiveBeliefStrong.lean**
   - strong active belief theorem path for mergeable-statistic decoding,
     guarded commitment correctness, compatibility from non-identical partial
     histories, demand-guided non-interference on the merged statistic,
     positive commitment lead time under explicit useful-inference assumptions,
     and innovative-quality monotonicity
-- `Field/ActiveBeliefDefinitive.lean`
+- **Field/ActiveBeliefDefinitive.lean**
   - definitive theorem-closure path for active-demand improvement, generic
     mergeable-inference soundness, commitment-before-full-recovery bounds,
     receiver-set compatibility bounds, near-critical controller stabilization,
     aggregation efficiency, negative task-class boundaries, bounded stress, and
     observer projection metrics
-- `Field/ActiveBeliefDefinitiveClosure.lean`
+- **Field/ActiveBeliefDefinitiveClosure.lean**
   - small extension pack for replay-visible receiver-disagreement
     explanations, raw/useful reproduction pressure, and
     effective-independence potential drift
-- `Field/ActiveBeliefCertificates.lean`
+- **Field/ActiveBeliefCertificates.lean**
   - replay-certificate bridge path proving that explicit artifact-facing
     certificate records imply receiver-arrival, useful-inference, score-margin,
     demand-policy, near-critical controller, theorem-profile metadata, and
     bounded-stress assumption records
-- `Field/ActiveBeliefEndToEnd.lean`
+- **Field/ActiveBeliefEndToEnd.lean**
   - end-to-end reduced finite-trace theorem path connecting replay-visible
     evidence events, active demand, folded receiver state, guarded commitment,
     demand-policy value ordering, and Rust replay-validator metadata adequacy
-- `Field/ActiveBeliefDecisionSufficiency.lean`
+- **Field/ActiveBeliefDecisionSufficiency.lean**
   - decision-sufficiency theorem path for the distributed error-correction
     limit: stable guarded decision basins can be reached before full k-of-n
     reconstruction, exact recovery is a special case, demand can target basin
     progress, and non-stable partial decisions form an explicit boundary
-- `Field/TemporalIndependenceLimits.lean`
+- **Field/TemporalIndependenceLimits.lean**
   - temporal independence-limit theorem path for distributed error correction:
     effective rank is separated from raw copies/transmissions, reconstruction
     requires contact-generated independence, recovery probability is bounded by
     effective-rank probability, raw reproduction is insufficient, matched
     networks separate by contact diversity, and the cost-time-independence
     triangle is explicit
-- `Field/TemporalIndependenceCapacity.lean`
+- **Field/TemporalIndependenceCapacity.lean**
   - extension pack for contact entropy and dispersion, temporal
     generator-rank proxies, entropy/dispersion reconstruction bounds, narrow
     temporal-contact capacity certificates, limit-triangle certificates, and
     matched entropy-separated networks
+- `Field/ActiveBeliefPhase6.lean`
+  - paper-phase closure pack for active-belief replay, theorem-status, and
+    artifact-facing claim coverage used by the extraction plan
+- `Field/ConvexERM.lean`
+  - convex ERM task-class theorem boundary for decomposable convex objectives,
+    guarded decisions, demand non-evidence, and replay metadata adequacy
+- `Field/TemporalTraceClass.lean`
+  - temporal trace class and effective-independence vocabulary used to state
+    distributed error-correction limits over finite replay certificates
 - `Field/Architecture.lean`
   - shared enum vocabulary for projection kinds, refinement-ladder stages, lineage stages, and semantic-versus-proof-artifact roles
 - `Field/CostAPI.lean`

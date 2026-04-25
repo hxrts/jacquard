@@ -1,5 +1,6 @@
 //! Protocol session lifecycle and guest runtime for cooperative field
 //! protocols.
+// long-file-exception: the field choreography runtime keeps protocol state, bridge state, artifact retention, and guest-runtime tests together so host-bridged session semantics can be reviewed as one cohesive unit.
 //!
 //! Manages four protocol kinds: `SummaryDissemination` (outbound evidence
 //! propagation), `AntiEntropy` (convergence over stale destinations),
@@ -18,10 +19,6 @@
 //! `PrivateProtocolRole::BoundedSummaryExchange` and
 //! `PrivateProtocolRole::FragmentControlCoordination` for fragment summaries,
 //! custody summaries, and rank-control coordination.
-// long-file-exception: the field choreography runtime keeps protocol state,
-// bridge state, artifact retention, and guest-runtime tests together so the
-// host-bridged session semantics can be reviewed as one cohesive unit.
-
 #![expect(
     dead_code,
     reason = "phase-4 choreography contracts are consumed by later protocol/runtime phases"

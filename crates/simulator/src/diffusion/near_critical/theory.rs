@@ -21,6 +21,7 @@ pub(crate) struct NearCriticalTheoryFixture {
     pub full_controller_beats_ablation: bool,
 }
 
+// long-block-exception: fixture table mirrors the theorem-facing near-critical scenarios.
 pub(crate) fn run_near_critical_theory_fixtures(seed: u64) -> Vec<NearCriticalTheoryFixture> {
     let sweep = run_near_critical_sweep(seed);
     let subcritical = sweep
@@ -142,3 +143,4 @@ mod tests {
         assert_eq!(first, second);
     }
 }
+// proc-macro-scope: near-critical theory fixture rows are artifact schema, not shared model vocabulary.

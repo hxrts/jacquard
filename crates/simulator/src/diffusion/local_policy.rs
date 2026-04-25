@@ -1,4 +1,5 @@
 //! Simulator-local evidence policy state, scoring, reducers, and artifacts.
+// proc-macro-scope: local-policy artifact rows use serde derives for replay schema, not shared model macros.
 
 #![allow(dead_code)]
 
@@ -99,6 +100,32 @@ pub(crate) struct LocalPolicyState {
 pub(crate) enum LocalPolicyArrivalKind {
     Innovative,
     Duplicate,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) enum LocalPolicyContactClass {
+    Local,
+    Bridge,
+}
+
+impl LocalPolicyContactClass {
+    #[must_use]
+    fn is_bridge(self) -> bool {
+        matches!(self, Self::Bridge)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) enum LocalPolicyForwardOutcome {
+    InnovativeSuccess,
+    Redundant,
+}
+
+impl LocalPolicyForwardOutcome {
+    #[must_use]
+    fn is_innovative_success(self) -> bool {
+        matches!(self, Self::InnovativeSuccess)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -225,7 +252,7 @@ impl LocalPolicyState {
         round_index: u32,
         peer_node_id: u32,
         peer_cluster_id: u8,
-        bridge_contact: bool,
+        contact_class: LocalPolicyContactClass,
     ) -> Result<(), LocalPolicyError> {
         self.ensure_peer(peer_node_id, round_index)?;
         let clusters = self.peer_clusters.entry(peer_node_id).or_default();
@@ -235,7 +262,11 @@ impl LocalPolicyState {
             .peers
             .get_mut(&peer_node_id)
             .expect("peer was inserted above");
-        peer.record_contact(round_index, bridge_contact, distinct_cluster_count);
+        peer.record_contact(
+            round_index,
+            contact_class.is_bridge(),
+            distinct_cluster_count,
+        );
         Ok(())
     }
 
@@ -244,11 +275,16 @@ impl LocalPolicyState {
         event: &CodedContactTraceEvent,
     ) -> Result<(), LocalPolicyError> {
         let (peer_node_id, peer_cluster_id, bridge_contact) = self.peer_from_trace_event(event)?;
+        let contact_class = if bridge_contact {
+            LocalPolicyContactClass::Bridge
+        } else {
+            LocalPolicyContactClass::Local
+        };
         self.record_contact(
             event.round_index,
             peer_node_id,
             peer_cluster_id,
-            bridge_contact,
+            contact_class,
         )
     }
 
@@ -258,8 +294,9 @@ impl LocalPolicyState {
         self.recent_duplicate_rate_permille = self.duplicate_window.true_rate_permille();
     }
 
-    pub(crate) fn record_forward_result(&mut self, innovative_success: bool) {
-        self.innovative_success_window.push(innovative_success);
+    pub(crate) fn record_forward_result(&mut self, outcome: LocalPolicyForwardOutcome) {
+        self.innovative_success_window
+            .push(outcome.is_innovative_success());
         self.recent_innovative_forward_success_rate_permille =
             self.innovative_success_window.true_rate_permille();
     }
@@ -313,13 +350,25 @@ impl LocalPolicyState {
                 peer_node_id,
                 peer_cluster_id,
                 bridge_contact,
-            } => self.record_contact(round_index, peer_node_id, peer_cluster_id, bridge_contact),
+            } => {
+                let contact_class = if bridge_contact {
+                    LocalPolicyContactClass::Bridge
+                } else {
+                    LocalPolicyContactClass::Local
+                };
+                self.record_contact(round_index, peer_node_id, peer_cluster_id, contact_class)
+            }
             LocalPolicyStateTraceEvent::Arrival { arrival_kind } => {
                 self.record_arrival(arrival_kind);
                 Ok(())
             }
             LocalPolicyStateTraceEvent::ForwardResult { innovative_success } => {
-                self.record_forward_result(innovative_success);
+                let outcome = if innovative_success {
+                    LocalPolicyForwardOutcome::InnovativeSuccess
+                } else {
+                    LocalPolicyForwardOutcome::Redundant
+                };
+                self.record_forward_result(outcome);
                 Ok(())
             }
             LocalPolicyStateTraceEvent::Storage {
@@ -460,8 +509,8 @@ impl From<CodedArrivalClassification> for LocalPolicyArrivalKind {
 mod tests {
     use super::{
         local_policy_state_from_trace, LocalPolicyArrivalKind, LocalPolicyBeliefInputs,
-        LocalPolicyError, LocalPolicyState, LocalPolicyStateTraceEvent,
-        LOCAL_POLICY_RECENT_WINDOW_MAX,
+        LocalPolicyContactClass, LocalPolicyError, LocalPolicyForwardOutcome, LocalPolicyState,
+        LocalPolicyStateTraceEvent, LOCAL_POLICY_RECENT_WINDOW_MAX,
     };
     use crate::diffusion::{
         coded_inference::CodedContactTraceEvent, model::DiffusionTransportKind,
@@ -483,9 +532,15 @@ mod tests {
     fn local_policy_state_updates_contact_rate_and_bridge_score_per_peer() {
         let mut state = LocalPolicyState::try_new(7, 512).expect("state");
 
-        state.record_contact(2, 11, 1, true).expect("contact");
-        state.record_contact(3, 11, 2, true).expect("contact");
-        state.record_contact(5, 11, 2, false).expect("contact");
+        state
+            .record_contact(2, 11, 1, LocalPolicyContactClass::Bridge)
+            .expect("contact");
+        state
+            .record_contact(3, 11, 2, LocalPolicyContactClass::Bridge)
+            .expect("contact");
+        state
+            .record_contact(5, 11, 2, LocalPolicyContactClass::Local)
+            .expect("contact");
 
         let peer = state.peers.get(&11).expect("peer");
         assert_eq!(peer.contact_event_count, 3);
@@ -500,7 +555,7 @@ mod tests {
 
         for round_index in 0..4 {
             state
-                .record_contact(round_index, 11, 1, false)
+                .record_contact(round_index, 11, 1, LocalPolicyContactClass::Local)
                 .expect("contact");
         }
 
@@ -520,8 +575,8 @@ mod tests {
             state.record_arrival(LocalPolicyArrivalKind::Duplicate);
         }
         state.record_arrival(LocalPolicyArrivalKind::Innovative);
-        state.record_forward_result(false);
-        state.record_forward_result(true);
+        state.record_forward_result(LocalPolicyForwardOutcome::Redundant);
+        state.record_forward_result(LocalPolicyForwardOutcome::InnovativeSuccess);
 
         assert_eq!(state.recent_duplicate_rate_permille, 937);
         assert_eq!(state.recent_innovative_forward_success_rate_permille, 500);

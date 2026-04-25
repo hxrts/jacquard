@@ -263,3 +263,4 @@ mod tests {
         }
     }
 }
+// proc-macro-scope: local-policy baseline rows are artifact schema, not shared model vocabulary.

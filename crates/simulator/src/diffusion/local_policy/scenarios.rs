@@ -395,3 +395,4 @@ mod tests {
         assert_eq!(first, second);
     }
 }
+// proc-macro-scope: local-policy scenario rows are artifact schema, not shared model vocabulary.

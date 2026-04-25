@@ -203,3 +203,4 @@ mod tests {
         assert_eq!(first, second);
     }
 }
+// proc-macro-scope: observer attacker rows are replay schema, not shared model vocabulary.

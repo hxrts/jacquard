@@ -15,7 +15,7 @@ use super::{
     aggregate_runs, model_support::execute_model_case, summarize_breakdowns, summarize_run,
     ExperimentArtifacts, ExperimentError, ExperimentManifest, ExperimentModelArtifact,
     ExperimentModelCase, ExperimentRunSpec, ExperimentRunSummary, ExperimentSuite,
-    JacquardHostAdapter, JacquardSimulator,
+    JacquardHostAdapter, JacquardSimulator, ROUTE_VISIBLE_ARTIFACT_SCHEMA_VERSION,
 };
 use crate::SimulationExecutionLane;
 
@@ -254,6 +254,7 @@ where
     let aggregates = aggregate_runs(&runs);
     let breakdowns = summarize_breakdowns(&aggregates);
     let manifest = ExperimentManifest {
+        schema_version: ROUTE_VISIBLE_ARTIFACT_SCHEMA_VERSION,
         suite_id: suite.suite_id.clone(),
         generated_at_unix_seconds: 0,
         run_count: u32::try_from(runs.len()).unwrap_or(u32::MAX),

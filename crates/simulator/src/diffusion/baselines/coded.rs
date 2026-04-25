@@ -1,7 +1,8 @@
 //! Coded diffusion baselines over the readiness trace.
+// proc-macro-scope: baseline artifact reducers use serde-derived replay schema from the parent module.
 
 use super::{
-    BaselineArrivalClassification, BaselineArrivalCounters, BaselineBudgetEvent,
+    receiver_arrival_counters, BaselineArrivalClassification, BaselineBudgetEvent,
     BaselineContractError, BaselineForwardingEvent, BaselinePayloadDescriptor, BaselinePayloadMode,
     BaselinePolicyClass, BaselineReceiverEvent, BaselineRunInput, BaselineRunLog,
     BaselineRunSummary, BaselineRunSummaryDraft, BaselineStorageEvent,
@@ -10,6 +11,19 @@ use crate::diffusion::coded_inference::{
     build_coded_inference_readiness_log, summarize_coded_inference_readiness_log,
     CodedArrivalClassification, CodedInferenceReadinessLog,
 };
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CodedBaselineControl {
+    Uncontrolled,
+    Controlled,
+}
+
+impl CodedBaselineControl {
+    #[must_use]
+    fn is_controlled(self) -> bool {
+        matches!(self, Self::Controlled)
+    }
+}
 
 pub(crate) fn run_uncontrolled_coded_diffusion_baseline(
     input: &BaselineRunInput,
@@ -38,15 +52,17 @@ pub(crate) fn summarize_coded_diffusion_baseline(
     input: &BaselineRunInput,
     log: &BaselineRunLog,
     readiness_log: &CodedInferenceReadinessLog,
-    controlled: bool,
+    control: CodedBaselineControl,
 ) -> Result<BaselineRunSummary, BaselineContractError> {
     let readiness_summary = summarize_coded_inference_readiness_log(&input.scenario, readiness_log);
     let counters = receiver_arrival_counters(log);
     let measured_reproduction_permille = Some(readiness_summary.effective_reproduction_permille);
-    let target_reproduction_min_permille =
-        controlled.then_some(readiness_summary.target_reproduction_min_permille);
-    let target_reproduction_max_permille =
-        controlled.then_some(readiness_summary.target_reproduction_max_permille);
+    let target_reproduction_min_permille = control
+        .is_controlled()
+        .then_some(readiness_summary.target_reproduction_min_permille);
+    let target_reproduction_max_permille = control
+        .is_controlled()
+        .then_some(readiness_summary.target_reproduction_max_permille);
 
     BaselineRunSummary::try_from_draft(BaselineRunSummaryDraft {
         artifact_namespace: log.artifact_namespace.clone(),
@@ -80,6 +96,7 @@ pub(crate) fn summarize_coded_diffusion_baseline(
     })
 }
 
+// long-block-exception: conversion mirrors the readiness log schema into baseline replay rows.
 fn convert_coded_readiness_log(
     input: &BaselineRunInput,
     readiness_log: &CodedInferenceReadinessLog,
@@ -173,26 +190,11 @@ fn convert_arrival_class(
     }
 }
 
-fn receiver_arrival_counters(log: &BaselineRunLog) -> BaselineArrivalCounters {
-    let mut counters = BaselineArrivalCounters::default();
-    for event in &log.receiver_events {
-        match event.arrival_classification {
-            BaselineArrivalClassification::Innovative => {
-                counters.innovative_arrivals = counters.innovative_arrivals.saturating_add(1);
-            }
-            BaselineArrivalClassification::Duplicate => {
-                counters.duplicate_arrivals = counters.duplicate_arrivals.saturating_add(1);
-            }
-        }
-    }
-    counters
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         run_controlled_coded_diffusion_baseline, run_uncontrolled_coded_diffusion_baseline,
-        summarize_coded_diffusion_baseline, BaselinePayloadMode,
+        summarize_coded_diffusion_baseline, BaselinePayloadMode, CodedBaselineControl,
     };
     use crate::diffusion::{
         baselines::{
@@ -245,8 +247,13 @@ mod tests {
         let input = coded_input(BaselinePolicyId::UncontrolledCodedDiffusion);
         let (log, readiness_log) =
             run_uncontrolled_coded_diffusion_baseline(&input).expect("uncontrolled");
-        let summary = summarize_coded_diffusion_baseline(&input, &log, &readiness_log, false)
-            .expect("summary");
+        let summary = summarize_coded_diffusion_baseline(
+            &input,
+            &log,
+            &readiness_log,
+            CodedBaselineControl::Uncontrolled,
+        )
+        .expect("summary");
 
         assert_eq!(
             summary.policy_id,
@@ -263,8 +270,13 @@ mod tests {
         let input = coded_input(BaselinePolicyId::UncontrolledCodedDiffusion);
         let (log, readiness_log) =
             run_uncontrolled_coded_diffusion_baseline(&input).expect("uncontrolled");
-        let summary = summarize_coded_diffusion_baseline(&input, &log, &readiness_log, false)
-            .expect("summary");
+        let summary = summarize_coded_diffusion_baseline(
+            &input,
+            &log,
+            &readiness_log,
+            CodedBaselineControl::Uncontrolled,
+        )
+        .expect("summary");
 
         assert!(summary.receiver_rank >= input.scenario.coded_inference.reconstruction_threshold);
         assert!(
@@ -282,8 +294,13 @@ mod tests {
         let input = coded_input(BaselinePolicyId::ControlledCodedDiffusion);
         let (log, readiness_log) =
             run_controlled_coded_diffusion_baseline(&input).expect("controlled");
-        let summary = summarize_coded_diffusion_baseline(&input, &log, &readiness_log, true)
-            .expect("summary");
+        let summary = summarize_coded_diffusion_baseline(
+            &input,
+            &log,
+            &readiness_log,
+            CodedBaselineControl::Controlled,
+        )
+        .expect("summary");
 
         assert_eq!(
             summary.policy_id,
@@ -319,14 +336,14 @@ mod tests {
             &controlled_input,
             &controlled_log,
             &controlled_readiness,
-            true,
+            CodedBaselineControl::Controlled,
         )
         .expect("controlled summary");
         let uncontrolled = summarize_coded_diffusion_baseline(
             &uncontrolled_input,
             &uncontrolled_log,
             &uncontrolled_readiness,
-            false,
+            CodedBaselineControl::Uncontrolled,
         )
         .expect("uncontrolled summary");
 
@@ -351,8 +368,13 @@ mod tests {
         let input = coded_input(BaselinePolicyId::ControlledCodedDiffusion);
         let (log, readiness_log) =
             run_controlled_coded_diffusion_baseline(&input).expect("controlled");
-        let summary = summarize_coded_diffusion_baseline(&input, &log, &readiness_log, true)
-            .expect("summary");
+        let summary = summarize_coded_diffusion_baseline(
+            &input,
+            &log,
+            &readiness_log,
+            CodedBaselineControl::Controlled,
+        )
+        .expect("summary");
         let serialized = serde_json::to_string(&summary).expect("summary json");
 
         assert!(!serialized.contains("field_corridor_publication_dependency"));

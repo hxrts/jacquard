@@ -189,3 +189,4 @@ mod tests {
         assert_eq!(first, second);
     }
 }
+// proc-macro-scope: near-critical reproduction rows are artifact schema, not shared model vocabulary.

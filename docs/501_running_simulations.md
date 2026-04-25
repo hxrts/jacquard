@@ -130,6 +130,57 @@ for round in &replay.rounds {
 
 For analysis work, convert the full replay into the reduced surface through `ReducedReplayView::from_replay(&replay)`. To trade detail for throughput at capture time, call `run_scenario_with_capture` with `SimulationCaptureLevel::FullReplay`, `ReducedReplay`, or `SummaryOnly`. Summary-only runs produce `JacquardSimulationStats` without materializing per-round artifacts.
 
+## Running Through The External Facade
+
+External experiment crates should prefer the public facade when they want a
+stable import story rather than direct access to the maintained in-tree tuning
+catalog. The facade is intentionally small: `SimulatorConfig` selects capture
+behavior, `ExperimentSuiteSpec` names a custom suite, `RouteVisibleRunSpec`
+binds a scenario/environment pair to a run id, `ExperimentRunner` executes the
+suite, and `ArtifactSink` decides whether artifacts are written.
+
+```rust
+use jacquard_core::SimulationSeed;
+use jacquard_simulator::{
+    ArtifactSink, ExperimentRunner, ExperimentSuiteSpec, RouteVisibleRunSpec,
+};
+
+let suite = ExperimentSuiteSpec::route_visible(
+    "custom-route-visible",
+    vec![RouteVisibleRunSpec::new(
+        "custom-route-visible-seed-41",
+        "custom-family",
+        "batman-bellman",
+        SimulationSeed(41),
+        scenario,
+        environment,
+    )],
+);
+
+let artifacts = ExperimentRunner::default()
+    .run_route_visible_suite(
+        &suite,
+        &ArtifactSink::directory("artifacts/custom-route-visible"),
+    )
+    .expect("run custom route-visible suite");
+assert_eq!(artifacts.manifest.run_count, 1);
+```
+
+The directory sink writes external_manifest.json and external_runs.jsonl.
+These files are for downstream harnesses and smoke
+checks; the maintained `analysis/` report still consumes the standard
+`tuning_matrix` artifact layout described in
+[Running Experiments](502_running_experiments.md). Use
+`ArtifactSink::disabled()` when a library consumer wants an in-memory
+determinism check without file output or Python report dependencies.
+
+All facade validation happens before execution. Duplicate run ids, duplicate
+`(family, engine, seed)` tuples, empty ids, and unknown engine ids fail with a
+deterministic error. The default engine registry covers the route-visible
+engines used by the maintained report: `batman-classic`, `batman-bellman`,
+`babel`, `olsrv2`, `scatter`, `mercator`, `pathway`, and
+`pathway-batman-bellman`.
+
 ## Asserting Expectations
 
 `ScenarioAssertions` is a builder that turns a reduced replay into a pass or fail outcome. Each `.expect_*` method accumulates one rule. The `.evaluate(&reduced)` call runs them all.
