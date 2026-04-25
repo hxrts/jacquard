@@ -21,10 +21,6 @@ from analysis.scoring import (
     comparison_engine_round_breakdown_table,
     diffusion_baseline_audit_table,
     diffusion_family_weight_sensitivity_table,
-    field_diffusion_regime_calibration_table,
-    field_profile_recommendation_table,
-    field_routing_regime_calibration_table,
-    field_vs_best_diffusion_alternative_table,
     head_to_head_summary_table,
     large_population_diffusion_state_points_table,
     large_population_diffusion_transition_table,
@@ -37,15 +33,10 @@ from analysis.scoring import (
 )
 
 
-LOW_CHURN_CONFIG = "field-4-zero-p1-f140-n180"
-BROAD_RESELECTION_CONFIG = "field-6-hop-lower-bound-p3-f170-n90"
-
-
-def _field_route_visible_aggregates() -> pl.DataFrame:
-    common = {
-        "engine_family": "field",
+def _route_visible_common() -> dict[str, object]:
+    return {
         "activation_success_permille_mean": 1000.0,
-        "route_present_permille_mean": 810.5555555555555,
+        "route_present_permille_mean": 810.0,
         "stability_total_mean": 0.0,
         "stress_score": 60,
         "objective_regime": "service",
@@ -55,57 +46,7 @@ def _field_route_visible_aggregates() -> pl.DataFrame:
         "maintenance_failure_count_mean": 0.0,
         "lost_reachability_count_mean": 0.0,
         "persistent_degraded_count_mean": 0.0,
-        "field_bootstrap_activation_permille_mean": 444.44444444444446,
-        "field_bootstrap_hold_permille_mean": 111.11111111111111,
-        "field_bootstrap_narrow_permille_mean": 0.0,
-        "field_bootstrap_upgrade_permille_mean": 222.22222222222223,
-        "field_bootstrap_withdraw_permille_mean": 1333.3333333333333,
-        "field_degraded_steady_entry_permille_mean": 444.44444444444446,
-        "field_degraded_steady_recovery_permille_mean": 0.0,
-        "field_degraded_to_bootstrap_permille_mean": 111.11111111111111,
-        "field_degraded_steady_round_permille_mean": 31.88888888888889,
-        "field_asymmetric_shift_success_permille_mean": 0.0,
-        "field_corridor_narrow_count_mean": 0.0,
-        "field_continuity_band_mode": "Steady",
-        "field_commitment_resolution_mode": "Pending",
-        "field_last_outcome_mode": "ContinuationRetained",
-        "field_last_continuity_transition_mode": "EnteredDegradedSteady",
-        "field_last_promotion_decision_mode": "Promote",
-        "field_last_promotion_blocker_mode": "SupportTrend",
     }
-    return pl.from_dicts(
-        [
-            {
-                **common,
-                "config_id": LOW_CHURN_CONFIG,
-                "field_service_retention_carry_forward_permille_mean": 7111.111111111111,
-                "field_continuation_shift_count_mean": 2.7777777777777777,
-            },
-            {
-                **common,
-                "config_id": BROAD_RESELECTION_CONFIG,
-                "field_service_retention_carry_forward_permille_mean": 14333.333333333334,
-                "field_continuation_shift_count_mean": 10.0,
-            },
-        ]
-    )
-
-
-def _field_breakdowns() -> pl.DataFrame:
-    return pl.from_dicts(
-        [
-            {
-                "engine_family": "field",
-                "config_id": LOW_CHURN_CONFIG,
-                "max_sustained_stress_score": 60,
-            },
-            {
-                "engine_family": "field",
-                "config_id": BROAD_RESELECTION_CONFIG,
-                "max_sustained_stress_score": 60,
-            },
-        ]
-    )
 
 
 def _scatter_runtime_aggregates() -> pl.DataFrame:
@@ -253,9 +194,9 @@ def _head_to_head_aggregates() -> pl.DataFrame:
             {
                 "engine_family": "head-to-head",
                 "family_id": "head-to-head-connected-low-loss",
-                "config_id": "head-to-head-field-8-hop-lower-bound",
-                "comparison_engine_set": "field",
-                "dominant_engine": "field",
+                "config_id": "head-to-head-mercator-8-hop-lower-bound",
+                "comparison_engine_set": "mercator",
+                "dominant_engine": "mercator",
                 "activation_success_permille_mean": 1000.0,
                 "route_present_permille_mean": 900.0,
                 "route_present_total_window_permille_mean": 750.0,
@@ -287,9 +228,9 @@ def _benchmark_profile_recommendations() -> pl.DataFrame:
                 "max_sustained_stress_score": 56,
             },
             {
-                "engine_family": "field",
+                "engine_family": "mercator",
                 "profile_id": "balanced",
-                "config_id": "field-8-hop-lower-bound",
+                "config_id": "mercator-8-hop-lower-bound",
                 "mean_score": 10.0,
                 "activation_success_mean": 1000.0,
                 "route_present_mean": 900.0,
@@ -425,37 +366,37 @@ def _diffusion_regime_aggregates() -> pl.DataFrame:
         "estimated_reproduction_permille_mean": 980.0,
         "corridor_persistence_permille_mean": 320.0,
         "observer_leakage_permille_mean": 40.0,
-        "field_posture_transition_count_mean": 2.0,
-        "field_first_scarcity_transition_round_mean": None,
-        "field_first_congestion_transition_round_mean": 3.0,
-        "field_protected_budget_used_mean": 2.0,
-        "field_generic_budget_used_mean": 4.0,
-        "field_bridge_opportunity_count_mean": 0.0,
-        "field_protected_bridge_usage_count_mean": 0.0,
-        "field_cluster_seed_opportunity_count_mean": 3.0,
-        "field_cluster_seed_usage_count_mean": 0.0,
-        "field_cluster_coverage_starvation_count_mean": 9.0,
-        "field_redundant_forward_suppression_count_mean": 8.0,
-        "field_same_cluster_suppression_count_mean": 4.0,
-        "field_expensive_transport_suppression_count_mean": 0.0,
-        "field_cluster_seeding_rounds_mean": 2.0,
-        "field_duplicate_suppressed_rounds_mean": 6.0,
+        "mercator_posture_transition_count_mean": 2.0,
+        "mercator_first_scarcity_transition_round_mean": None,
+        "mercator_first_congestion_transition_round_mean": 3.0,
+        "mercator_protected_budget_used_mean": 2.0,
+        "mercator_generic_budget_used_mean": 4.0,
+        "mercator_bridge_opportunity_count_mean": 0.0,
+        "mercator_protected_bridge_usage_count_mean": 0.0,
+        "mercator_cluster_seed_opportunity_count_mean": 3.0,
+        "mercator_cluster_seed_usage_count_mean": 0.0,
+        "mercator_cluster_coverage_starvation_count_mean": 9.0,
+        "mercator_redundant_forward_suppression_count_mean": 8.0,
+        "mercator_same_cluster_suppression_count_mean": 4.0,
+        "mercator_expensive_transport_suppression_count_mean": 0.0,
+        "mercator_cluster_seeding_rounds_mean": 2.0,
+        "mercator_duplicate_suppressed_rounds_mean": 6.0,
         "bounded_state_mode": "collapse",
     }
     return pl.from_dicts(
         [
             {
                 **base,
-                "config_id": "field-congestion-search-1",
-                "field_posture_mode": "duplicate_suppressed",
+                "config_id": "mercator-congestion-search-1",
+                "mercator_posture_mode": "duplicate_suppressed",
             },
             {
                 **base,
-                "config_id": "field-congestion-search-2",
+                "config_id": "mercator-congestion-search-2",
                 "delivery_probability_permille_mean": 690.0,
                 "cluster_coverage_permille_mean": 420.0,
                 "total_transmissions_mean": 30.0,
-                "field_posture_mode": "duplicate_suppressed",
+                "mercator_posture_mode": "duplicate_suppressed",
             },
             {
                 **base,
@@ -468,18 +409,18 @@ def _diffusion_regime_aggregates() -> pl.DataFrame:
                 "storage_utilization_permille_mean": 290.0,
                 "estimated_reproduction_permille_mean": 540.0,
                 "bounded_state_mode": "viable",
-                "field_posture_mode": None,
-                "field_posture_transition_count_mean": 0.0,
-                "field_first_congestion_transition_round_mean": None,
-                "field_protected_budget_used_mean": 0.0,
-                "field_generic_budget_used_mean": 0.0,
-                "field_cluster_seed_opportunity_count_mean": 0.0,
-                "field_cluster_seed_usage_count_mean": 0.0,
-                "field_cluster_coverage_starvation_count_mean": 0.0,
-                "field_redundant_forward_suppression_count_mean": 0.0,
-                "field_same_cluster_suppression_count_mean": 0.0,
-                "field_cluster_seeding_rounds_mean": 0.0,
-                "field_duplicate_suppressed_rounds_mean": 0.0,
+                "mercator_posture_mode": None,
+                "mercator_posture_transition_count_mean": 0.0,
+                "mercator_first_congestion_transition_round_mean": None,
+                "mercator_protected_budget_used_mean": 0.0,
+                "mercator_generic_budget_used_mean": 0.0,
+                "mercator_cluster_seed_opportunity_count_mean": 0.0,
+                "mercator_cluster_seed_usage_count_mean": 0.0,
+                "mercator_cluster_coverage_starvation_count_mean": 0.0,
+                "mercator_redundant_forward_suppression_count_mean": 0.0,
+                "mercator_same_cluster_suppression_count_mean": 0.0,
+                "mercator_cluster_seeding_rounds_mean": 0.0,
+                "mercator_duplicate_suppressed_rounds_mean": 0.0,
             },
             {
                 **base,
@@ -492,18 +433,18 @@ def _diffusion_regime_aggregates() -> pl.DataFrame:
                 "storage_utilization_permille_mean": 320.0,
                 "estimated_reproduction_permille_mean": 590.0,
                 "bounded_state_mode": "viable",
-                "field_posture_mode": None,
-                "field_posture_transition_count_mean": 0.0,
-                "field_first_congestion_transition_round_mean": None,
-                "field_protected_budget_used_mean": 0.0,
-                "field_generic_budget_used_mean": 0.0,
-                "field_cluster_seed_opportunity_count_mean": 0.0,
-                "field_cluster_seed_usage_count_mean": 0.0,
-                "field_cluster_coverage_starvation_count_mean": 0.0,
-                "field_redundant_forward_suppression_count_mean": 0.0,
-                "field_same_cluster_suppression_count_mean": 0.0,
-                "field_cluster_seeding_rounds_mean": 0.0,
-                "field_duplicate_suppressed_rounds_mean": 0.0,
+                "mercator_posture_mode": None,
+                "mercator_posture_transition_count_mean": 0.0,
+                "mercator_first_congestion_transition_round_mean": None,
+                "mercator_protected_budget_used_mean": 0.0,
+                "mercator_generic_budget_used_mean": 0.0,
+                "mercator_cluster_seed_opportunity_count_mean": 0.0,
+                "mercator_cluster_seed_usage_count_mean": 0.0,
+                "mercator_cluster_coverage_starvation_count_mean": 0.0,
+                "mercator_redundant_forward_suppression_count_mean": 0.0,
+                "mercator_same_cluster_suppression_count_mean": 0.0,
+                "mercator_cluster_seeding_rounds_mean": 0.0,
+                "mercator_duplicate_suppressed_rounds_mean": 0.0,
             },
         ]
     )
@@ -515,7 +456,7 @@ def _large_population_route_aggregates() -> pl.DataFrame:
             {
                 "engine_family": "head-to-head",
                 "family_id": "head-to-head-connected-low-loss",
-                "comparison_engine_set": "field",
+                "comparison_engine_set": "mercator",
                 "route_present_permille_mean": 920.0,
                 "activation_success_permille_mean": 1000.0,
                 "first_loss_round_mean": None,
@@ -524,7 +465,7 @@ def _large_population_route_aggregates() -> pl.DataFrame:
             {
                 "engine_family": "head-to-head",
                 "family_id": "head-to-head-large-core-periphery-moderate",
-                "comparison_engine_set": "field",
+                "comparison_engine_set": "mercator",
                 "route_present_permille_mean": 760.0,
                 "activation_success_permille_mean": 1000.0,
                 "first_loss_round_mean": 18.0,
@@ -533,7 +474,7 @@ def _large_population_route_aggregates() -> pl.DataFrame:
             {
                 "engine_family": "head-to-head",
                 "family_id": "head-to-head-large-core-periphery-high",
-                "comparison_engine_set": "field",
+                "comparison_engine_set": "mercator",
                 "route_present_permille_mean": 640.0,
                 "activation_success_permille_mean": 1000.0,
                 "first_loss_round_mean": 14.0,
@@ -569,7 +510,7 @@ def _large_population_route_aggregates() -> pl.DataFrame:
             {
                 "engine_family": "head-to-head",
                 "family_id": "head-to-head-medium-bridge-repair",
-                "comparison_engine_set": "field",
+                "comparison_engine_set": "mercator",
                 "route_present_permille_mean": 880.0,
                 "activation_success_permille_mean": 1000.0,
                 "first_loss_round_mean": 20.0,
@@ -578,7 +519,7 @@ def _large_population_route_aggregates() -> pl.DataFrame:
             {
                 "engine_family": "head-to-head",
                 "family_id": "head-to-head-large-multi-bottleneck-moderate",
-                "comparison_engine_set": "field",
+                "comparison_engine_set": "mercator",
                 "route_present_permille_mean": 700.0,
                 "activation_success_permille_mean": 1000.0,
                 "first_loss_round_mean": 16.0,
@@ -587,7 +528,7 @@ def _large_population_route_aggregates() -> pl.DataFrame:
             {
                 "engine_family": "head-to-head",
                 "family_id": "head-to-head-large-multi-bottleneck-high",
-                "comparison_engine_set": "field",
+                "comparison_engine_set": "mercator",
                 "route_present_permille_mean": 520.0,
                 "activation_success_permille_mean": 1000.0,
                 "first_loss_round_mean": 10.0,
@@ -642,7 +583,7 @@ def _large_population_diffusion_aggregates() -> pl.DataFrame:
             },
             {
                 "family_id": "diffusion-large-congestion-threshold-moderate",
-                "config_id": "field-congestion",
+                "config_id": "mercator-congestion",
                 "delivery_probability_permille_mean": 710.0,
                 "coverage_permille_mean": 660.0,
                 "cluster_coverage_permille_mean": 640.0,
@@ -654,7 +595,7 @@ def _large_population_diffusion_aggregates() -> pl.DataFrame:
     )
 
 
-class FieldRoutingRecommendationTests(unittest.TestCase):
+class RouteAnalysisScoringTests(unittest.TestCase):
     def test_comparison_engine_round_breakdown_uses_total_window_route_presence(self) -> None:
         aggregates = pl.from_dicts(
             [
@@ -673,13 +614,12 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                     "pathway_selected_rounds_mean": 10.0,
                     "scatter_selected_rounds_mean": 0.0,
                     "mercator_selected_rounds_mean": 0.0,
-                    "field_selected_rounds_mean": 0.0,
                 },
                 {
                     "engine_family": "comparison",
                     "family_id": "comparison-connected",
                     "config_id": "total-window-high",
-                    "dominant_engine": "field",
+                    "dominant_engine": "mercator",
                     "route_present_permille_mean": 900.0,
                     "route_present_total_window_permille_mean": 800.0,
                     "engine_handoff_count_mean": 2.0,
@@ -690,7 +630,6 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                     "pathway_selected_rounds_mean": 0.0,
                     "scatter_selected_rounds_mean": 0.0,
                     "mercator_selected_rounds_mean": 4.0,
-                    "field_selected_rounds_mean": 10.0,
                 },
             ]
         )
@@ -704,7 +643,6 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
 
     def test_mercator_is_in_route_visible_engine_order(self) -> None:
         self.assertIn("mercator", ROUTE_VISIBLE_ENGINE_SET_ORDER)
-        self.assertNotIn("field", ROUTE_VISIBLE_ENGINE_SET_ORDER)
         self.assertLess(
             ROUTE_VISIBLE_ENGINE_SET_ORDER.index("scatter"),
             ROUTE_VISIBLE_ENGINE_SET_ORDER.index("mercator"),
@@ -778,7 +716,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(mercator_rows[0]["x"], 900.0)
 
     def test_recommendation_table_prefers_total_window_route_presence(self) -> None:
-        common = _field_route_visible_aggregates().row(0, named=True)
+        common = _route_visible_common()
         aggregates = pl.from_dicts(
             [
                 {
@@ -822,26 +760,6 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(top_pathway["config_id"], "pathway-b")
         self.assertEqual(top_pathway["route_present_mean"], 900.0)
 
-    def test_balanced_recommendation_prefers_low_churn_when_route_presence_ties(self) -> None:
-        recommendations = recommendation_table(
-            _field_route_visible_aggregates(), _field_breakdowns(), "balanced"
-        )
-        top_field = recommendations.filter(pl.col("engine_family") == "field").row(
-            0, named=True
-        )
-        self.assertEqual(top_field["config_id"], LOW_CHURN_CONFIG)
-
-    def test_field_profiles_keep_broad_reselection_opt_in(self) -> None:
-        profile_table = field_profile_recommendation_table(
-            _field_route_visible_aggregates(), _field_breakdowns()
-        )
-        rows = {
-            row["profile_id"]: row["config_id"]
-            for row in profile_table.iter_rows(named=True)
-        }
-        self.assertEqual(rows["field-low-churn"], LOW_CHURN_CONFIG)
-        self.assertEqual(rows["field-broad-reselection"], BROAD_RESELECTION_CONFIG)
-
     def test_scatter_profiles_use_runtime_surface_when_route_metrics_tie(self) -> None:
         balanced = recommendation_table(
             _scatter_runtime_aggregates(), _scatter_breakdowns(), "balanced"
@@ -870,57 +788,6 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                 "config_id"
             ],
             "scatter-degraded-network",
-        )
-
-    def test_field_routing_regime_calibration_uses_stable_mode_tie_break(self) -> None:
-        calibration = field_routing_regime_calibration_table(
-            pl.from_dicts(
-                [
-                    {
-                        "engine_family": "field",
-                        "family_id": "field-bootstrap-upgrade-window",
-                        "config_id": LOW_CHURN_CONFIG,
-                        "route_present_permille_mean": 1000.0,
-                        "activation_success_permille_mean": 1000.0,
-                        "stress_score": 50,
-                        "field_bootstrap_upgrade_permille_mean": 1000.0,
-                        "field_bootstrap_withdraw_permille_mean": 0.0,
-                        "field_degraded_steady_recovery_permille_mean": 0.0,
-                        "field_degraded_to_bootstrap_permille_mean": 0.0,
-                        "field_service_retention_carry_forward_permille_mean": 0.0,
-                        "field_asymmetric_shift_success_permille_mean": 0.0,
-                        "field_continuation_shift_count_mean": 1.0,
-                        "field_route_bound_reconfiguration_count_mean": 0.0,
-                        "route_churn_count_mean": 0.0,
-                        "field_continuity_band_mode": "DegradedSteady",
-                        "field_last_continuity_transition_mode": "EnteredDegradedSteady",
-                    },
-                    {
-                        "engine_family": "field",
-                        "family_id": "field-partial-observability-bridge",
-                        "config_id": LOW_CHURN_CONFIG,
-                        "route_present_permille_mean": 1000.0,
-                        "activation_success_permille_mean": 1000.0,
-                        "stress_score": 50,
-                        "field_bootstrap_upgrade_permille_mean": 1000.0,
-                        "field_bootstrap_withdraw_permille_mean": 0.0,
-                        "field_degraded_steady_recovery_permille_mean": 0.0,
-                        "field_degraded_to_bootstrap_permille_mean": 0.0,
-                        "field_service_retention_carry_forward_permille_mean": 0.0,
-                        "field_asymmetric_shift_success_permille_mean": 0.0,
-                        "field_continuation_shift_count_mean": 1.0,
-                        "field_route_bound_reconfiguration_count_mean": 0.0,
-                        "route_churn_count_mean": 0.0,
-                        "field_continuity_band_mode": "Bootstrap",
-                        "field_last_continuity_transition_mode": "DowngradedToBootstrap",
-                    },
-                ]
-            )
-        )
-        row = calibration.row(0, named=True)
-        self.assertEqual(row["field_continuity_band_mode"], "Bootstrap")
-        self.assertEqual(
-            row["field_last_continuity_transition_mode"], "DowngradedToBootstrap"
         )
 
     def test_head_to_head_summary_uses_consistent_engine_order_on_ties(self) -> None:
@@ -952,32 +819,9 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         rows = {row["engine_set"]: row for row in audit.iter_rows(named=True)}
         self.assertIsNotNone(rows["batman-classic"]["calibrated_profile_id"])
         self.assertIsNotNone(rows["batman-bellman"]["calibrated_profile_id"])
-        self.assertIsNotNone(rows["field"]["calibrated_profile_id"])
+        self.assertIsNotNone(rows["mercator"]["calibrated_profile_id"])
 
-    def test_field_diffusion_regime_calibration_fails_closed_when_all_field_candidates_collapse(
-        self,
-    ) -> None:
-        calibration = field_diffusion_regime_calibration_table(
-            _diffusion_regime_aggregates()
-        )
-        congestion = calibration.filter(pl.col("field_regime") == "congestion").row(
-            0, named=True
-        )
-        self.assertFalse(congestion["acceptable_candidate"])
-        self.assertEqual(congestion["config_id"], "no-acceptable-field-candidate")
-        self.assertTrue(
-            congestion["best_attempt_config_id"].startswith("field-congestion-search-")
-        )
-
-    def test_field_vs_best_alternative_uses_best_non_field_regime_candidate(self) -> None:
-        aggregates = _diffusion_regime_aggregates()
-        calibration = field_diffusion_regime_calibration_table(aggregates)
-        delta = field_vs_best_diffusion_alternative_table(aggregates, calibration)
-        congestion = delta.filter(pl.col("field_regime") == "congestion").row(0, named=True)
-        self.assertEqual(congestion["alternative_config_id"], "batman-classic")
-        self.assertLess(congestion["regime_score_delta"], 0.0)
-
-    def test_diffusion_baseline_audit_lists_non_field_benchmarks(self) -> None:
+    def test_diffusion_baseline_audit_lists_benchmarks(self) -> None:
         audit = diffusion_baseline_audit_table(_diffusion_regime_aggregates())
         self.assertEqual(audit["config_id"].to_list(), ["batman-classic", "olsrv2"])
 
@@ -1035,7 +879,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         summary = large_population_route_summary_table(_large_population_route_aggregates())
         row = summary.filter(
             (pl.col("topology_class") == "diameter-fanout")
-            & (pl.col("comparison_engine_set") == "field")
+            & (pl.col("comparison_engine_set") == "mercator")
         ).row(0, named=True)
         self.assertEqual(row["small_route_present"], 920.0)
         self.assertEqual(row["moderate_route_present"], 760.0)
@@ -1114,7 +958,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                 {
                     "engine_family": "head-to-head",
                     "family_id": "head-to-head-multi-flow-detour-choice",
-                    "comparison_engine_set": "field",
+                    "comparison_engine_set": "mercator",
                     "route_present_total_window_permille_mean": 0.0,
                     "route_present_permille_mean": 0.0,
                     "objective_route_presence_min_permille_mean": 0.0,
@@ -1133,9 +977,9 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         summary = routing_fitness_multiflow_summary_table(aggregates)
 
         scatter = summary.filter(pl.col("comparison_engine_set") == "scatter").row(0, named=True)
-        field = summary.filter(pl.col("comparison_engine_set") == "field").row(0, named=True)
+        mercator = summary.filter(pl.col("comparison_engine_set") == "mercator").row(0, named=True)
         self.assertEqual(scatter["broker_metric_status"], "non-next-hop-route")
-        self.assertEqual(field["broker_metric_status"], "no-visible-route")
+        self.assertEqual(mercator["broker_metric_status"], "no-visible-route")
 
     def test_routing_fitness_stale_summary_preserves_repair_metrics(self) -> None:
         summary = routing_fitness_stale_repair_summary_table(_routing_fitness_aggregates())
@@ -1281,7 +1125,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                         "question": "search-burden",
                         "question_label": "Search burden crossover",
                         "band_label": "high",
-                        "comparison_engine_set": "field",
+                        "comparison_engine_set": "mercator",
                         "route_present_total_window_permille_mean": 720.0,
                         "recovery_success_permille_mean": 780.0,
                     },
@@ -1355,7 +1199,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
 
         self.assertTrue(
             any(
-                "`field`, `pathway`, and `pathway-batman-bellman`" in line
+                "`mercator`, `pathway`, and `pathway-batman-bellman`" in line
                 for line in lines
             )
         )
@@ -1407,7 +1251,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                         "pathway_selected_rounds_mean": 30,
                         "scatter_selected_rounds_mean": 30,
                         "mercator_selected_rounds_mean": 0,
-                        "field_selected_rounds_mean": 0,
+                        "mercator_selected_rounds_mean": 0,
                     }
                 ]
             ),
@@ -1439,7 +1283,6 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                         "pathway_selected_rounds_mean": 5,
                         "scatter_selected_rounds_mean": 0,
                         "mercator_selected_rounds_mean": 15,
-                        "field_selected_rounds_mean": 0,
                     }
                 ]
             ),
@@ -1472,7 +1315,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                     {
                         "engine_family": "head-to-head",
                         "family_id": "head-to-head-connected-high-loss",
-                        "comparison_engine_set": "field",
+                        "comparison_engine_set": "mercator",
                         "route_present_total_window_permille_mean": 700.0,
                     },
                 ]

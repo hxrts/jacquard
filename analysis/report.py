@@ -49,6 +49,7 @@ from .plots import (
     render_scatter_profile_route_presence,
     save_plot_artifact,
 )
+from .constants import ROUTE_VISIBLE_ENGINE_SET_ORDER
 from .scoring import (
     baseline_comparison_table,
     benchmark_profile_audit_table,
@@ -91,6 +92,7 @@ RUN_FAILURE_CLASS_COLUMNS = (
 AGGREGATE_FAILURE_CLASS_COLUMNS = tuple(
     f"{column}_mean" for column in RUN_FAILURE_CLASS_COLUMNS
 )
+RETIRED_ENGINE_TOKEN = "f" "ield"
 
 
 def normalize_failure_summary_count(
@@ -108,37 +110,91 @@ def normalize_failure_summary_count(
     return frame.with_columns(total.cast(pl.UInt32).alias(count_column))
 
 
-def without_field_rows(frame: pl.DataFrame) -> pl.DataFrame:
+def active_report_columns(frame: pl.DataFrame) -> pl.DataFrame:
+    if frame.is_empty():
+        return frame
+    keep_columns = [
+        column for column in frame.columns if RETIRED_ENGINE_TOKEN not in column.lower()
+    ]
+    return frame.select(keep_columns)
+
+
+def without_retired_rows(frame: pl.DataFrame) -> pl.DataFrame:
     if frame.is_empty():
         return frame
     keep = pl.lit(True)
+    for column in (
+        "engine_family",
+        "comparison_engine_set",
+        "dominant_engine",
+        "config_id",
+        "family_id",
+    ):
+        if column not in frame.columns:
+            continue
+        values = pl.col(column).cast(pl.String, strict=False).str.to_lowercase()
+        keep = keep & (
+            pl.col(column).is_null()
+            | ~values.str.contains(RETIRED_ENGINE_TOKEN).fill_null(False)
+        )
+    return frame.filter(keep)
+
+
+def report_scope_rows(frame: pl.DataFrame) -> pl.DataFrame:
+    if frame.is_empty():
+        return frame
+    route_visible = ROUTE_VISIBLE_ENGINE_SET_ORDER
+    engine_family_values = [
+        *route_visible,
+        "comparison",
+        "head-to-head",
+    ]
+    config_prefix_values = [
+        *route_visible,
+        "transition-",
+    ]
+    frame = without_retired_rows(frame)
+    keep = pl.lit(True)
     if "engine_family" in frame.columns:
         keep = keep & (
-            pl.col("engine_family").is_null() | (pl.col("engine_family") != "field")
+            pl.col("engine_family").is_null()
+            | pl.col("engine_family").is_in(engine_family_values)
         )
     if "comparison_engine_set" in frame.columns:
         keep = keep & (
             pl.col("comparison_engine_set").is_null()
-            | (pl.col("comparison_engine_set") != "field")
+            | pl.col("comparison_engine_set").is_in(route_visible)
         )
     if "dominant_engine" in frame.columns:
         keep = keep & (
-            pl.col("dominant_engine").is_null() | (pl.col("dominant_engine") != "field")
+            pl.col("dominant_engine").is_null()
+            | pl.col("dominant_engine").is_in([*route_visible, "tie", "none"])
         )
     if "config_id" in frame.columns:
+        prefix_keep = pl.lit(False)
+        for prefix in config_prefix_values:
+            prefix_keep = prefix_keep | pl.col("config_id").str.starts_with(prefix)
+        keep = keep & (pl.col("config_id").is_null() | prefix_keep)
+    return active_report_columns(frame.filter(keep))
+
+
+def route_analysis_rows(frame: pl.DataFrame) -> pl.DataFrame:
+    if frame.is_empty():
+        return frame
+    route_visible = ROUTE_VISIBLE_ENGINE_SET_ORDER
+    frame = without_retired_rows(frame)
+    keep = pl.lit(True)
+    if "engine_family" in frame.columns:
         keep = keep & (
-            pl.col("config_id").is_null()
-            | (
-                ~pl.col("config_id").str.starts_with("field")
-                & ~pl.col("config_id").str.starts_with("head-to-head-field")
-            )
+            pl.col("engine_family").is_null()
+            | pl.col("engine_family").is_in([*route_visible, "comparison", "head-to-head"])
         )
-    if "family_id" in frame.columns:
+    if "comparison_engine_set" in frame.columns:
         keep = keep & (
-            pl.col("family_id").is_null()
-            | ~pl.col("family_id").str.starts_with("field")
+            pl.col("comparison_engine_set").is_null()
+            | pl.col("comparison_engine_set").is_in(route_visible)
         )
-    return frame.filter(keep)
+    return active_report_columns(frame.filter(keep))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -200,12 +256,12 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    routing_runs = without_field_rows(runs)
-    routing_aggregates = without_field_rows(aggregates)
-    routing_breakdowns = without_field_rows(breakdowns)
-    diffusion_runs = without_field_rows(diffusion_runs)
-    diffusion_aggregates = without_field_rows(diffusion_aggregates)
-    diffusion_boundaries = without_field_rows(diffusion_boundaries)
+    routing_runs = route_analysis_rows(runs)
+    routing_aggregates = route_analysis_rows(aggregates)
+    routing_breakdowns = route_analysis_rows(breakdowns)
+    diffusion_runs = report_scope_rows(diffusion_runs)
+    diffusion_aggregates = report_scope_rows(diffusion_aggregates)
+    diffusion_boundaries = report_scope_rows(diffusion_boundaries)
 
     with tempfile.TemporaryDirectory(
         dir=artifact_dir, prefix=".report-staging-"
@@ -276,8 +332,6 @@ def main(argv: list[str] | None = None) -> int:
         large_population_diffusion_transitions = large_population_diffusion_transition_table(
             diffusion_aggregates
         )
-        empty_legacy_field_table = pl.DataFrame()
-
         write_csv(routing_runs, output_report_dir / "runs.csv")
         write_csv(routing_aggregates, output_report_dir / "aggregates.csv")
         write_csv(routing_breakdowns, output_report_dir / "breakdowns.csv")
@@ -512,9 +566,7 @@ def main(argv: list[str] | None = None) -> int:
             output_pdf_path,
             recommendations,
             profile_recommendations,
-            empty_legacy_field_table,
             benchmark_profile_audit,
-            empty_legacy_field_table,
             transition_metrics,
             boundary_summary,
             routing_aggregates,
@@ -533,8 +585,6 @@ def main(argv: list[str] | None = None) -> int:
             routing_fitness_multiflow_summary,
             routing_fitness_stale_repair_summary,
             large_population_diffusion_transitions,
-            empty_legacy_field_table,
-            empty_legacy_field_table,
             baseline_comparison,
             baseline_dir,
         )

@@ -63,23 +63,6 @@ class ReportSanityTests(unittest.TestCase):
                 messages,
             )
 
-    def test_detects_field_rows_in_router_analysis(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            artifact_dir = Path(tmp)
-            report_dir = artifact_dir / "report"
-            report_dir.mkdir()
-            _write_large(artifact_dir / "router-tuning-report.pdf", b"%PDF")
-            (report_dir / "runs.csv").write_text(
-                "run_id,family_id,engine_family,config_id,seed,"
-                "route_present_total_window_permille\n"
-                "r,field-bootstrap,field,field-1,1,900\n"
-            )
-            rendered = [issue.render() for issue in validate_report_artifacts(artifact_dir)]
-            self.assertIn(
-                "runs.csv: routing analysis report contains Field rows",
-                rendered,
-            )
-
     def test_detects_stale_persistence_without_disruption(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             artifact_dir = Path(tmp)

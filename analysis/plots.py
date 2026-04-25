@@ -101,7 +101,6 @@ def family_label(family_id: str) -> str:
     return (
         family_id.replace("batman-bellman-", "")
         .replace("pathway-", "")
-        .replace("field-", "")
         .replace("olsrv2-", "")
         .replace("scatter-", "")
         .replace("comparison-", "")
@@ -141,14 +140,9 @@ def engine_display_label(engine_id: str | None) -> str:
         "pathway": "Pathway",
         "scatter": "Scatter",
         "mercator": "Mercator",
-        "field": "Field",
         "pathway-batman-bellman": "Pathway + BATMAN Bellman",
         "tie": "Tie",
         "none": "None",
-        "field-continuity": "Field continuity",
-        "field-scarcity": "Field scarcity",
-        "field-congestion": "Field congestion",
-        "field-privacy": "Field privacy",
         "transition-tight": "Transition tight",
         "transition-balanced": "Transition balanced",
         "transition-bridge-biased": "Transition bridge-biased",
@@ -156,11 +150,6 @@ def engine_display_label(engine_id: str | None) -> str:
     }
     if engine_id in canonical:
         return canonical[engine_id]
-    if engine_id and engine_id.startswith("field-") and "-search-" in engine_id:
-        tokens = engine_id.split("-")
-        regime = tokens[1]
-        search_id = tokens[-1]
-        return f"Field {regime} s{search_id}"
     if not engine_id:
         return "None"
     return " ".join(part.upper() if part == "mpr" else part.capitalize() for part in engine_id.split("-"))
@@ -175,22 +164,12 @@ def compact_engine_label(engine_id: str | None) -> str:
         "pathway": "Pathway",
         "scatter": "Scatter",
         "mercator": "Mercator",
-        "field": "Field",
         "pathway-batman-bellman": "Pathway\n+ BB",
         "tie": "Tie",
         "none": "None",
-        "field-continuity": "Field\ncontinuity",
-        "field-scarcity": "Field\nscarcity",
-        "field-congestion": "Field\ncongestion",
-        "field-privacy": "Field\nprivacy",
     }
     if engine_id in canonical:
         return canonical[engine_id]
-    if engine_id and engine_id.startswith("field-") and "-search-" in engine_id:
-        tokens = engine_id.split("-")
-        regime = tokens[1].replace("continuity", "cont.")
-        search_id = tokens[-1]
-        return f"{regime}\ns{search_id}"
     if not engine_id:
         return "None"
     return break_tick_label(engine_display_label(engine_id).replace(" ", "-"))
@@ -207,14 +186,6 @@ def diffusion_config_label(config_id: str) -> str:
 def diffusion_config_color(config_id: str) -> str:
     if config_id in HEAD_TO_HEAD_SET_COLORS:
         return HEAD_TO_HEAD_SET_COLORS[config_id]
-    if config_id.startswith("field-"):
-        return {
-            "field": ENGINE_COLORS["field"],
-            "field-continuity": "#D986AA",
-            "field-scarcity": "#B85A85",
-            "field-congestion": "#9E4671",
-            "field-privacy": "#7E3259",
-        }.get(config_id, ENGINE_COLORS["field"])
     return "#64748b"
 
 
@@ -226,11 +197,6 @@ def diffusion_engine_sets(diffusion_engine_comparison: pl.DataFrame) -> list[str
         "scatter",
         "mercator",
         "pathway",
-        "field",
-        "field-continuity",
-        "field-scarcity",
-        "field-congestion",
-        "field-privacy",
         "pathway-batman-bellman",
     ]
     available = set(diffusion_engine_comparison["config_id"].unique().to_list())
@@ -353,14 +319,14 @@ def _engine_color_scale(
     domain: list[str],
     palette: dict[str, str],
     *,
-    field: str = "engine_key:N",
-    field_domain: list[str] | None = None,
+    channel: str = "engine_key:N",
+    channel_domain: list[str] | None = None,
     legend_title: str | None = "Engine",
 ) -> alt.Color:
     return alt.Color(
-        field,
+        channel,
         scale=alt.Scale(
-            domain=field_domain or domain,
+            domain=channel_domain or domain,
             range=[palette[key] for key in domain],
         ),
         legend=alt.Legend(title=legend_title),
@@ -387,8 +353,8 @@ def _shape_scale(domain: list[str]) -> alt.Scale:
     return alt.Scale(domain=domain, range=[shapes[label] for label in domain])
 
 
-def _categorical_x_offset(field: str, domain: list[str]) -> alt.XOffset:
-    return alt.XOffset(field, sort=domain)
+def _categorical_x_offset(channel: str, domain: list[str]) -> alt.XOffset:
+    return alt.XOffset(channel, sort=domain)
 
 
 def _series_offsets(domain: list[str], step: float) -> dict[str, float]:
@@ -1051,74 +1017,6 @@ def render_pathway_budget_activation(
     )
 
 
-def render_field_budget_route_presence(
-    aggregates: pl.DataFrame, total_width: int, total_height: int
-) -> alt.TopLevelMixin | None:
-    families = [
-        "field-partial-observability-bridge",
-        "field-reconfiguration-recovery",
-        "field-asymmetric-envelope-shift",
-        "field-uncertain-service-fanout",
-        "field-service-overlap-reselection",
-        "field-service-freshness-inversion",
-        "field-service-publication-pressure",
-        "field-bridge-anti-entropy-continuity",
-        "field-bootstrap-upgrade-window",
-    ]
-    data = aggregates.filter(
-        (pl.col("engine_family") == "field") & pl.col("family_id").is_in(families)
-    )
-    return _multi_series_family_sweep(
-        data,
-        families,
-        total_width,
-        total_height,
-        x_column="field_query_budget",
-        variant_column="field_heuristic_mode",
-        variant_order=["zero", "hop-lower-bound"],
-        xlabel="Query budget",
-        ylabel="Active route presence (%)",
-        series_style=OUTCOME_SERIES_STYLE,
-        y_selector=lambda rows: rows["route_present_permille_mean"].to_list(),
-        value_transform=_route_presence_percent,
-    )
-
-
-def render_field_budget_reconfiguration(
-    aggregates: pl.DataFrame, total_width: int, total_height: int
-) -> alt.TopLevelMixin | None:
-    families = [
-        "field-partial-observability-bridge",
-        "field-reconfiguration-recovery",
-        "field-asymmetric-envelope-shift",
-        "field-uncertain-service-fanout",
-        "field-service-overlap-reselection",
-        "field-service-freshness-inversion",
-        "field-service-publication-pressure",
-        "field-bridge-anti-entropy-continuity",
-        "field-bootstrap-upgrade-window",
-    ]
-    data = aggregates.filter(
-        (pl.col("engine_family") == "field") & pl.col("family_id").is_in(families)
-    )
-    return _multi_series_family_sweep(
-        data,
-        families,
-        total_width,
-        total_height,
-        x_column="field_query_budget",
-        variant_column="field_heuristic_mode",
-        variant_order=["zero", "hop-lower-bound"],
-        xlabel="Query budget",
-        ylabel="Reconfiguration load",
-        series_style=FRAGILITY_SERIES_STYLE,
-        y_selector=lambda rows: (
-            rows["field_continuation_shift_count_mean"]
-            + rows["field_search_reconfiguration_rounds_mean"]
-        ).to_list(),
-    )
-
-
 def render_comparison_summary(
     aggregates: pl.DataFrame, total_width: int, total_height: int
 ) -> alt.TopLevelMixin | None:
@@ -1133,7 +1031,6 @@ def render_comparison_summary(
         "pathway": "pathway_selected_rounds_mean",
         "scatter": "scatter_selected_rounds_mean",
         "mercator": "mercator_selected_rounds_mean",
-        "field": "field_selected_rounds_mean",
     }
     missing_selected_round_columns = [
         column for column in selected_round_columns.values() if column not in data.columns
@@ -1161,7 +1058,6 @@ def render_comparison_summary(
             pl.first("pathway_selected_rounds_mean").alias("pathway_selected_rounds_mean"),
             pl.first("scatter_selected_rounds_mean").alias("scatter_selected_rounds_mean"),
             pl.first("mercator_selected_rounds_mean").alias("mercator_selected_rounds_mean"),
-            pl.first("field_selected_rounds_mean").alias("field_selected_rounds_mean"),
         )
         .sort("family_id")
     )
@@ -1220,8 +1116,8 @@ def render_comparison_summary(
             color=_engine_color_scale(
                 engine_domain,
                 COMPARISON_ENGINE_COLORS,
-                field="engine_legend:N",
-                field_domain=legend_domain,
+                channel="engine_legend:N",
+                channel_domain=legend_domain,
                 legend_title="Engine",
             ),
         ),
@@ -1542,8 +1438,8 @@ def render_recommended_engine_robustness(
             color=_engine_color_scale(
                 engine_domain,
                 COMPARISON_ENGINE_COLORS,
-                field="engine_label:N",
-                field_domain=[engine_display_label(engine) for engine in engine_domain],
+                channel="engine_label:N",
+                channel_domain=[engine_display_label(engine) for engine in engine_domain],
             ),
             tooltip=[
                 alt.Tooltip("engine_label:N", title="Engine"),
@@ -1707,7 +1603,7 @@ def render_mixed_vs_standalone_divergence(
         for engine in [*ROUTE_VISIBLE_ENGINE_SET_ORDER, "mixed", "tie"]
         if engine in {row["engine_key"] for row in rows}
     ]
-    field_domain = [
+    channel_domain = [
         "Matched best"
         if engine == "tie"
         else "Mixed stronger"
@@ -1732,8 +1628,8 @@ def render_mixed_vs_standalone_divergence(
             color=_engine_color_scale(
                 engine_domain,
                 divergence_colors,
-                field="engine_legend:N",
-                field_domain=field_domain,
+                channel="engine_legend:N",
+                channel_domain=channel_domain,
                 legend_title="Standalone winner",
             ),
         ),
@@ -2029,8 +1925,8 @@ def render_large_population_route_scaling(
         color=_engine_color_scale(
             engine_domain,
             HEAD_TO_HEAD_SET_COLORS,
-            field="engine_label:N",
-            field_domain=engine_label_domain,
+            channel="engine_label:N",
+            channel_domain=engine_label_domain,
             legend_title="Engine set",
         ),
         tooltip=[
@@ -2100,8 +1996,8 @@ def render_large_population_route_fragility(
         color=_engine_color_scale(
             engine_domain,
             HEAD_TO_HEAD_SET_COLORS,
-            field="engine_label:N",
-            field_domain=[engine_display_label(engine) for engine in engine_domain],
+            channel="engine_label:N",
+            channel_domain=[engine_display_label(engine) for engine in engine_domain],
             legend_title="Engine set",
         ),
     )
@@ -2197,8 +2093,8 @@ def render_routing_fitness_crossover(
         color=_engine_color_scale(
             engine_domain,
             HEAD_TO_HEAD_SET_COLORS,
-            field="engine_label:N",
-            field_domain=engine_label_domain,
+            channel="engine_label:N",
+            channel_domain=engine_label_domain,
             legend_title="Engine set",
         ),
         tooltip=[
@@ -2285,8 +2181,8 @@ def render_routing_fitness_multiflow(
         color=_engine_color_scale(
             engine_domain,
             HEAD_TO_HEAD_SET_COLORS,
-            field="engine_label:N",
-            field_domain=y_order,
+            channel="engine_label:N",
+            channel_domain=y_order,
             legend_title="Engine set",
         ),
         tooltip=[
@@ -2411,8 +2307,8 @@ def render_routing_fitness_stale_repair(
         color=_engine_color_scale(
             engine_domain,
             HEAD_TO_HEAD_SET_COLORS,
-            field="engine_label:N",
-            field_domain=y_order,
+            channel="engine_label:N",
+            channel_domain=y_order,
             legend_title="Engine set",
         ),
         tooltip=[

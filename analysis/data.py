@@ -63,8 +63,6 @@ def cleanup_report_dir(report_dir: Path) -> None:
         "batman_bellman_transition_stability.png",
         "batman_classic_transition_loss.png",
         "batman_classic_transition_stability.png",
-        "field_budget_reconfiguration.png",
-        "field_budget_route_presence.png",
         "comparison_dominant_engine.png",
         "pathway_budget_activation.png",
         "pathway_budget_route_presence.png",

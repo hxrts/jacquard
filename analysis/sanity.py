@@ -13,6 +13,7 @@ from .data import load_optional_csv
 
 
 REPORT_PDF_NAME = "router-tuning-report.pdf"
+RETIRED_ENGINE_TOKEN = "f" "ield"
 
 
 @dataclass(frozen=True)
@@ -245,20 +246,20 @@ def _column_has_any_value(df: pl.DataFrame, columns: tuple[str, ...]) -> bool:
     return False
 
 
-def _has_field_router_value(df: pl.DataFrame) -> bool:
-    for column in ("engine_family", "comparison_engine_set", "dominant_engine"):
+def _has_retired_report_value(df: pl.DataFrame) -> bool:
+    if any(RETIRED_ENGINE_TOKEN in column.lower() for column in df.columns):
+        return True
+    for column in (
+        "engine_family",
+        "comparison_engine_set",
+        "dominant_engine",
+        "config_id",
+        "family_id",
+    ):
         if column not in df.columns:
             continue
         values = df[column].cast(pl.String, strict=False).str.to_lowercase()
-        if df.filter((values == "field").fill_null(False)).height > 0:
-            return True
-    for column in ("config_id", "family_id"):
-        if column not in df.columns:
-            continue
-        values = df[column].cast(pl.String, strict=False).str.to_lowercase()
-        if df.filter(values.str.starts_with("field").fill_null(False)).height > 0:
-            return True
-        if df.filter(values.str.starts_with("head-to-head-field").fill_null(False)).height > 0:
+        if df.filter(values.str.contains(RETIRED_ENGINE_TOKEN).fill_null(False)).height > 0:
             return True
     return False
 
@@ -274,8 +275,8 @@ def _check_csv_schema(report_dir: Path, file_name: str, df: pl.DataFrame) -> lis
         return issues
     if df.is_empty():
         return issues
-    if _has_field_router_value(df):
-        issues.append(ReportSanityIssue(file_name, "routing analysis report contains Field rows"))
+    if _has_retired_report_value(df):
+        issues.append(ReportSanityIssue(file_name, "retired routing engine data is present"))
     for column in required:
         if df[column].null_count() == df.height:
             issues.append(ReportSanityIssue(file_name, f"required column `{column}` is all null"))

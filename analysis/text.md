@@ -4,7 +4,7 @@
 
 ### Executive Summary Intro
 
-This report studies Jacquard routing behavior across seven active routing engines using a common simulator corpus and analysis pipeline. The engines in scope are `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `mercator`, and `pathway`; historical Field corridor-routing artifacts are treated as legacy inputs rather than active comparison members. The goal is to understand where each active engine works well, where performance degrades, what kind of failures arise, and to compare engines under the same network conditions. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
+This report studies Jacquard routing behavior across seven active routing engines using a common simulator corpus and analysis pipeline. The engines in scope are `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `mercator`, and `pathway`. The goal is to understand where each active engine works well, where performance degrades, what kind of failures arise, and to compare engines under the same network conditions. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
 
 The report is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles. Part IV evaluates these calibrated profiles under message-diffusion scenarios where node movement and intermittent contact opportunities carry messages, and end-to-end paths may not exist.
 
@@ -133,17 +133,11 @@ The route-visible experiments exercise Mercator as a fixed representative engine
 
 Pathway explores candidate continuations and chooses a full routing decision for the requested destination or service. The main tuning question is how much search budget it needs before it reliably finds good candidates. It is also one of the in-tree routing engines that supports bounded deferred delivery of payloads: when a route enters partition mode, payloads can be retained through the shared retention boundary and later replayed on recovery or handoff.
 
-#### Legacy Field Algorithm
-
-Field maintains a continuously updated field model, searches over frozen snapshots, and publishes one corridor-style routing claim while allowing the concrete realization to move inside that corridor. It has an explicit bootstrap phase where weaker corridor claims can be published when evidence is coherent but not yet strong enough for steady admission. The tuning surface is now split deliberately: search breadth still lives in `FieldSearchConfig`, while continuation, promotion, continuity, and evidence behavior sit behind a separate internal operational policy surface that the experiments can sweep more cleanly. Field does carry forward bounded routing and service evidence, but that carry-forward supports corridor and service continuity rather than acting as a general payload store-and-forward cache.
-
 #### Recommendation Logic
 
 The recommendation score rewards settings that activate routes reliably, maintain route presence, tolerate harder stress levels, and (for the distance-vector engines) maintain stability. It penalizes route churn, maintenance failures, lost reachability, and prolonged degradation.
 
 Profile-specific recommendations allow different operational priorities. Conservative profiles weight stability and failure avoidance more heavily, while aggressive or service-heavy profiles tolerate more risk.
-
-Historical Field corridor-routing calibration is not part of the active route-visible recommendation surface. Existing Field artifacts may still be parsed as legacy evidence, but new routing recommendations exclude Field rows.
 
 When several nearby settings score about the same, the report prefers the middle of the acceptable range.
 
@@ -164,24 +158,6 @@ No profile-specific recommendations are available for this artifact set.
 @table profile-recommendations
 
 Column guide: Profile is the ranking policy; Score is the profile-weighted composite value; Activation is share of runs that installed a route; Route is average route presence; Max Stress is highest stress level survived.
-
-#### Legacy Field Continuity Profiles
-
-@table field-profile-recommendations
-
-This table treats Field lifecycle behavior as a tuning output in its own right.
-
-Column guide: Profile names the continuity objective; Score is the profile-weighted value; Route is average route presence; Shifts is mean continuation-shift count; Carry is mean service carry-forward volume; Narrow is mean corridor-narrow count; Degraded is mean degraded-steady occupancy.
-
-Interpretation guide: `field-stable-service` favors limited disruption; `field-low-churn` pushes harder against unnecessary movement; `field-broad-reselection` preserves more alternate branches and accepts more shifts; `field-conservative-publication` favors earlier narrowing and less corridor breadth.
-
-#### Legacy Field Regime Calibration
-
-@table field-routing-regime-calibration
-
-This table calibrates `field` against regime-specific success criteria rather than only one flat route-visible recommendation score.
-
-Column guide: Regime names the field-specific operating regime; Success Criteria states what the calibration is trying to optimize in that regime; Configuration is the best-scoring field setting for that regime; Route is mean route presence; Transition is the transition-health score; Shifts is mean continuation-shift count; Carry is mean service carry-forward volume; Stress is the highest stress envelope represented by the regime rows.
 
 ## Part II. Analysis
 
@@ -301,23 +277,7 @@ Pathway active route presence by search budget. Higher values are better: they i
 
 Pathway activation by search budget. Higher values are better: they indicate objectives activate successfully more often. The y-axis is shown as a percentage, and step changes reveal the budget threshold where Pathway moves from under-search to reliable activation.
 
-#### Legacy Field Corridor Figures Intro
-
-The first figure shows route-visible continuity across corridor-oriented families. The second shows the control-motion cost paid to preserve that continuity. Together they distinguish a healthy corridor default from an unstable bootstrap regime.
-
 #### Figure 13
-
-@figure field_budget_route_presence
-
-Field active route presence by search budget. Higher values are better: they indicate the admitted corridor stays available for more of the active window. The y-axis is shown as a percentage so the continuity outcome can be compared directly against the other Part II route-visible figures.
-
-#### Figure 14
-
-@figure field_budget_reconfiguration
-
-Field corridor reconfiguration by search budget. Lower values are generally better because they indicate less continuation churn and fewer search-driven reconfigurations. Rising lines mean the engine is paying more control-motion cost to maintain continuity.
-
-#### Figure 15
 
 @figure comparison_dominant_engine
 
@@ -414,7 +374,6 @@ The full mixed-engine and head-to-head tables are collected in Appendix B. The m
 - `medium-bridge-repair` also stays broad at the top: {medium_bridge_repair_engine_sets} all reach {medium_bridge_repair_route_presence} permille.
 - Mixed workloads still favor explicit search: `concurrent-mixed` is led by {concurrent_mixed_engine_sets} at {concurrent_mixed_route_presence} permille.
 - `mercator` adds a corridor-and-repair point between pure explicit search and proactive next-hop routing: it reaches {mercator_connected_high_loss_route_presence} permille in `connected-high-loss`, {mercator_bridge_transition_route_presence} permille in `bridge-transition`, {mercator_corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`, and {mercator_concurrent_mixed_route_presence} permille in `concurrent-mixed`.
-- `field` stays competitive in the hard bridge and corridor-continuity families: it reaches {field_connected_high_loss_route_presence} permille in `connected-high-loss`, {field_bridge_transition_route_presence} permille in `bridge-transition`, and {field_corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`.
 
 #### Head-To-Head Findings Empty
 
@@ -427,8 +386,6 @@ No head-to-head summary is available for this artifact set.
 - Explicit search still matters when the workload is mixed rather than purely hop-by-hop. In the head-to-head matrix, `concurrent-mixed` is led by {concurrent_mixed_engine_sets} at {concurrent_mixed_route_presence} permille route presence.
 - The mixed router can still leave performance on the table when early durable admissibility is not the same as standalone fitness: `connected-high-loss` settles on `{mixed_connected_high_loss_engine}` at {mixed_connected_high_loss_route_presence} permille while standalone {head_to_head_connected_high_loss_engines} {head_to_head_connected_high_loss_route_verb} {head_to_head_connected_high_loss_route_presence}. In `bridge-transition`, mixed arbitration now aligns with the standalone top tier at {mixed_bridge_transition_route_presence} permille.
 - `mercator` now has enough route-visible coverage to read as an engine behavior rather than a placeholder: {mercator_connected_high_loss_route_presence} permille in `connected-high-loss`, {mercator_bridge_transition_route_presence} permille in `bridge-transition`, {mercator_corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`, and {mercator_concurrent_mixed_route_presence} permille in `concurrent-mixed`. Its role in this corpus is the corridor-maintenance middle ground: more route-visible than deferred diffusion, but explicitly measured against stale repair and broker-pressure limits.
-- `field` is corridor-oriented rather than universal: it stays competitive in `connected-high-loss` at {field_connected_high_loss_route_presence} permille, in `bridge-transition` at {field_bridge_transition_route_presence} permille, and in `corridor-continuity-uncertainty` at {field_corridor_uncertainty_route_presence} permille. Its weaker evidence now appears more clearly in the large-population and shared-corridor multi-flow tails than in the single-corridor head-to-head family.
-
 ## Large-Population Findings
 
 ### Large-Population Introduction
@@ -477,11 +434,7 @@ Interpret the point positions by quadrant: the useful region is high delivery wi
 ### Large-Population Takeaways
 
 - In the high large-pop route-visible bands, the core-periphery family is shared by {scaling_best_engines} at {scaling_high_route} permille, while the high multi-bottleneck family is shared by {bottleneck_best_engines} at {bottleneck_high_route} permille.
-- The steepest diameter / fanout drop is `{diameter_sensitive_engine}` at {diameter_delta} permille from the small baseline to the high band, and the steepest multi-bottleneck drop is `{bottleneck_fragile_engine}` at {bottleneck_delta} permille.
-- `field` is the clearest route-visible large-population loser: in the high core-periphery band it falls to {core_periphery_field_route} permille, and in the high multi-bottleneck band it reaches only {multi_bottleneck_field_route} permille. `scatter` no longer belongs in that loser bucket on the current route-visible surface, where it stays at {core_periphery_scatter_route} and {multi_bottleneck_scatter_route} permille in those same high bands.
-- `mercator` is included in the large-population route-visible comparison as its maintained search-plus-maintenance peer: it reaches {core_periphery_mercator_route} permille in the high core-periphery band and {multi_bottleneck_mercator_route} permille in the high multi-bottleneck band.
-- The Field large-population failures are not stale selected-search successes: the high core-periphery Field run has {core_periphery_field_selected_results} current selected-result round, {core_periphery_field_no_candidate} no-candidate reactivation attempts, and {core_periphery_field_inadmissible} inadmissible attempts; the high multi-bottleneck run has {multi_bottleneck_field_selected_results} current selected-result round, {multi_bottleneck_field_no_candidate} no-candidate attempts, and {multi_bottleneck_field_inadmissible} inadmissible attempts. The last active-route blocker still reports `{core_periphery_field_blocker}` / `{multi_bottleneck_field_blocker}`, but the post-loss state is now classified as no viable Field-evidence candidate after support withdrawal rather than a simulator activation gap.
-- The combined `pathway-batman-bellman` stack no longer creates a high-band large-population advantage over plain `pathway`: both sit at {multi_bottleneck_pathway_batman_route} / {multi_bottleneck_pathway_route} permille on the current high multi-bottleneck route-visible surface. Its clearer benefit now appears in the multi-flow fairness surface, where maintenance support fills Pathway's shared-broker starvation tail.
+- The steepest diameter / fanout drop is `{diameter_sensitive_engine}` at {diameter_delta} permille from the small baseline to the high band, and the steepest multi-bottleneck drop is `{bottleneck_fragile_engine}` at {bottleneck_delta} permille.- `mercator` is included in the large-population route-visible comparison as its maintained search-plus-maintenance peer: it reaches {core_periphery_mercator_route} permille in the high core-periphery band and {multi_bottleneck_mercator_route} permille in the high multi-bottleneck band.- The combined `pathway-batman-bellman` stack no longer creates a high-band large-population advantage over plain `pathway`: both sit at {multi_bottleneck_pathway_batman_route} / {multi_bottleneck_pathway_route} permille on the current high multi-bottleneck route-visible surface. Its clearer benefit now appears in the multi-flow fairness surface, where maintenance support fills Pathway's shared-broker starvation tail.
 - The sparse-threshold high band still shows viable `{sparse_viable}` against explosive `{sparse_explosive}`, the congestion-threshold moderate band separates viable `{congestion_viable}` from collapse `{congestion_collapse}`, the congestion-threshold high band is currently only `{congestion_high_states}`, and the regional-shift high band still spans `{regional_states}`.
 
 ## Routing-Fitness Remaining Questions
@@ -550,7 +503,7 @@ Bad-route persistence after delayed or asymmetric observations. Shorter bars are
 
 Routing calibration and diffusion calibration are distinct objectives. Routing optimizes for activation, route presence, and recovery. Diffusion optimizes for eventual delivery, boundedness, latency, energy, and leakage.
 
-Diffusion calibration uses integer delivery, coverage, boundedness, latency, resource, and leakage metrics. Field-specific diffusion posture tables are legacy report surfaces and are not emitted by the active routing-analysis report.
+Diffusion calibration uses integer delivery, coverage, boundedness, latency, resource, and leakage metrics. The active report compares maintained diffusion outputs without engine-private posture tables.
 
 The maintained diffusion families are:
 
@@ -579,19 +532,11 @@ Here, `collapse` means the engine falls below the basic viability floor for deli
 
 Where each engine set stays viable and where it first collapses or becomes explosive. Column guide: Viable Families, First Collapse, First Explosive.
 
-### Legacy Field Diffusion Regime Calibration
-
-@table field-diffusion-regime-calibration
-
-This table calibrates `field` on its own diffusion success surface instead of only asking whether the generic cross-engine score liked it.
-
-Column guide: Regime names the diffusion posture regime; Success Criteria states what `field` is supposed to optimize there; Configuration is the accepted field diffusion profile for that regime, or an explicit no-acceptable-candidate marker if every field candidate still fails; Posture is the dominant field posture; State is the dominant boundedness class; Transition summarizes either the posture transition count or the first scarcity / congestion transition round; Delivery is mean delivery success; Tx is mean transmission count; Fit is the regime-specific field fitness score. The CSV export also includes protected-budget use, bridge-opportunity capture, cluster-seeding use, coverage-starvation counts, and deterministic suppression counts for the winning profile or best attempt.
-
 ### Diffusion Baseline Audit
 
 @table diffusion-baseline-audit
 
-These rows summarize the maintained non-field diffusion baselines. They are representative benchmark configs, not a calibrated-best sweep, so the generic winner tables should be read with that scope in mind.
+These rows summarize the maintained maintained diffusion baselines. They are representative benchmark configs, not a calibrated-best sweep, so the generic winner tables should be read with that scope in mind.
 
 Column guide: Config is the baseline configuration. Rep is the replication budget. TTL is the time-to-live in rounds. Forward is the forward probability. Bridge is the bridge bias. Delivery, Coverage, and Cluster are mean delivery, coverage, and cluster-coverage scores. State is the boundedness classification.
 
@@ -611,7 +556,7 @@ This part evaluates the calibrated profiles directly. The emphasis shifts from a
 
 The comparison surface here is regime-aware rather than purely family-by-family. Continuity, scarcity, congestion, privacy, and balanced regimes reward different behaviors, so the first summary table reports the best engine set per regime before the full family matrix.
 
-The generic family-by-family winner table is a representative weighted surface, not a universal truth. Appendix C includes both the maintained non-field baseline audit and a winner-sensitivity table showing where delivery-heavy and boundedness-heavy generic weights keep or change the family winner.
+The generic family-by-family winner table is a representative weighted surface, not a universal truth. Appendix C includes both the maintained baseline audit and a winner-sensitivity table showing where delivery-heavy and boundedness-heavy generic weights keep or change the family winner.
 
 ### Diffusion Calibration Detail Note
 
@@ -622,12 +567,6 @@ Detailed diffusion calibration and boundary tables are collected in Appendix C s
 @table diffusion-regime-engine-summary
 
 Best-performing engine set per diffusion regime. Column guide: Regime, Engine Set, Delivery, Coverage, Cluster Cov. (target-cluster coverage), Tx, State, Score.
-
-### Legacy Field Vs Best Alternative
-
-@table field-vs-best-diffusion-alternative
-
-Best field candidate per diffusion regime against the best non-field alternative under the same regime-aware comparison score. Column guide: Field is the best field attempt, OK reports whether that attempt cleared the field-specific acceptability gate, State / Alt State are boundedness modes, `dDel` / `dCov` / `dClus` are field-minus-alternative delivery, coverage, and target-cluster coverage deltas, `dTx` is transmission delta, and `dScore` is regime-score delta. Negative `dTx` is good for field.
 
 ### Diffusion Engine Comparison
 
@@ -653,23 +592,14 @@ Diffusion transmission load and boundedness by scenario family. Lower transmissi
 
 ### Diffusion Appendix Note
 
-Appendix C contains the full diffusion family matrix and the field-versus-best-alternative regime table.
+Appendix C contains the full diffusion family matrix and boundary tables.
 
 ### Diffusion Takeaways
 
 - The diffusion track is an engine comparison, but the regime summary is the right top-level view because continuity, scarcity, congestion, and privacy reward different tradeoffs.
-- The regime winners are not `field`-universal: `{balanced_winner}` leads balanced, `{scarcity_winner}` leads scarcity, `{congestion_winner}` leads congestion, and {continuity_privacy_winners} {continuity_privacy_verb} continuity and privacy.
-- `field` shows regime specialization without being universal: it is `{field_balanced_status}` in balanced with a regime-score delta of {field_balanced_score_delta}, {field_scarcity_phrase}, {field_privacy_phrase}, {field_continuity_phrase}, and still has `{field_congestion_status}` in congestion.
+- The regime winners vary by operating pressure: `{balanced_winner}` leads balanced, `{scarcity_winner}` leads scarcity, `{congestion_winner}` leads congestion, and {continuity_privacy_winners} {continuity_privacy_verb} continuity and privacy.
 - One under-represented point is that the balanced regime currently prefers `{balanced_winner}`, which suggests the maintained corpus is rewarding bounded suppression-heavy behavior outside the explicit privacy regime.
 - The harsher families are boundary finders: `bridge-drought` tests rare-opportunity carry, `energy-starved-relay` tests efficiency under scarcity, and `congestion-cascade` tests whether broad forwarding remains bounded without starving first-arrival cluster coverage.
-
-### Legacy Field Diffusion Posture
-
-The artifact set exposes posture-aware `field` diffusion behavior:
-
-- In `bridge-drought`, `field` ends with dominant posture `{bridge_drought_posture}` after {bridge_drought_transitions} posture transitions, using {bridge_drought_protected_budget} protected budget units and converting {bridge_drought_bridge_use} of {bridge_drought_bridge_opportunities} protected bridge opportunities.
-- In `energy-starved-relay`, `field` ends with dominant posture `{energy_starved_posture}`, first enters scarcity-conservative behavior at round {energy_starved_first_scarcity}, and suppresses {energy_starved_expensive_suppressions} expensive transport attempts.
-- In `congestion-cascade`, `field` ends with dominant posture `{congestion_posture}`, first enters congestion control at round {congestion_first_transition}, seeds {congestion_cluster_seed_uses} first-arrival cluster transfers, records {congestion_cluster_starvation} cluster-coverage starvation events, and records {congestion_redundant_suppressions} redundant-forward suppressions plus {congestion_same_cluster_suppressions} same-cluster suppressions.
 
 ### Tuning Reference Tables Intro
 
@@ -712,14 +642,6 @@ Babel separates in the asymmetry-cost-penalty family and the partition-feasibili
 #### Pressure Findings Pathway Cliff
 
 Pathway query budget 1 fails immediately. Higher budgets plateau quickly.
-
-#### Legacy Pressure Findings Field Plateau
-
-Field shows a broad viable plateau: route presence={route_present} permille, bootstrap activation={bootstrap_activation} permille, bootstrap upgrade={bootstrap_upgrade} permille at the low-budget point. Separation between configurations comes from lifecycle shape rather than raw route presence.
-
-#### Legacy Engine Section Empty Field
-
-No measured Field recommendation is available for this artifact set. The simulator extracts Field replay, search, reconfiguration, and bootstrap signals, but those signals do not close the boundary to a stable route-visible default.
 
 #### Engine Section Empty Generic
 
@@ -793,34 +715,6 @@ Scatter separates most clearly in `{family_id}`, where the owner-side runtime su
 
 The key Scatter contrast is architectural rather than path-optimal: it is the opaque, partition-tolerant baseline that keeps payload custody local and bounded instead of searching a full path or publishing a corridor envelope.
 
-#### Legacy Engine Section Field Best
-
-Field separates where corridor continuity and reconfiguration cost both matter. `{config_id}` keeps route presence at {route_presence} permille while holding continuation shifts to {continuation_shifts}.
-
-#### Legacy Engine Section Field Bootstrap
-
-Corridor-continuity profile: bootstrap activation {activation} permille, hold {hold} permille, narrow {narrow} permille, upgrade {upgrade} permille, withdrawal {withdrawal} permille, degraded-steady occupancy {degraded} permille, service carry-forward {service} permille, asymmetric shift success {shift} permille. Dominant commitment resolution `{commitment}`, last recovery outcome `{outcome}`, continuity band `{band}`, continuity transition `{transition}`, last decision `{decision}`, blocker `{blocker}`.
-
-#### Legacy Engine Section Field Tied
-
-Route presence is close across the tested range. The service-oriented knobs separate configs in continuation-shift count, service carry-forward, and narrowing behavior.
-
-#### Legacy Engine Section Field Replay
-
-The maintained families produce router-visible activation and route presence, with the bootstrap phase directly visible in replay and recovery surfaces.
-
-#### Legacy Engine Section Field Families
-
-The asymmetric-envelope and bridge anti-entropy families test corridor continuity under realization movement. The partial-observability and bootstrap-upgrade families test bootstrap promotion and withdrawal. The service-overlap, freshness-inversion, and publication-pressure families test service-corridor continuity under broader publication, stronger freshness weighting, or earlier narrowing.
-
-#### Legacy Engine Section Field Diagnosis
-
-The service-corridor publication and materialization path is the key enabler for Field's route-visible behavior. The tuning question is which continuity style is preferable: narrower lower-churn publication or broader reselection with more carried-forward optionality.
-
-#### Legacy Recommendation Rationale Empty Field
-
-No Field recommendation rationale is published because the corpus does not produce a stable route-visible Field default. The analysis stack is present and informative, but Field tuning should be read as diagnostic instrumentation rather than default selection.
-
 #### Recommendation Rationale Empty Generic
 
 No {engine_family} recommendation rationale is available.
@@ -889,28 +783,10 @@ The Scatter recommendation is now driven by maintained runtime behavior as well 
 
 The Scatter corpus is still mostly route-flat, so the useful differentiators are custody and regime signals rather than path-optimality. Retained-message peak {retained}, delivered-message peak {delivered}.
 
-#### Legacy Recommendation Rationale Field 1
-
-The Field recommendation is driven by corridor continuity, bootstrap upgrade behavior, and reconfiguration cost together. When route presence is effectively tied, the default choice should favor lower-churn corridor management rather than broader reselection.
-
-#### Legacy Recommendation Rationale Field 2
-
-Measured continuity profile for `{config_id}`: bootstrap activation {activation} permille, hold {hold} permille, narrow {narrow} permille, upgrade {upgrade} permille, withdrawal {withdrawal} permille, degraded-steady occupancy {degraded} permille, service carry-forward {service} permille, asymmetric shift success {shift} permille. Dominant commitment resolution `{commitment}`, last recovery outcome `{outcome}`, continuity band `{band}`, continuity transition `{transition}`, last decision `{decision}`, blocker `{blocker}`.
-
-#### Legacy Recommendation Rationale Field 3
-
-The Field configurations are close in top-line route presence. The continuity profile table is the better place to choose between lower-churn and broader-reselection behavior, and low-churn continuity should remain the default surface unless a regime explicitly needs broader reselection.
-
-#### Legacy Recommendation Rationale Field 4
-
-The corpus includes steady route-visible service continuity and bootstrap-aware corridor behavior. The service regimes make the Field knobs visible in lifecycle metrics even when route presence clusters closely.
-
 #### Limitations And Next Steps
 
 These recommendations are only as good as the simulated regime corpus. A flat curve can mean genuine robustness or that the sweep has not found the most informative failure boundary.
 
 The BATMAN Bellman corpus exposes recoverable transition differences, but asymmetry-plus-bridge families remain hard failures. The BATMAN Classic corpus confirms slower convergence and tight clustering of decay window settings. The Babel corpus shows measurably different behavior under asymmetric conditions, with the FD table visible in partition recovery, but decay window settings do not yet separate sharply. The OLSRv2 corpus separates most clearly on topology propagation, MPR flooding stability, and asymmetric relink timing, but the maintained window sweep is still narrow enough that several settings remain tied on route visibility. The Pathway corpus identifies the minimum viable budget floor with a wide plateau above it.
-
-The Field corpus reaches the route-visible boundary with an explicit bootstrap phase and working service-corridor path, but tested settings cluster tightly. The bridge anti-entropy and bootstrap-upgrade families allow the report to distinguish between underexercise and real weakness. The remaining limitation is that tested settings cluster closely, leaving room for more discriminating future regime design.
 
 The remaining routing-fitness experiments narrow the route-visible decision to one explicit envelope rather than several open questions. Within the tested search-burden, shared-broker, and stale-observation bands, Mercator is now one of the strongest search-plus-maintenance directions, especially in the high maintenance-benefit crossover band. The remaining limitation is extrapolation beyond this maintained envelope, plus the stale-repair rows where the best measured cleanup still does not belong to Mercator.

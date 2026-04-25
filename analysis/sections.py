@@ -403,21 +403,6 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
     concurrent_mixed_rows = _top_head_to_head_rows(
         head_to_head_summary, "head-to-head-concurrent-mixed"
     )
-    field_connected_high_loss = head_to_head_row_for_engine(
-        head_to_head_summary,
-        "head-to-head-connected-high-loss",
-        "field",
-    )
-    field_bridge_transition = head_to_head_row_for_engine(
-        head_to_head_summary,
-        "head-to-head-bridge-transition",
-        "field",
-    )
-    field_corridor_uncertainty = head_to_head_row_for_engine(
-        head_to_head_summary,
-        "head-to-head-corridor-continuity-uncertainty",
-        "field",
-    )
     mercator_connected_high_loss = head_to_head_row_for_engine(
         head_to_head_summary,
         "head-to-head-connected-high-loss",
@@ -444,9 +429,6 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
         or not medium_bridge_repair_rows
         or not partial_bridge_rows
         or not concurrent_mixed_rows
-        or field_connected_high_loss is None
-        or field_bridge_transition is None
-        or field_corridor_uncertainty is None
         or mercator_connected_high_loss is None
         or mercator_bridge_transition is None
         or mercator_corridor_uncertainty is None
@@ -489,15 +471,6 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
             [row["comparison_engine_set"] or "none" for row in concurrent_mixed_rows]
         ),
         concurrent_mixed_route_presence=concurrent_mixed[
-            "route_present_total_window_permille_mean"
-        ],
-        field_connected_high_loss_route_presence=field_connected_high_loss[
-            "route_present_total_window_permille_mean"
-        ],
-        field_bridge_transition_route_presence=field_bridge_transition[
-            "route_present_total_window_permille_mean"
-        ],
-        field_corridor_uncertainty_route_presence=field_corridor_uncertainty[
             "route_present_total_window_permille_mean"
         ],
         mercator_connected_high_loss_route_presence=mercator_connected_high_loss[
@@ -546,21 +519,6 @@ def analysis_takeaway_lines(
     head_to_head_corridor_rows = _top_head_to_head_rows(
         head_to_head_summary, "head-to-head-corridor-continuity-uncertainty"
     )
-    field_connected_high_loss = head_to_head_row_for_engine(
-        head_to_head_summary,
-        "head-to-head-connected-high-loss",
-        "field",
-    )
-    field_bridge_transition = head_to_head_row_for_engine(
-        head_to_head_summary,
-        "head-to-head-bridge-transition",
-        "field",
-    )
-    field_corridor_uncertainty = head_to_head_row_for_engine(
-        head_to_head_summary,
-        "head-to-head-corridor-continuity-uncertainty",
-        "field",
-    )
     mercator_connected_high_loss = head_to_head_row_for_engine(
         head_to_head_summary,
         "head-to-head-connected-high-loss",
@@ -594,9 +552,6 @@ def analysis_takeaway_lines(
         or not head_to_head_connected_high_loss_rows
         or not head_to_head_bridge_transition_rows
         or not head_to_head_corridor_rows
-        or field_connected_high_loss is None
-        or field_bridge_transition is None
-        or field_corridor_uncertainty is None
         or mercator_connected_high_loss is None
         or mercator_bridge_transition is None
         or mercator_corridor_uncertainty is None
@@ -657,15 +612,6 @@ def analysis_takeaway_lines(
         head_to_head_bridge_transition_route_verb=(
             "reaches" if len(head_to_head_bridge_transition_rows) == 1 else "reach"
         ),
-        field_connected_high_loss_route_presence=field_connected_high_loss[
-            "route_present_total_window_permille_mean"
-        ],
-        field_bridge_transition_route_presence=field_bridge_transition[
-            "route_present_total_window_permille_mean"
-        ],
-        field_corridor_uncertainty_route_presence=field_corridor_uncertainty[
-            "route_present_total_window_permille_mean"
-        ],
         mercator_connected_high_loss_route_presence=mercator_connected_high_loss[
             "route_present_total_window_permille_mean"
         ],
@@ -687,54 +633,27 @@ def analysis_takeaway_lines(
     )
 
 
-def diffusion_takeaway_lines(
-    diffusion_regime_engine_summary: pl.DataFrame,
-    field_vs_best_diffusion_alternative: pl.DataFrame,
-) -> list[str]:
-    if diffusion_regime_engine_summary.is_empty() or field_vs_best_diffusion_alternative.is_empty():
+def diffusion_takeaway_lines(diffusion_regime_engine_summary: pl.DataFrame) -> list[str]:
+    if diffusion_regime_engine_summary.is_empty():
         return []
 
     regime_rows = {
         row["diffusion_regime"]: row
         for row in diffusion_regime_engine_summary.iter_rows(named=True)
     }
-    field_rows = {
-        row["field_regime"]: row
-        for row in field_vs_best_diffusion_alternative.iter_rows(named=True)
-    }
     balanced = regime_rows.get("balanced")
     congestion = regime_rows.get("congestion")
     continuity = regime_rows.get("continuity")
     privacy = regime_rows.get("privacy")
     scarcity = regime_rows.get("scarcity")
-    field_balanced = field_rows.get("balanced")
-    field_congestion = field_rows.get("congestion")
-    field_continuity = field_rows.get("continuity")
-    field_privacy = field_rows.get("privacy")
-    field_scarcity = field_rows.get("scarcity")
     if (
         balanced is None
         or congestion is None
         or continuity is None
         or privacy is None
         or scarcity is None
-        or field_balanced is None
-        or field_congestion is None
-        or field_continuity is None
-        or field_privacy is None
-        or field_scarcity is None
     ):
         return []
-
-    def field_delta_phrase(row: dict, regime: str, *, include_status: bool = False) -> str:
-        delta = float(row["regime_score_delta"] or 0.0)
-        status = str(row["selection_status"])
-        prefix = f"is `{status}` in {regime} and " if include_status else ""
-        if delta > 0.0:
-            return f"{prefix}beats the best alternative in {regime} by {delta:.1f}"
-        if delta < 0.0:
-            return f"{prefix}trails the best alternative in {regime} by {abs(delta):.1f}"
-        return f"{prefix}matches the best alternative in {regime}"
 
     return section_lines_formatted(
         "Diffusion Takeaways",
@@ -747,14 +666,6 @@ def diffusion_takeaway_lines(
         continuity_privacy_verb=(
             "leads" if continuity["config_id"] == privacy["config_id"] else "lead"
         ),
-        field_balanced_status=field_balanced["selection_status"],
-        field_balanced_score_delta=f"{field_balanced['regime_score_delta']:.1f}",
-        field_scarcity_phrase=field_delta_phrase(field_scarcity, "scarcity"),
-        field_privacy_phrase=field_delta_phrase(field_privacy, "privacy"),
-        field_continuity_phrase=field_delta_phrase(
-            field_continuity, "continuity", include_status=True
-        ),
-        field_congestion_status=field_congestion["selection_status"],
     )
 
 
@@ -791,11 +702,6 @@ def large_population_takeaway_lines(
     regional_high = large_population_diffusion_transitions.filter(
         pl.col("family_id") == "diffusion-large-regional-shift-high"
     ).head(1)
-    core_periphery_field = _route_summary_row(
-        large_population_route_summary,
-        "diameter-fanout",
-        "field",
-    )
     core_periphery_mercator = _route_summary_row(
         large_population_route_summary,
         "diameter-fanout",
@@ -805,11 +711,6 @@ def large_population_takeaway_lines(
         large_population_route_summary,
         "diameter-fanout",
         "scatter",
-    )
-    multi_bottleneck_field = _route_summary_row(
-        large_population_route_summary,
-        "multi-bottleneck",
-        "field",
     )
     multi_bottleneck_mercator = _route_summary_row(
         large_population_route_summary,
@@ -840,10 +741,8 @@ def large_population_takeaway_lines(
         or congestion_moderate.is_empty()
         or congestion_high.is_empty()
         or regional_high.is_empty()
-        or core_periphery_field is None
         or core_periphery_mercator is None
         or core_periphery_scatter is None
-        or multi_bottleneck_field is None
         or multi_bottleneck_mercator is None
         or multi_bottleneck_scatter is None
         or multi_bottleneck_pathway is None
@@ -874,23 +773,11 @@ def large_population_takeaway_lines(
         bottleneck_fragile_engine=bottleneck_fragile_row["comparison_engine_set"],
         bottleneck_delta=int(round(bottleneck_fragile_row["small_to_high_route_delta"] or 0)),
         core_periphery_scatter_route=int(round(core_periphery_scatter["high_route_present"] or 0)),
-        core_periphery_field_route=int(round(core_periphery_field["high_route_present"] or 0)),
         core_periphery_mercator_route=int(round(core_periphery_mercator["high_route_present"] or 0)),
         multi_bottleneck_scatter_route=int(round(multi_bottleneck_scatter["high_route_present"] or 0)),
-        multi_bottleneck_field_route=int(round(multi_bottleneck_field["high_route_present"] or 0)),
         multi_bottleneck_mercator_route=int(round(multi_bottleneck_mercator["high_route_present"] or 0)),
         multi_bottleneck_pathway_route=int(round(multi_bottleneck_pathway["high_route_present"] or 0)),
         multi_bottleneck_pathway_batman_route=int(round(multi_bottleneck_pathway_batman["high_route_present"] or 0)),
-        core_periphery_field_blocker=core_periphery_field.get("high_field_promotion_blocker") or "none",
-        core_periphery_field_resolution=core_periphery_field.get("high_field_commitment_resolution") or "none",
-        core_periphery_field_selected_results=int(round(core_periphery_field.get("high_field_selected_result_rounds") or 0)),
-        core_periphery_field_inadmissible=int(round(core_periphery_field.get("high_inadmissible_candidate_count") or 0)),
-        core_periphery_field_no_candidate=int(round(core_periphery_field.get("high_no_candidate_count") or 0)),
-        multi_bottleneck_field_blocker=multi_bottleneck_field.get("high_field_promotion_blocker") or "none",
-        multi_bottleneck_field_resolution=multi_bottleneck_field.get("high_field_commitment_resolution") or "none",
-        multi_bottleneck_field_selected_results=int(round(multi_bottleneck_field.get("high_field_selected_result_rounds") or 0)),
-        multi_bottleneck_field_inadmissible=int(round(multi_bottleneck_field.get("high_inadmissible_candidate_count") or 0)),
-        multi_bottleneck_field_no_candidate=int(round(multi_bottleneck_field.get("high_no_candidate_count") or 0)),
         sparse_viable=sparse_row.get("viable_config_id") or "none",
         sparse_explosive=sparse_row.get("explosive_config_id") or "none",
         congestion_viable=congestion_row.get("viable_config_id") or "none",
@@ -1072,71 +959,6 @@ def routing_fitness_takeaway_lines(
     )
 
 
-def diffusion_field_posture_lines(diffusion_engine_comparison: pl.DataFrame) -> list[str]:
-    if diffusion_engine_comparison.is_empty():
-        return []
-    field_rows = diffusion_engine_comparison.filter(
-        pl.col("config_id").str.starts_with("field")
-    )
-    bridge = (
-        field_rows.filter(pl.col("family_id") == "diffusion-bridge-drought")
-        .sort("score", descending=True)
-        .head(1)
-    )
-    energy = (
-        field_rows.filter(pl.col("family_id") == "diffusion-energy-starved-relay")
-        .sort("score", descending=True)
-        .head(1)
-    )
-    congestion = (
-        field_rows.filter(pl.col("family_id") == "diffusion-congestion-cascade")
-        .sort("score", descending=True)
-        .head(1)
-    )
-    if bridge.is_empty() or energy.is_empty() or congestion.is_empty():
-        return []
-    bridge_row = bridge.iter_rows(named=True).__next__()
-    energy_row = energy.iter_rows(named=True).__next__()
-    congestion_row = congestion.iter_rows(named=True).__next__()
-    return section_lines_formatted(
-        "Field Diffusion Posture",
-        bridge_drought_posture=bridge_row.get("field_posture_mode") or "none",
-        bridge_drought_transitions=bridge_row.get("field_posture_transition_count_mean") or 0,
-        bridge_drought_protected_budget=bridge_row.get("field_protected_budget_used_mean") or 0,
-        bridge_drought_bridge_use=bridge_row.get("field_protected_bridge_usage_count_mean") or 0,
-        bridge_drought_bridge_opportunities=bridge_row.get("field_bridge_opportunity_count_mean")
-        or 0,
-        energy_starved_posture=energy_row.get("field_posture_mode") or "none",
-        energy_starved_first_scarcity=energy_row.get("field_first_scarcity_transition_round_mean")
-        if energy_row.get("field_first_scarcity_transition_round_mean") is not None
-        else "-",
-        energy_starved_expensive_suppressions=energy_row.get(
-            "field_expensive_transport_suppression_count_mean"
-        )
-        or 0,
-        congestion_posture=congestion_row.get("field_posture_mode") or "none",
-        congestion_first_transition=congestion_row.get("field_first_congestion_transition_round_mean")
-        if congestion_row.get("field_first_congestion_transition_round_mean") is not None
-        else "-",
-        congestion_cluster_seed_uses=congestion_row.get(
-            "field_cluster_seed_usage_count_mean"
-        )
-        or 0,
-        congestion_cluster_starvation=congestion_row.get(
-            "field_cluster_coverage_starvation_count_mean"
-        )
-        or 0,
-        congestion_redundant_suppressions=congestion_row.get(
-            "field_redundant_forward_suppression_count_mean"
-        )
-        or 0,
-        congestion_same_cluster_suppressions=congestion_row.get(
-            "field_same_cluster_suppression_count_mean"
-        )
-        or 0,
-    )
-
-
 def pressure_findings_lines(aggregates: pl.DataFrame) -> list[str]:
     lines: list[str] = []
     batman_bellman_pressure = aggregates.filter(
@@ -1206,31 +1028,6 @@ def pressure_findings_lines(aggregates: pl.DataFrame) -> list[str]:
             row = low.iter_rows(named=True).__next__()
             if row["activation_success_permille_mean"] == 0:
                 lines.extend(section_lines("Pressure Findings Pathway Cliff"))
-    field_pressure = aggregates.filter(
-        (pl.col("engine_family") == "field")
-        & pl.col("family_id").is_in(
-            [
-                "field-partial-observability-bridge",
-                "field-reconfiguration-recovery",
-                "field-asymmetric-envelope-shift",
-                "field-uncertain-service-fanout",
-                "field-bridge-anti-entropy-continuity",
-                "field-bootstrap-upgrade-window",
-            ]
-        )
-    ).sort(["family_id", "field_query_budget", "field_heuristic_mode"])
-    if not field_pressure.is_empty():
-        low = field_pressure.filter(pl.col("config_id") == "field-2-zero")
-        if not low.is_empty():
-            row = low.iter_rows(named=True).__next__()
-            lines.extend(
-                section_lines_formatted(
-                    "Pressure Findings Field Plateau",
-                    route_present=row["route_present_permille_mean"],
-                    bootstrap_activation=row["field_bootstrap_activation_permille_mean"],
-                    bootstrap_upgrade=row["field_bootstrap_upgrade_permille_mean"],
-                )
-            )
     return lines
 
 
@@ -1278,10 +1075,6 @@ def pathway_algorithm_lines() -> list[str]:
     return section_lines("Pathway Algorithm")
 
 
-def field_algorithm_lines() -> list[str]:
-    return section_lines("Field Algorithm")
-
-
 def approach_lines() -> list[str]:
     return section_lines("Analytical Approach")
 
@@ -1304,8 +1097,6 @@ def engine_section_lines(
     lines: list[str] = []
     row = top_recommendation_row(recommendations, engine_family)
     if row is None:
-        if engine_family == "field":
-            return section_lines("Engine Section Empty Field")
         return section_lines_formatted("Engine Section Empty Generic", engine_family=engine_family)
     lines.extend(
         section_lines_formatted(
@@ -1501,60 +1292,6 @@ def engine_section_lines(
                 )
             )
         lines.extend(section_lines("Engine Section Scatter Closing"))
-    if engine_family == "field":
-        pressure = family_rows.filter(
-            pl.col("family_id").is_in(
-                [
-                    "field-partial-observability-bridge",
-                    "field-reconfiguration-recovery",
-                    "field-asymmetric-envelope-shift",
-                    "field-uncertain-service-fanout",
-                    "field-bridge-anti-entropy-continuity",
-                    "field-bootstrap-upgrade-window",
-                ]
-            )
-        )
-        if not pressure.is_empty():
-            best = pressure.sort(
-                [
-                    "route_present_permille_mean",
-                    "field_continuation_shift_count_mean",
-                    "field_search_reconfiguration_rounds_mean",
-                ],
-                descending=[True, False, False],
-            ).head(1)
-            best_row = best.iter_rows(named=True).__next__()
-            lines.extend(
-                section_lines_formatted(
-                    "Engine Section Field Best",
-                    config_id=best_row["config_id"],
-                    route_presence=best_row["route_present_permille_mean"],
-                    continuation_shifts=best_row["field_continuation_shift_count_mean"],
-                )
-            )
-            lines.extend(
-                section_lines_formatted(
-                    "Engine Section Field Bootstrap",
-                    activation=f"{row['field_bootstrap_activation_mean']:.1f}",
-                    hold=f"{row['field_bootstrap_hold_mean']:.1f}",
-                    narrow=f"{row['field_bootstrap_narrow_mean']:.1f}",
-                    upgrade=f"{row['field_bootstrap_upgrade_mean']:.1f}",
-                    withdrawal=f"{row['field_bootstrap_withdraw_mean']:.1f}",
-                    degraded=f"{(row['field_degraded_steady_round_mean'] or 0):.1f}",
-                    service=f"{(row['field_service_retention_carry_forward_mean'] or 0):.1f}",
-                    shift=f"{(row['field_asymmetric_shift_success_mean'] or 0):.1f}",
-                    commitment=row["field_commitment_resolution_mode"] or "none",
-                    outcome=row["field_last_outcome_mode"] or "none",
-                    band=row["field_continuity_band_mode"] or "none",
-                    transition=row["field_last_continuity_transition_mode"] or "none",
-                    decision=row["field_last_promotion_decision_mode"] or "none",
-                    blocker=row["field_last_promotion_blocker_mode"] or "none",
-                )
-            )
-            lines.extend(section_lines("Engine Section Field Tied"))
-        lines.extend(section_lines("Engine Section Field Replay"))
-        lines.extend(section_lines("Engine Section Field Families"))
-        lines.extend(section_lines("Engine Section Field Diagnosis"))
     return lines
 
 
@@ -1563,8 +1300,6 @@ def recommendation_rationale_lines(
 ) -> list[str]:
     rows = top_recommendation_rows(recommendations, engine_family, 3)
     if not rows:
-        if engine_family == "field":
-            return section_lines("Recommendation Rationale Empty Field")
         return section_lines_formatted(
             "Recommendation Rationale Empty Generic", engine_family=engine_family
         )
@@ -1622,30 +1357,6 @@ def recommendation_rationale_lines(
                 delivered=f"{(top['scatter_delivered_peak_mean'] or 0):.1f}",
             )
         )
-    if engine_family == "field":
-        lines.extend(section_lines("Recommendation Rationale Field 1"))
-        lines.extend(
-            section_lines_formatted(
-                "Recommendation Rationale Field 2",
-                config_id=top["config_id"],
-                activation=f"{top['field_bootstrap_activation_mean']:.1f}",
-                hold=f"{top['field_bootstrap_hold_mean']:.1f}",
-                narrow=f"{top['field_bootstrap_narrow_mean']:.1f}",
-                upgrade=f"{top['field_bootstrap_upgrade_mean']:.1f}",
-                withdrawal=f"{top['field_bootstrap_withdraw_mean']:.1f}",
-                degraded=f"{(top['field_degraded_steady_round_mean'] or 0):.1f}",
-                service=f"{(top['field_service_retention_carry_forward_mean'] or 0):.1f}",
-                shift=f"{(top['field_asymmetric_shift_success_mean'] or 0):.1f}",
-                commitment=top["field_commitment_resolution_mode"] or "none",
-                outcome=top["field_last_outcome_mode"] or "none",
-                band=top["field_continuity_band_mode"] or "none",
-                transition=top["field_last_continuity_transition_mode"] or "none",
-                decision=top["field_last_promotion_decision_mode"] or "none",
-                blocker=top["field_last_promotion_blocker_mode"] or "none",
-            )
-        )
-        lines.extend(section_lines("Recommendation Rationale Field 3"))
-        lines.extend(section_lines("Recommendation Rationale Field 4"))
     return lines
 
 

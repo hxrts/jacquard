@@ -95,7 +95,6 @@ def codeify_known_terms(text: str) -> str:
         "scatter",
         "mercator",
         "pathway",
-        "field",
     ]
     pattern = re.compile(r"\b(" + "|".join(re.escape(term) for term in terms) + r")\b")
     parts = re.split(r"(`[^`]+`)", text)
@@ -582,9 +581,7 @@ def write_pdf_report(
     pdf_path: Path,
     recommendations,
     profile_recommendations,
-    field_profile_recommendations,
     benchmark_profile_audit,
-    field_routing_regime_calibration,
     transition_metrics,
     boundary_summary,
     aggregates,
@@ -603,8 +600,6 @@ def write_pdf_report(
     routing_fitness_multiflow_summary,
     routing_fitness_stale_repair_summary,
     large_population_diffusion_transitions,
-    field_diffusion_regime_calibration,
-    field_vs_best_diffusion_alternative,
     baseline_comparison,
     baseline_dir,
 ) -> None:
@@ -838,10 +833,7 @@ def write_pdf_report(
         add_paragraphs(
             story,
             styles,
-            diffusion_takeaway_lines(
-                diffusion_regime_engine_summary,
-                field_vs_best_diffusion_alternative,
-            ),
+            diffusion_takeaway_lines(diffusion_regime_engine_summary),
         )
 
     story.append(Paragraph("Appendix A. Tuning Reference Tables", styles["Section"]))
