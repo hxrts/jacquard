@@ -1,5 +1,5 @@
 /-
-The Problem. Phase 1 needs a compact proof-facing model for coded evidence
+The Problem. The coded-diffusion proof stack needs a compact proof-facing model for coded evidence
 that matches the Rust reconstruction surface: independent contribution ids,
 duplicate suppression, k-of-n reconstruction, recoding ledgers, observer
 projection, and finite work accounting. The active theorem object is evidence
@@ -11,10 +11,10 @@ Solution Structure.
 2. Prove duplicate non-inflation, innovative rank growth, reconstruction
    monotonicity, recoding soundness, and observer projection preservation.
 3. Provide deterministic potential and finite-work recurrence lemmas, with
-   explicit Phase 2 placeholders for probability-heavy inference results.
+   explicit boundaries for probability-heavy inference results.
 -/
 
-/-! # Coded Diffusion — active Phase 1 theorem core -/
+/-! # Coded Diffusion — active theorem core -/
 
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
@@ -297,7 +297,7 @@ theorem duplicate_step_increases_duplicate_pressure
       potential.duplicatePressure + 1 := by
   rfl
 
-theorem phase1_potential_accounting_innovative
+theorem potential_accounting_innovative
     (potential : DiffusionPotential) :
     (innovativePotentialStep potential).rankDeficit ≤ potential.rankDeficit ∧
       (innovativePotentialStep potential).duplicatePressure =
@@ -305,7 +305,7 @@ theorem phase1_potential_accounting_innovative
   -- Innovative steps can only reduce the rank deficit and leave duplicate pressure alone.
   exact ⟨innovative_step_rank_deficit_nonincreasing potential, rfl⟩
 
-theorem phase1_potential_accounting_duplicate
+theorem potential_accounting_duplicate
     (potential : DiffusionPotential) :
     (duplicatePotentialStep potential).rankDeficit = potential.rankDeficit ∧
       (duplicatePotentialStep potential).duplicatePressure =

@@ -2,6 +2,13 @@ import Field.CodedDiffusion
 import Field.CodedDiffusionStrong
 import Field.ActiveBelief
 import Field.ActiveBeliefStrong
+import Field.ActiveBeliefDefinitive
+import Field.ActiveBeliefDefinitiveClosure
+import Field.ActiveBeliefCertificates
+import Field.ActiveBeliefEndToEnd
+import Field.ActiveBeliefDecisionSufficiency
+import Field.TemporalIndependenceLimits
+import Field.TemporalIndependenceCapacity
 import Field.LocalModel
 import Field.PrivateProtocol
 import Field.Boundary
@@ -17,8 +24,8 @@ import Field.Quality
 
 /-! # Field — master composition of all Field subsystems
 
-`Field.CodedDiffusion` and `Field.CodedDiffusionStrong` are the active research
-theorem paths. Router, Search, and Quality imports remain available as legacy
-corridor-routing baseline context while the coded-diffusion proof stack is
-split out.
+The coded-diffusion, active-belief, decision-sufficiency, temporal
+independence, and temporal-capacity packs are the active research theorem path.
+Router, Search, and Quality imports remain available as legacy corridor-routing
+baseline context while the diffusion proof stack is split out.
 -/

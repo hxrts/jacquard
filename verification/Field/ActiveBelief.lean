@@ -96,7 +96,7 @@ theorem demand_bounded_by_byte_cap
     (summary : DemandSummary)
     (hValid : validDemandSummary summary) :
     summary.entries.length ≤ summary.byteCap := by
-  -- The byte cap is modeled as a proof-facing entry budget for Phase 8.
+  -- The byte cap is modeled as a proof-facing entry budget.
   exact hValid.right.left
 
 theorem valid_demand_is_live
@@ -105,6 +105,42 @@ theorem valid_demand_is_live
     0 < summary.ttl := by
   -- Live demand carries a positive time-to-live.
   exact hValid.right.right
+
+/-- Deterministic proof-facing demand derived from audited receiver state. -/
+def demandSummaryFromReceiverState
+    (state : ReceiverBeliefState)
+    (entryCap byteCap ttl : Nat) : DemandSummary :=
+  { receiverId := state.receiverId
+    entries :=
+      [ { entryId := state.receiverId
+          hypothesis := state.topHypothesis?.getD 0
+          requestedContribution? := none
+          priority := state.quality.uncertainty + state.quality.topMargin } ]
+    entryCap := entryCap
+    byteCap := byteCap
+    ttl := ttl }
+
+theorem demand_summary_from_receiver_state_valid
+    (state : ReceiverBeliefState)
+    (entryCap byteCap ttl : Nat)
+    (hEntryCap : 1 ≤ entryCap)
+    (hByteCap : 1 ≤ byteCap)
+    (hTtl : 0 < ttl) :
+    validDemandSummary
+      (demandSummaryFromReceiverState state entryCap byteCap ttl) := by
+  -- Receiver-local demand is a deterministic bounded function of audited state.
+  simp [validDemandSummary, demandSummaryFromReceiverState, hEntryCap, hByteCap, hTtl]
+
+theorem demand_summary_from_receiver_state_has_canonical_singleton_order
+    (state : ReceiverBeliefState)
+    (entryCap byteCap ttl : Nat) :
+    (demandSummaryFromReceiverState state entryCap byteCap ttl).entries =
+      [ { entryId := state.receiverId
+          hypothesis := state.topHypothesis?.getD 0
+          requestedContribution? := none
+          priority := state.quality.uncertainty + state.quality.topMargin } ] := by
+  -- The proof-facing constructor emits exactly one canonically positioned entry.
+  rfl
 
 /-! ## First-Class Active Messages -/
 
@@ -301,7 +337,7 @@ theorem propagated_demand_uses_host_bridge_surface
     (record : PropagatedDemandRecord)
     (hValid : validPropagatedDemandRecord record) :
     record.surface = ActiveDemandExecutionSurface.hostBridgeReplay := by
-  -- The strong phase distinguishes host/bridge demand from simulator-local demand.
+  -- The replay surface distinguishes host/bridge demand from simulator-local demand.
   exact hValid.left
 
 theorem propagated_demand_carries_no_contribution

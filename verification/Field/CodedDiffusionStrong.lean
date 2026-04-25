@@ -196,7 +196,7 @@ theorem inference_potential_drift_progress
     (hDrift : inferencePotentialDriftBounded assumption) :
     assumption.after.total + assumption.progressCredit ≤
       assumption.before.total + assumption.pressureDebit := by
-  -- Strong-phase progress is a drift statement under explicit controller
+  -- Strong progress is a drift statement under explicit controller
   -- assumptions, not merely a row-accounting identity.
   exact hDrift
 
