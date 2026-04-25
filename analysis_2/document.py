@@ -57,7 +57,7 @@ def write_pdf_report(
     story: list[object] = []
     story.append(
         Paragraph(
-            paper_markup("Active Belief Diffusion With Coded Evidence"),
+            paper_markup("Certified Temporal Kernel Transformation In Path-Free Distributed AI"),
             styles["TitleCustom"],
         )
     )

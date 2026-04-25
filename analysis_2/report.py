@@ -22,8 +22,8 @@ FIGURES = (
     ("table_03_three_mode_comparison", "Three-mode task surface", "coded_inference_experiment_a2_evidence_modes.csv"),
     ("figure_03_task_algebra", "Task-family outcome summary", "active_belief_second_tasks.csv"),
     ("table_04_task_family_interface", "Task-family interface summary", "active_belief_second_tasks.csv"),
-    ("table_05_headline_statistics", "Headline statistical summary", "active_belief_headline_statistics.csv"),
-    ("figure_04_active_belief_grid", "Multi-receiver compatibility summary", "active_belief_receiver_runs.csv"),
+    ("table_05_headline_statistics", "Certificate-boundary statistical summary", "active_belief_headline_statistics.csv"),
+    ("figure_04_active_belief_grid", "Projected-local compatibility summary", "active_belief_receiver_runs.csv"),
     ("figure_05_active_vs_passive", "Demand ablation paired deltas", "active_belief_demand_ablation.csv"),
     ("figure_06_coding_vs_replication", "Coding versus replication with spread", "coded_inference_experiment_d_coding_vs_replication.csv"),
     ("figure_07_recoding_tradeoff", "Regime-specific recoding tradeoff", "active_belief_receiver_runs.csv"),
@@ -37,7 +37,7 @@ FIGURES = (
     ("figure_14_high_gap_regimes", "High-gap demand regime family", "active_belief_high_gap_regimes.csv"),
     ("figure_15_adversarial_demand", "Adversarial demand steering", "active_belief_adversarial_demand.csv"),
     ("figure_16_byzantine_injection", "Byzantine fragment injection", "active_belief_byzantine_injection.csv"),
-    ("figure_17_receiver_count_sweep", "Receiver-count compatibility sweep", "active_belief_receiver_count_sweep.csv"),
+    ("figure_17_receiver_count_sweep", "Projection-count compatibility sweep", "active_belief_receiver_count_sweep.csv"),
     ("table_07_independence_bottleneck", "Independence bottleneck summary", "active_belief_independence_bottleneck.csv"),
     ("figure_18_independence_bottleneck", "Matched raw spread, different effective rank", "active_belief_independence_bottleneck.csv"),
     ("table_08_convex_erm", "Convex ERM certificate surface", "active_belief_convex_erm.csv"),
@@ -617,7 +617,7 @@ def figure_claim_categories(datasets: dict[str, list[dict[str, object]]]) -> dic
 def figure_caption(figure_id: str) -> str:
     descriptions = {
         "figure_02_landscape_focus": (
-            "Main evidence. Median lines and interquartile bands show belief quality rising while uncertainty falls over replay rounds in the anomaly-localization setting. This supports landscape sharpening under fixed payload-byte accounting; it does not by itself prove demand causality."
+            "Main evidence. Median lines and interquartile bands show local belief quality rising while uncertainty falls over replay rounds in the anomaly-localization setting. This supports projected landscape sharpening under fixed payload-byte accounting; it does not by itself prove demand causality."
         ),
         "figure_01_path_free_recovery": (
             "Main evidence. Each distribution uses rows whose core windows have no instantaneous static source-to-receiver path and whose successful runs record time-respecting evidence journeys. This is the direct path-free inference check under the recorded trace families."
@@ -626,7 +626,7 @@ def figure_caption(figure_id: str) -> str:
             "Main evidence. The table distinguishes the threshold reconstruction case from the two score-vector cases at the encoded-object and statistic level. This supports the finite-statistic special case of the broader convex/objective task-class claim."
         ),
         "figure_04_active_belief_grid": (
-            "Main evidence. A focused four-panel summary compares active, passive, recoded, and uncoded modes for receiver agreement, belief divergence, quality per byte, and commitment lead time, with regime offsets shown directly inside each mode. This is the paper's flagship multi-receiver compatibility figure."
+            "Main evidence. A focused four-panel summary compares active, passive, recoded, and uncoded modes for receiver agreement, belief divergence, quality per byte, and commitment lead time, with regime offsets shown directly inside each mode. This is the paper's flagship projected-local-compatibility figure."
         ),
         "figure_03_task_algebra": (
             "Main evidence. The paired panels show that quality-per-byte ordering and bytes at commitment stay stable across anomaly, Bayesian classifier, majority, histogram, and set-union tasks. This is the empirical finite-statistic side of the broader audited convex/objective task-class claim."
@@ -635,7 +635,7 @@ def figure_caption(figure_id: str) -> str:
             "Main evidence. The interface table makes the shared finite-statistic surface explicit by listing the local contribution, merge rule, and guarded commit rule for each supported task; Table 9 carries the convex ERM certificate surface."
         ),
         "table_05_headline_statistics": (
-            "Main evidence summary. The table reports deterministic paired median differences, paired-difference IQRs, and paired-bootstrap 95% confidence intervals for the headline active-versus-baseline and demand-ablation claims. Positive deltas favor active belief for quality and lead time; negative deltas favor active belief for uncertainty."
+            "Main evidence summary. The table reports deterministic paired median differences, paired-difference IQRs, and paired-bootstrap 95% confidence intervals for the certificate-boundary, active-versus-baseline, and demand-ablation claims. Positive deltas favor active belief for quality and lead time; negative deltas favor active belief for uncertainty."
         ),
         "figure_05_active_vs_passive": (
             "Main evidence. Paired replay ablation intervals compare propagated demand against no-demand, stale-demand, local-only demand, and removed-scoring-term policies under equal payload-byte budgets. Positive deltas indicate better quality, lower uncertainty, or lower bytes at commitment for propagated demand; theorem-backed improvement is limited to assumption-marked rows."
@@ -668,7 +668,7 @@ def figure_caption(figure_id: str) -> str:
             "Main evidence. Median quality curves and interquartile bands compare coded evidence policies with uncoded replication across payload-byte budgets. This is the fair-cost check for the coding benefit."
         ),
         "figure_07_recoding_tradeoff": (
-            "Main evidence. Regime-wise medians show the actual tradeoff boundary: recoded aggregate buys modest extra quality at modest extra byte cost relative to active belief, while passive coded sits as a dominated reference. Signed delta labels make the active-versus-recoded tradeoff explicit in each regime."
+            "Main evidence. Regime-wise medians show the certificate-side tradeoff boundary: recoded aggregate buys modest extra quality at modest extra byte cost relative to active belief, while passive coded sits as a dominated reference. Signed delta labels make the active-versus-recoded tradeoff explicit in each regime."
         ),
         "figure_08_phase_diagram": (
             "Main evidence. The operating-region panels show where measured useful reproduction pressure enters the near-critical target band and where quality gains stop justifying duplicate pressure. Raw reproduction is tracked separately because raw supercritical spread is not proof of useful independent evidence. Highlighted near-critical points mark the useful control region when the recorded band and budget assumptions hold."
@@ -680,7 +680,7 @@ def figure_caption(figure_id: str) -> str:
             "Boundary/safety evidence. The audit table combines replay-visible demand counts with zero observed violations of evidence validity, contribution identity, merge semantics, route truth, and duplicate-rank safety."
         ),
         "figure_10_strong_baselines": (
-            "Supporting fairness check. Paired equal-budget intervals compare active belief against passive coded and deterministic opportunistic forwarding baselines. Positive deltas indicate higher decision accuracy or higher quality per byte for active belief. The scope is the recorded baseline set, not a complete DTN survey."
+            "Supporting fairness check. Paired equal-budget intervals compare certificate-carrying active belief against passive coded and deterministic opportunistic forwarding baselines. Positive deltas indicate higher decision accuracy or higher quality per byte for active belief. The scope is the recorded baseline set, not a complete DTN survey."
         ),
         "figure_11_large_regime": (
             "Supporting scale hygiene. Runtime, memory, replay agreement, quality, and failure-rate rows check deterministic 256-node sparse, 512-node clustered, and 1000-node mobility artifact generation. This is not a production deployment claim."

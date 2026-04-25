@@ -253,10 +253,13 @@ duplicate rank inflation and duplicate statistic inflation. Arbitrary machine
 learning inference, new erasure-code construction, and formal privacy claims are
 outside this phase unless a later theorem or experiment explicitly adds them.
 
-## Active Belief Diffusion Paper Package
+## Certified Temporal Kernel Transformation Paper Package
 
-The paper-facing research name is active belief diffusion. It should be framed
-as a decentralized-inference primitive, not as Jacquard, Field, routing, or
+The paper-facing research object is certified temporal kernel transformation in
+path-free distributed AI. Active belief diffusion is the constructive
+communication primitive, not the title-level claim. The work should be framed
+as evidence-certified transformation of a shared global model or decision
+kernel with projected local instances, not as Jacquard, Field, routing, or
 MPST. In temporal networks without stable paths or a central aggregator, agents
 exchange two bounded, replay-visible objects:
 
@@ -265,23 +268,24 @@ exchange two bounded, replay-visible objects:
 
 The two objects are symmetric as communication objects but not semantically
 symmetric. Coded evidence carries audited contribution identity and can update a
-mergeable statistic. Demand summaries are non-evidential control data. They may
-shape priority, custody, recoding, and allocation, but they must not validate
-evidence, create contribution identity, alter merge semantics, directly change a
-belief statistic, or publish route truth.
+mergeable statistic or decomposable convex objective. Demand summaries are
+non-evidential control data. They may shape priority, custody, recoding, and
+allocation, but they must not validate evidence, create contribution identity,
+alter merge semantics, directly change a belief statistic or objective, or
+publish route truth.
 
 The paper structure should be organized around the primitive and its evidence:
 
-1. Communication as inference.
+1. Certified kernel transformation as the AI object.
 2. Motivating anomaly-localization figure.
 3. Active belief diffusion primitive.
-4. Mergeable task model.
+4. Global kernel, projected local instances, and certificate preservation.
 5. Demand, control, and resource accounting.
 6. Theory and proof boundary.
 7. Implementation and replay substrate.
-8. Evaluation organized by claims.
+8. Evaluation organized by certificate-boundary claims.
 9. Related work and positioning.
-10. Limits and future work.
+10. Limits, including the scoped communication-collapse claim.
 
 The theorem package is intentionally compact. `Field.CodedDiffusion` covers
 evidence-origin modes, contribution ledgers, exact threshold reconstruction,
@@ -298,14 +302,13 @@ empirical-only.
 `Field.ActiveBelief` covers bounded first-class demand, demand/evidence semantic
 separation, demand soundness, duplicate non-inflation under demand-aware
 forwarding, stale-demand safety, commitment lead-time accounting,
-multi-receiver compatibility as guarded local agreement, and propagated
+projected-local compatibility as guarded local agreement, and propagated
 host/bridge demand soundness. The theorem dependency table and Rust
 correspondence live in `verification/Field/CODE_MAP.md`.
 
 The active experiment surface is `ActiveBeliefExperimentArtifacts` in
-`crates/simulator/src/diffusion/core_experiment.rs`. Phase 13 replaced the
-earlier scaffold with a reduced simulator-local causal runner. Each policy mode
-is executed as a separate run over the same deterministic event stream and
+`crates/simulator/src/diffusion/core_experiment.rs`. Each policy mode is
+executed as a separate run over the same deterministic event stream and
 payload-byte budget; active metrics are computed from receiver state, not from
 fixed offsets against the passive summary. Demand is generated before
 forwarding choices, feeds candidate scoring through demand value, and is then
@@ -361,16 +364,16 @@ carry explicit entry, byte, and lifetime caps. All metrics are deterministic
 integer or fixed-denominator values under typed time/order and canonical
 ordering.
 
-The Phase 13 conclusion is conditional but positive: under the modeled
-temporal-network assumptions and the compact mergeable tasks implemented here,
-the causal active runs validate the active-belief thesis. Full active belief
-diffusion improves a central collective metric over passive controlled coded
-diffusion under equal payload bytes, the gain shrinks under a demand ablation,
-stale demand affects only policy behavior, and demand never changes evidence
-validity, contribution identity, duplicate accounting, or commitment guards.
-The validated claim remains bounded to these mergeable tasks and reduced
-simulator fixtures; it is not a claim about arbitrary ML inference or a
-production network protocol.
+The current conclusion is conditional but positive: under the modeled
+temporal-network assumptions and the compact mergeable or convex-objective
+tasks implemented here, the causal active runs support the certificate-boundary
+thesis. Full active belief diffusion improves a central collective metric over
+passive controlled coded diffusion under equal payload bytes, the gain shrinks
+under a demand ablation, stale demand affects only policy behavior, and demand
+never changes evidence validity, contribution identity, duplicate accounting,
+or commitment guards. The validated claim remains bounded to these mergeable
+and convex certificate tasks and reduced simulator fixtures; it is not a claim
+about arbitrary ML inference or a production network protocol.
 
 The strong proposal closure adds a replay-visible host/bridge demand artifact
 surface. It remains deliberately narrow: host bridges batch and replay demand

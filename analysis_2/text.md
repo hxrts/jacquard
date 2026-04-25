@@ -1,48 +1,68 @@
-# Independence-Limited Active Belief Diffusion For Convex Inference
+# Certified Temporal Kernel Transformation In Path-Free Distributed AI
 
 ## Abstract
 
-Decentralized reconstruction and inference are limited by whether temporal
-contact can generate enough effectively independent evidence before the
-decision window closes. We study this limit for finite-dimensional
-decomposable convex empirical-risk minimization and convex energy
-minimization with monotone audited evidence accumulation. Each node sees only
-part of the world and no node can rely on stable paths, central aggregation, or
-full raw-data recovery. Active belief diffusion is the constructive mechanism:
-agents exchange coded evidence, which carries audited local loss or statistic
-contributions, and bounded demand summaries, which steer scarce contact
-opportunities toward evidence that should reduce certified uncertainty without
-ever counting as evidence. In our path-free replay traces, receivers sharpen
-beliefs and reach guarded commitments before full information transit.
-Under equal payload budgets, propagated demand improves quality per byte,
-lowers uncertainty, increases receiver compatibility, and raises an
-effective-rank proxy relative to passive controlled coding and uncoded
-replication in the validated regimes. The theorem surface proves safety, merge
-soundness, demand non-evidentiality, effective-independence limits, guarded
-compatibility, objective merge, optimizer-certificate soundness, and guarded
-convex-decision soundness over finite certificates; performance claims are
-tied to deterministic replay artifacts and theorem-assumption rows. Exact
-`k`-of-`n` recovery is the threshold case; certified convex ERM instances such
-as least-squares regression and hinge-loss classification are the main
-AI-facing task-class boundary.
+Distributed AI deployments often begin from a common global model or decision
+kernel, while each node holds a local projected instance shaped by hardware,
+adapter state, quantization, cache state, or deployment profile. We study when
+such a system can certify a warranted global kernel transformation before raw
+data, full model deltas, or complete local state can be synchronized. The
+limiting quantity is not static connectivity or raw traffic. It is effective
+independent transformation evidence: the Fisher-volume / effective-rank mass of
+accepted, non-duplicated, task-relevant evidence that reaches the certificate
+surface before the decision window closes.
+
+Active belief diffusion is the constructive mechanism. Agents exchange coded
+evidence, which carries audited local loss or statistic contributions, and
+bounded demand summaries, which steer scarce contact opportunities toward
+certificate-relevant evidence without ever counting as evidence. The striking
+regime is path-free: no instantaneous graph contains an end-to-end route from
+evidence holders to eventual committers, yet time-respecting evidence flow can
+cross the threshold for a unique certified descendant. The paper's AI-facing
+instance is a finite-dimensional decomposable convex objective: the global
+kernel is the canonical objective or sufficient statistic, local model
+instances are projections, and a guarded update is released only when the
+certificate warrants the global transformation and projected local updates
+remain coherent.
+
+The theorem surface proves safety, merge soundness, demand
+non-evidentiality, effective-independence limits, guarded compatibility,
+objective merge, optimizer-certificate soundness, and guarded convex-decision
+soundness over finite certificates. The replay artifacts instantiate the
+capacity boundary: path-free evidence can support guarded commitment before
+full recovery, raw spread can fail to raise effective rank, and certificate
+evidence can be dramatically smaller than raw data, full deltas, checkpoints,
+or passive state synchronization in thin regimes. Exact `k`-of-`n` recovery is
+the threshold case; least-squares regression and hinge-loss classification are
+the certified convex AI instances.
 
 ## 1. Introduction
 
-Many AI and distributed-sensing systems are built around an assumption that
-eventually someone gets to see everything. Data can be centralized. The contact
-pattern can eventually permit complete aggregation. Or a coordinator can reduce
-the full observation set into a final answer. That assumption breaks in edge,
-swarm, disaster, battlefield, rural, and privacy-constrained settings. Contacts
-are intermittent. Links are capacity-constrained. The decision window may close
-before any node could have gathered the full raw information object.
+Modern AI systems increasingly start from a common global object but operate
+through heterogeneous local instances. A fleet, hospital network, sensor field,
+or group of agents may share a model kernel, policy head, objective template, or
+decision statistic, while each node holds a projected local instance shaped by
+hardware, privacy boundary, quantization, cache state, adapter surface, or
+deployment profile. The question is not whether every local instance can become
+byte-identical. The question is when the system has enough evidence to certify a
+single warranted global transformation and preserve the coherence of all honest
+local projections.
 
-The motivating question is whether useful collective belief can form before
-full information transit. Our answer is yes, but only when the temporal contact
-process creates enough effectively independent evidence. The answer applies to
-a restricted and explicit class of inference problems. The key move is to
-exchange compact summaries of what agents have learned. Agents also exchange
-compact summaries of what would most reduce their remaining uncertainty.
-Inference does not have to wait until raw data arrives at one place.
+This paper studies that question under temporal contact. Nodes see local data.
+Links are intermittent. The decision window may close before raw data, full
+gradients, checkpoints, or local state can be centralized. In the most striking
+case, no instantaneous communication graph contains an end-to-end route from
+evidence holders to eventual committers. Nevertheless, evidence can travel along
+time-respecting journeys. Static connectivity is not the right boundary;
+temporal evidence capacity is.
+
+The core claim is that certified adaptation is governed by effective
+independent evidence. Consensus can serialize or refuse transformations, but it
+cannot manufacture evidence. A guarded transformation becomes warranted only
+when enough accepted, non-duplicated, task-relevant evidence has reached the
+certificate surface. That threshold is also the communication boundary: below
+it, moving more copies or flooding more state need not help; above it, moving
+the certificate-relevant evidence is enough for the supported task class.
 
 Classical erasure coding assumes that coded pieces already exist and that the
 main question is how many pieces a receiver obtains. Temporal decentralized
@@ -55,15 +75,17 @@ carrier overlap, and low-diversity contact.
 
 This matters for AI systems that cannot rely on central observation. Examples
 include swarms, edge sensing, disaster response, contested networks, rural
-sensing, privacy-constrained deployments, and intermittently connected
-autonomy. The AI object here is convex energy minimization before aggregation:
-nodes contribute bounded local loss terms, receivers accumulate a deterministic
-objective, and a guarded decision is allowed only when an optimizer certificate
-and a margin/uncertainty guard make the decision stable. The claim is not
-general distributed learning, universal privacy, or consensus. Supported
-AI-central instances include least-squares regression and hinge-loss linear
-classification; the probabilistic classifier is a finite likelihood-vector
-special case of the same audited accumulation discipline.
+sensing, privacy-constrained deployments, intermittently connected autonomy,
+and federated edge adaptation. The AI object here is a certified global kernel
+transformation. In the main instance, the kernel is a finite-dimensional convex
+objective or sufficient statistic. Nodes contribute bounded local loss or
+statistic terms; local projected instances fold their projected certificate;
+and a guarded update is allowed only when an optimizer certificate and a
+margin/uncertainty guard make the transformation stable. The claim is not
+general distributed learning, universal privacy, or arbitrary consensus.
+Supported AI-central instances include least-squares regression and hinge-loss
+linear classification; the probabilistic classifier is a finite
+likelihood-vector special case of the same audited accumulation discipline.
 
 The proposed primitive is active belief diffusion. Agents exchange two bounded,
 replay-visible objects. The first is coded evidence: audited contributions to a
@@ -77,8 +99,8 @@ prioritize forwarding, retention, custody, and recoding. It cannot validate
 evidence. It cannot create contribution identity or alter objective or merge
 semantics.
 
-The object of interest is a monotone audited objective or sufficient statistic
-that can be updated before raw recovery. Exact recovery is one threshold
+The object of interest is a monotone audited kernel that can be transformed
+before raw recovery or full synchronization. Exact recovery is one threshold
 instance inside this broader task class. The paper focuses on deterministic
 finite-dimensional convex objectives whose local loss contributions can be
 deduplicated by contribution identity. Demand summaries are part of the
@@ -89,23 +111,29 @@ The paper makes four contributions:
 
 - It states the central limit as an effective-independence bottleneck: raw
   copies, raw transmissions, and raw reproduction do not by themselves certify
-  enough independent evidence for reconstruction or guarded inference.
+  enough independent evidence for reconstruction, guarded inference, or a
+  warranted kernel transformation.
 - It defines active belief diffusion as a two-object primitive for temporal
   decentralized inference. Coded evidence carries audited objective or
   statistic contributions. Bounded demand summaries carry replay-visible
   summaries of what would most improve current belief quality and effective
   independence per byte.
 - It identifies a decomposable convex task interface that cleanly separates
-  objective accumulation and guarded decision from batch reduction after
-  delivery. This lets the same mechanism cover threshold reconstruction,
-  additive anomaly localization, least-squares regression, hinge-loss linear
-  classification, and finite likelihood-vector classification.
+  global-kernel accumulation, projected local update, and guarded decision from
+  batch reduction after delivery. This lets the same mechanism cover threshold
+  reconstruction, additive anomaly localization, least-squares regression,
+  hinge-loss linear classification, and finite likelihood-vector
+  classification.
+- It reframes communication cost as an information-geometric operating
+  boundary. The relevant comparison is not only active versus passive bytes. It
+  is certificate evidence versus raw-data movement, full update/delta movement,
+  checkpoint synchronization, and passive state flooding.
 - It presents a proof-scoped and replay-backed evaluation. The evaluation shows
   path-free collective inference in the supported regime. It includes a
   reduced finite-trace theorem for folded receiver state and guarded
   commitment, plus assumption-labeled rows where propagated demand improves
-  effective-rank proxy, quality per byte, and commitment lead time. Demand remains first-class
-  in communication while staying non-evidential.
+  effective-rank proxy, quality per byte, and commitment lead time. Demand
+  remains first-class in communication while staying non-evidential.
 
 The paper is organized as follows. Section 2 positions the primitive against
 nearby networking, coding, and active-learning lines. Section 3 gives a
@@ -133,8 +161,11 @@ checked regimes.
 
 | Claim | Support | Boundary |
 | --- | --- | --- |
+| Certified kernel transformation | theorem-backed for finite certificates | The proof-facing object is a global kernel with projected local instances. The paper does not require byte-identical local models. |
+| Projection preservation | theorem-backed for finite certificates | Honest local instances must remain compatible projections of the certified global descendant. Arbitrary deployment mutation outside the projection relation is not claimed. |
 | Independence bottleneck | theorem-backed for finite certificates | Recovery and commitment depend on effective independence, not raw copies, raw transmissions, or raw reproduction alone. This is not a universal temporal-network capacity theorem. |
 | Path-free inference | theorem-plus-replay | The checked traces have no instantaneous static source-to-receiver path during the core window, while time-respecting evidence journeys exist. |
+| Communication boundary shift | theorem-plus-replay | Certificate evidence can be smaller than raw data, full deltas, checkpoints, or passive state synchronization in thin regimes. Universal communication savings are not claimed. |
 | Convex ERM task class | theorem-backed for finite certificates | Supported tasks decompose into audited local loss contributions over a finite-dimensional convex objective with checkable optimizer and guard certificates. Arbitrary nonconvex learning and neural-network training are not claimed. |
 | Direct statistic decoding | theorem-backed | Decisions are read from audited mergeable statistics or certified convex objectives for supported tasks. Arbitrary ML compactness is not claimed. |
 | Commitment before full recovery | theorem-plus-replay | Positive lead time is claimed only where commitment and full-recovery events are both logged or where the finite stable-basin certificate applies. Right-censored runs stay separate. |
@@ -179,6 +210,16 @@ request provably non-evidential for a sufficient statistic. Delay-tolerant
 forwarding gives temporal delivery without direct statistic decoding. Active
 belief diffusion is the point where those constraints are enforced together.
 
+The kernel/projection distinction is closest in spirit to projection theorems
+in session-typed systems: a global object has local views, and correctness
+requires local evolution to preserve the global invariant. Here the global
+object is a model or decision kernel, not a choreography; local model instances
+may differ operationally, but a certified global transformation must project to
+compatible local updates. This is also where the paper separates itself from a
+pure consensus framing. Agreement can prevent incompatible commits, but it does
+not say whether enough task-relevant evidence exists to warrant the committed
+kernel transformation.
+
 ### 2.1 Interest, Query, And Demand Signals
 
 NDN and CCN use interest packets to pull named content through a network.
@@ -201,7 +242,10 @@ evidence.
 This leaves the paper with a narrow claim. Demand is not novel as a message
 shape. The claim is that bounded demand, audited evidence, contribution
 identity, direct statistic or objective decoding, and deterministic replay can
-be tied into a single temporal-inference accounting surface.
+be tied into a single temporal-inference accounting surface. In that surface,
+the communication question changes from "how do we synchronize the object?" to
+"how much independent evidence is needed to certify this transformation of the
+object?"
 
 The privacy and traffic-analysis literatures are also relevant, but the role
 here is inverted through the paper's error-correction lens. Statistical
@@ -233,16 +277,27 @@ In round 4, `r1` accepts one innovative contribution, its score vector becomes
 no receiver has reconstructed the full raw observation set and no stable path
 ever existed during the decision window.
 
-This example is the paper's central case. The same discipline reduces to exact
-`k`-of-`n` recovery when the sufficient statistic is set union and the decision
-rule is a threshold.
+This example is the paper's central case in local form. The global kernel is
+the canonical score/objective surface. Each receiver holds a projected local
+instance of that kernel, shaped by its temporal history. When a certificate
+crosses the guard, the local update is valid only because it remains compatible
+with the certified global kernel descendant. The same discipline reduces to
+exact `k`-of-`n` recovery when the sufficient statistic is set union and the
+decision rule is a threshold.
 
 ## 4. Primitive
 
-Active belief diffusion is defined first over a decomposable convex objective.
-Each valid contribution identity selects a bounded local loss term. A receiver
-accumulates those terms monotonically into a deterministic finite-dimensional
-objective:
+Active belief diffusion is defined first over a global kernel with projected
+local instances. The proof-facing kernel may be a decomposable convex objective
+or a mergeable finite statistic. Each node `i` holds a local projection
+`pi_i(K_t)` and receives a projected certificate `pi_i(C)`. A certified global
+transformation has the form `K_{t+1} = U(K_t, C)`, and local correctness means
+that applying the projected update gives a local instance compatible with
+`pi_i(K_{t+1})`.
+
+For the convex objective instance, each valid contribution identity selects a
+bounded local loss term. A receiver accumulates those terms monotonically into
+a deterministic finite-dimensional objective:
 
 ```text
 domain:           bounded fixed-point decision domain X
@@ -258,6 +313,22 @@ Contribution identity prevents double counting: adding a new valid identity
 extends `F_I`, while replaying the same identity leaves the objective
 unchanged. The monotone object is evidence accumulation into the objective, not
 an assertion that every quality metric improves after every contribution.
+
+Projection preservation is the local-instance counterpart:
+
+```text
+global kernel:      K_t
+local projection:   K_t -> pi_i(K_t)
+global certificate: C
+local certificate:  pi_i(C)
+global update:      U(K_t, C) = K_{t+1}
+local update:       U_i(pi_i(K_t), pi_i(C)) ~= pi_i(K_{t+1})
+```
+
+The replayed convex/objective tasks instantiate this structure with a canonical
+objective or statistic as the global kernel and receiver-indexed folded states
+as local projections. The paper does not require byte-identical local model
+instances.
 
 Compact mergeable statistics are the finite-algebra special case of this
 interface:
@@ -349,7 +420,24 @@ statistic.
 
 Time is discrete and finite horizon. A temporal contact trace gives directed or
 undirected contact opportunities over time. A time-respecting journey is a
-sequence of contacts whose times are nondecreasing.
+sequence of contacts whose times are nondecreasing. A trace can be path-free:
+no instantaneous graph contains an end-to-end source-to-committer path during
+the decision window, even though time-respecting journeys exist.
+
+The formal object is a global kernel `K`, a family of local projections
+`pi_i(K)`, and a monotone certificate `C`. A guarded transformation is released
+as `U(K, C)`. Honest local instances may differ, but the projection-preservation
+obligation is:
+
+```text
+K' = U(K, C)
+local_i' = U_i(pi_i(K), pi_i(C))
+local_i' ~= pi_i(K')
+```
+
+Split brain means accepting incompatible global descendants from the same
+kernel, or allowing honest local projections to drift outside the accepted
+global descendant's projection relation.
 
 Each evidence fragment has a target id, origin mode, fragment id, rank or
 contribution id, byte size, and validity marker. Recoded evidence also carries
@@ -548,6 +636,26 @@ nonconvex neural training does not. Lean attribution:
 `hinge_loss_classifier_instantiates_convex_erm`,
 `convex_replay_metadata_adequacy`.
 
+Projection-preservation corollary, certified local instances. For the supported
+finite convex/objective kernels, a valid global certificate induces compatible
+receiver-indexed local folded states: local update from a projected certificate
+is observationally equivalent to projecting the certified global kernel
+descendant. Assumption: the projection map preserves contribution identity,
+merge semantics, and guard fields. Conclusion: local histories may differ, but
+honest projected instances remain coherent with the same certified kernel
+descendant. This is stated as a corollary of the merge, trace-soundness, and
+convex-objective theorems rather than as a claim about arbitrary model
+deployment machinery.
+
+Communication-boundary corollary, certificate bytes versus synchronization
+bytes. For supported finite certificates, the bytes needed to warrant a
+guarded transformation are the bytes needed to carry enough accepted evidence
+to cross the certificate threshold, not the bytes needed to move raw data, full
+model deltas, checkpoints, or complete local state. Assumption: the task admits
+the stated certificate and projection interface. Conclusion: communication
+savings are regime-dependent and strongest in thin, high-redundancy,
+path-free, or sparse-evidence regimes; universal savings are not claimed.
+
 Table 1 summarizes that boundary.
 
 {{EXHIBIT:table_01_theorem_assumptions}}
@@ -590,6 +698,16 @@ The paper uses three primary metrics:
 Secondary metrics include receiver agreement, collective uncertainty, duplicate
 pressure, bytes at commitment, and reproduction pressure. The main budgeted
 comparison fixes payload transmission to 4096 bytes.
+
+The communication-boundary metric is bytes to certificate. It is compared
+against four conceptual synchronization targets: moving the raw data needed for
+central reduction, moving a full model update or delta, moving checkpoints, and
+passively flooding local state until receivers converge. The current artifact
+logs payload bytes, demand bytes, total bytes, and bytes at commitment; those
+rows expose the certificate-side boundary. The stronger systems implication is
+regime-dependent: when the certificate surface is low-dimensional relative to
+the raw object or model state, the required communication can collapse to the
+effective independent evidence needed for the certificate.
 
 Effective independence is measured operationally as an effective-rank proxy:
 the replay counts innovative contribution identities, discounts repeated
@@ -638,15 +756,17 @@ Supplementary Figures and Tables section at the end of this report PDF.
 
 ## 7. Results
 
-The empirical story has five central claims. First, useful belief formation can
+The empirical story has six central claims. First, useful belief formation can
 occur in windows with no static end-to-end path. Second, the mechanism is not
 limited to threshold delivery. It operates on a larger convex/objective-task
-surface, with compact mergeable statistics as special cases.
-Third, propagated demand improves collective inference quality per byte on the
-same traces replayed across active and passive variants. Fourth, matched
-raw-spread traces can differ sharply in effective independence and outcome
-quality. Fifth, the gains persist under fair-cost comparisons and remain
-visible under explicit stress and baseline checks.
+surface, with compact mergeable statistics as special cases. Third, the
+communication boundary is the certificate threshold, not full synchronization
+of raw data, model deltas, checkpoints, or local state. Fourth, propagated
+demand improves collective inference quality per byte on the same traces
+replayed across active and passive variants. Fifth, matched raw-spread traces
+can differ sharply in effective independence and outcome quality. Sixth, the
+gains persist under fair-cost comparisons and remain visible under explicit
+stress and baseline checks.
 
 ### 7.1 Belief Landscapes Sharpen In Path-Free Windows
 
@@ -659,10 +779,11 @@ through temporal contact history rather than through a hidden stable path.
 
 {{EXHIBIT:figure_01_path_free_recovery}}
 
-Figure 2 shows what that progress looks like at the receiver. As innovative
-evidence arrives, quality rises while uncertainty falls in the expected
-direction. The relevant phenomenon is the formation of a usable belief
-landscape before the receiver has the full raw information object.
+Figure 2 shows what that progress looks like at a projected local instance. As
+innovative evidence arrives, quality rises while uncertainty falls in the
+expected direction. The relevant phenomenon is the formation of a usable local
+belief landscape that remains compatible with a certified global kernel
+descendant before the receiver has the full raw information object.
 
 {{EXHIBIT:figure_02_landscape_focus}}
 
@@ -672,8 +793,9 @@ Table 4 separates the three evidence-origin modes at the task-object level.
 The threshold case remains important because it is the cleanest sanity check,
 but it is not the distinctive case. The distinctive claim appears in the
 distributed-evidence and recoded-aggregation modes. There, fragments carry
-statistic contributions rather than opaque bytes for later centralized
-reduction, and the receiver commits from the merged statistic.
+statistic or objective contributions rather than opaque bytes for later
+centralized reduction, and the local instance commits from the merged
+certificate surface.
 
 {{EXHIBIT:table_03_three_mode_comparison}}
 
@@ -697,23 +819,29 @@ AI-central convex objectives with explicit optimizer certificates.
 
 {{EXHIBIT:table_04_task_family_interface}}
 
-### 7.3 Propagated Demand Improves Replay-Scoped Collective Inference
+### 7.3 The Communication Boundary Is Certificate Evidence
 
 Under a fixed 4096-byte budget, active belief diffusion reaches 88.7%
 quality per byte in the multi-receiver anomaly-localization
 setting. It also reaches 88.8% receiver agreement, 10.9% collective
 uncertainty, commitment lead time 3 rounds, and 1934 bytes at commitment. The
 corresponding passive controlled coded medians are 80.7%, 86.2%, 16.1%, 1
-round, and 2074 bytes. The primary comparison is therefore active demand
-against passive controlled coding: active improves quality per byte by about
-10%, adds two rounds of commitment lead time, and lowers median uncertainty by
-about 32%. After adding demand bytes to the denominator, the total-cost row is
+round, and 2074 bytes. Uncoded replication reaches 58.7%, 78.8%, 38.1%, 1
+round, and 2508 bytes. These rows are best read as a certificate boundary:
+commitment happens when enough independent evidence reaches the guard, not
+when the system has synchronized all raw observations or all receiver state.
+
+The active-versus-passive comparison is still informative. Active demand
+improves quality per byte by about 10%, adds two rounds of commitment lead
+time, and lowers median uncertainty by about 32% against passive controlled
+coding. After adding demand bytes to the denominator, the total-cost row is
 much narrower: active is 80.9% versus 80.5% for passive, with a paired
 bootstrap interval that crosses zero. That is the honest cost-accounted
-boundary for the current replay surface. Uncoded replication reaches 58.7%,
-78.8%, 38.1%, 1 round, and 2508
-bytes. That larger gap is a fairness sanity check for coded evidence under
-equal payload budget, not the novelty claim.
+boundary for the implemented active/passive replay surface. The broader
+systems claim is not that every active row beats every passive row by a large
+margin. It is that supported tasks can stop at a certificate threshold that is
+often far smaller than raw data movement, full model-delta movement,
+checkpoint exchange, or passive state synchronization.
 
 Table 6 reports the paired deterministic summaries behind these headline
 claims. The unit of pairing is seed, regime, receiver, and task for receiver
@@ -730,8 +858,9 @@ commitment lead time. Across clustered, mobility, and sparse-bridge regimes,
 active belief remains in the high-agreement, low-divergence region while also
 retaining the best or near-best quality per byte and about two extra rounds of
 lead time over passive controlled coding and uncoded replication. That is the
-paper's clearest evidence that the mechanism improves compatibility of local
-belief states rather than merely moving more bytes.
+paper's clearest evidence that projected local instances can remain compatible
+while the system moves certificate-relevant evidence rather than merely moving
+more bytes.
 
 {{EXHIBIT:figure_04_active_belief_grid}}
 
@@ -759,6 +888,14 @@ active-vs-passive gap grows with demand asymmetry rather than staying a single
 point estimate.
 
 {{EXHIBIT:figure_05_active_vs_passive}}
+
+The information-geometric interpretation is that the feasible operating region
+moves down and left. Down means fewer bytes are needed to certify a supported
+decision than to synchronize the larger object. Left means weaker instantaneous
+connectivity can still suffice when time-respecting evidence journeys deliver
+enough independent certificate mass. The boundary is not traffic volume alone;
+it is the joint surface of byte budget, contact sparsity, effective rank,
+adversarial duplicate pressure, and guard margin.
 
 ### 7.4 Coding And Recoding Beat Replication Under Fair Cost Accounting
 
@@ -790,7 +927,8 @@ active-versus-recoded deltas annotated in each regime.
 ### 7.5 Raw Spread Is Not Effective Independence
 
 The decisive bottleneck is not whether many transmissions happened. It is
-whether the receiver obtained enough independent useful evidence. Table 8
+whether the certificate surface obtained enough independent useful evidence.
+Table 8
 separates the four quantities that are easy to conflate: raw transmissions, raw
 fragment count, innovative contributions, and the effective-rank proxy. The
 matched high-correlation and high-independence rows keep payload budget and raw
@@ -864,7 +1002,8 @@ forbidden evidential side effects stay at zero.
 
 This separation matters to the paper's AI framing. The system exchanges bounded
 summaries of both learned information and remaining uncertainty. Only coded
-evidence can change the sufficient statistic.
+evidence can change the sufficient statistic or convex objective, and only a
+valid certificate can warrant the corresponding kernel transformation.
 
 ### 7.8 Supporting Fairness Checks
 
@@ -885,8 +1024,8 @@ finite temporal error-correction certificates to observer projections: contact
 entropy, dispersion, the generator-rank proxy, and temporal contact capacity
 explain why an observer projection may lack enough independently useful
 evidence to infer the protected statistic. They are not required to establish
-the main path-free inference, active-demand, multi-receiver compatibility, or
-fair-cost coding claims in the paper body.
+the main path-free inference, active-demand, projection-compatibility,
+communication-boundary, or fair-cost coding claims in the paper body.
 
 ## 8. Supplementary Materials
 
@@ -923,27 +1062,33 @@ blanket privacy or deletion claim. The temporal-capacity and limit-triangle
 results are finite certificate statements, not stochastic capacity theorems for
 arbitrary temporal contact processes. The opportunistic baseline set is strong
 enough to be informative, though not a complete survey of delay-tolerant
-networking.
+networking. The communication-collapse claim is also scoped: certificate bytes
+can be dramatically smaller than synchronization bytes only when the task has a
+low-dimensional audited certificate relative to the raw object or local model
+state, and when the projection relation and guard are explicitly defined.
 
 ## 10. Conclusion
 
-Temporal decentralized inference is limited by effective independence, not raw
-spread. In networks with no stable path in the decision window and no central
-aggregator, agents can still form useful collective beliefs when contact
-generates enough independently useful objective or statistic contributions.
-Active belief diffusion is the constructive mechanism: coded evidence
-monotonically extends an audited convex objective or mergeable sufficient
-statistic, while bounded demand summaries steer scarce contact opportunities
-without becoming evidence themselves. For finite-dimensional decomposable
-convex ERM / convex energy minimization, with threshold reconstruction and
-compact mergeable statistics as special cases, the reported replay and
-assumption-backed regimes obtain earlier guarded commitment, better quality per
-byte, lower uncertainty, higher effective-rank proxy, and more compatible
-receiver-side beliefs from different temporal histories. The result does not
-solve arbitrary learning, nonconvex neural training, arbitrary temporal
-capacity, blanket privacy, deletion, or post-revocation secrecy; it gives a
-finite, replay-backed independence limit and a mechanism that can operate
-inside it.
+Temporal decentralized AI is limited by effective independent certificate
+evidence, not raw spread. In networks with no stable path in the decision
+window and no central aggregator, agents can still certify a single global
+kernel descendant when contact generates enough independently useful objective
+or statistic contributions. Active belief diffusion is the constructive
+mechanism: coded evidence monotonically extends an audited convex objective or
+mergeable sufficient statistic, while bounded demand summaries steer scarce
+contact opportunities without becoming evidence themselves.
+
+The resulting boundary is information-geometric. For finite-dimensional
+decomposable convex ERM / convex energy minimization, with threshold
+reconstruction and compact mergeable statistics as special cases, the system can
+operate at the certificate surface instead of at the synchronization surface.
+That means path-free guarded commitment, higher effective-rank proxy, compatible
+projected local instances, and communication proportional to the evidence
+needed to certify the transformation rather than to the full raw data, model
+delta, checkpoint, or state object. The result does not solve arbitrary
+learning, nonconvex neural training, arbitrary temporal capacity, blanket
+privacy, deletion, or post-revocation secrecy; it gives a finite,
+replay-backed independence limit and a mechanism that can operate inside it.
 
 ## References
 

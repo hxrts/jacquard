@@ -1,7 +1,8 @@
-# Active Belief Paper Package
+# Certified Kernel Transformation Paper Package
 
-`analysis_2` contains the paper-facing active belief diffusion material that is
-separate from Jacquard's route-visible router analysis.
+`analysis_2` contains the paper-facing certified temporal kernel
+transformation material, including active belief diffusion as the constructive
+mechanism, separate from Jacquard's route-visible router analysis.
 
 This package owns:
 
@@ -11,7 +12,7 @@ This package owns:
   `work/research_proposal.md`,
 - the report generator that assembles paper text, active-belief CSV rows,
   figures, captions, and the reproducibility manifest,
-- sanity checks for the generated active-belief report artifacts.
+- sanity checks for the generated report artifacts.
 
 Generate the paper report with:
 
@@ -23,8 +24,8 @@ just active-belief-sanity
 The PDF lands at `artifacts/analysis_2/latest/active-belief-report.pdf`.
 
 The split is intentional: `docs/` remains Jacquard routing and simulator
-documentation, while this directory is the extraction boundary for the active
-belief diffusion paper package.
+documentation, while this directory is the extraction boundary for the
+certified temporal kernel transformation paper package.
 
 Focused simulator checks for the paper-facing artifacts currently include:
 
