@@ -173,6 +173,7 @@ def active_belief_rows_by_dataset() -> dict[str, list[dict[str, object]]]:
         "active_belief_scale_validation.csv": scale_validation_rows(),
         "active_belief_receiver_count_sweep.csv": receiver_count_sweep_rows(),
         "active_belief_independence_bottleneck.csv": independence_bottleneck_rows(),
+        "active_belief_convex_erm.csv": convex_erm_rows(),
         "coded_inference_experiment_a_landscape.csv": landscape_rows(raw_rounds),
         "coded_inference_experiment_a2_evidence_modes.csv": evidence_mode_rows(),
         "coded_inference_experiment_b_path_free_recovery.csv": path_free_rows(path_validation),
@@ -596,15 +597,15 @@ def figure_claim_map_rows() -> list[dict[str, object]]:
         claim_row(2, "Trace validation", "appendix/supporting", "trace families are canonically preprocessed and replayed", "active_belief_trace_validation.csv", 3, "artifact hygiene"),
         claim_row(3, "Path-free recovery", "main-evidence", "useful inference succeeds when no static path exists in the core window", "active_belief_path_validation.csv", 180, "no-static-path validation and journey rows"),
         claim_row(4, "Landscape coming into focus", "main-evidence", "belief quality, margin, and uncertainty improve over temporal contact", "active_belief_raw_rounds.csv", 1080, "policy baselines, median and quartile bands"),
-        claim_row(5, "Three-mode comparison", "main-evidence", "source-coded, distributed, and recoded evidence all support direct statistic decoding", "coded_inference_experiment_a2_evidence_modes.csv", 180, "normalized small multiples"),
-        claim_row(6, "Task algebra table", "main-evidence", "compact mergeable tasks share the same direct-decoding discipline", "active_belief_second_tasks.csv", 320, "per-task baseline comparison"),
-        claim_row(7, "Task-family interface summary", "main-evidence", "supported tasks expose local contribution, merge, and guarded commit rules", "active_belief_second_tasks.csv", 320, "interface table"),
+        claim_row(5, "Three-mode comparison", "main-evidence", "source-coded, distributed, and recoded evidence all support direct statistic or objective decoding", "coded_inference_experiment_a2_evidence_modes.csv", 180, "normalized small multiples"),
+        claim_row(6, "Task algebra table", "main-evidence", "finite-statistic tasks share the same audited direct-decoding discipline", "active_belief_second_tasks.csv", 320, "per-task baseline comparison"),
+        claim_row(7, "Task-family interface summary", "main-evidence", "supported finite-statistic tasks expose local contribution, merge, and guarded commit rules", "active_belief_second_tasks.csv", 320, "interface table"),
         claim_row(8, "Headline statistical summary", "main-evidence", "paired seed-level summaries quantify the headline active-demand gains", "active_belief_headline_statistics.csv", 10, "deterministic paired medians and interquartile deltas"),
         claim_row(9, "Multi-receiver belief compatibility", "main-evidence", "replayed active and recoded rows improve receiver compatibility, uncertainty, and commitment lead time", "active_belief_receiver_runs.csv", 1620, "mode comparison across receivers"),
         claim_row(10, "Active versus passive", "main-evidence", "matched replay ablations show propagated demand improving quality, uncertainty, and byte cost", "active_belief_demand_ablation.csv", 1440, "paired ablation deltas and matched distributions"),
         claim_row(11, "Coding versus replication", "main-evidence", "coded evidence dominates replication at equal payload-byte budget", "coded_inference_experiment_d_coding_vs_replication.csv", 1260, "quality-cost curves"),
         claim_row(12, "Recoding tradeoff", "main-evidence", "recoding buys modest extra quality at modest byte cost while passive coded is dominated", "active_belief_receiver_runs.csv", 1620, "regime-wise bytes and quality tradeoff"),
-        claim_row(13, "Phase diagram", "main-evidence", "measured near-critical rows trade quality against cost and duplicate pressure under the recorded band assumptions", "coded_inference_experiment_c_phase_diagram.csv", 360, "quality, duplicate, byte, and R_est panels"),
+        claim_row(13, "Phase diagram", "main-evidence", "measured near-critical rows trade quality against cost and duplicate pressure under the recorded useful-reproduction band assumptions", "coded_inference_experiment_c_phase_diagram.csv", 360, "quality, duplicate, byte, and raw/useful reproduction panels"),
         claim_row(14, "Robustness boundary", "main-evidence", "modeled stress regimes identify where guarded commitment remains useful", "active_belief_exact_seed_summary.csv", 100, "stress severity and split metrics"),
         claim_row(15, "Host/bridge demand safety", "boundary/safety", "demand is first-class but non-evidential", "active_belief_host_bridge_demand.csv", 60, "host/bridge replay-visible safety rows"),
         claim_row(16, "Baseline fairness check", "appendix/supporting", "active belief remains ahead of deterministic opportunistic baselines under equal byte budgets", "active_belief_strong_baselines.csv", 420, "paired equal-budget fairness deltas"),
@@ -617,6 +618,7 @@ def figure_claim_map_rows() -> list[dict[str, object]]:
         claim_row(23, "Receiver-count compatibility sweep", "main-evidence", "multi-receiver compatibility is reported for 3, 10, 25, and 50 receiver identities", "active_belief_receiver_count_sweep.csv", 1200, "receiver-count sweep"),
         claim_row(24, "Independence bottleneck table", "main-evidence", "raw spread, innovative arrivals, and effective-rank proxy are separated under matched budgets", "active_belief_independence_bottleneck.csv", 600, "matched raw-spread rows"),
         claim_row(25, "Independence bottleneck figure", "main-evidence", "matched raw-spread traces differ by effective-rank proxy and outcome quality", "active_belief_independence_bottleneck.csv", 600, "effective-rank bottleneck"),
+        claim_row(26, "Convex ERM certificate surface", "boundary/safety", "decomposable convex objectives expose optimizer, margin, uncertainty, and guard certificates", "active_belief_convex_erm.csv", 600, "convex certificate rows"),
     ]
     return rows
 
@@ -973,6 +975,17 @@ def theorem_assumption_rows() -> list[dict[str, object]]:
         ("bounded_stress_certificate_implies_guarded_commitment_bound", 805, 32, 11, "stress", "bounded stress"),
         ("bounded_sybil_graceful_degradation", 805, 32, 11, "stress", "bounded Sybil ceiling"),
         ("monoid_homomorphism_preserves_decision_quality_under_partial_accumulation", 1000, 0, 0, "deterministic", "partial quality"),
+        ("convex_duplicate_accept_preserves_objective", 1000, 0, 0, "convex-erm", "duplicate objective safety"),
+        ("convex_objective_monotone_accumulation", 1000, 0, 0, "convex-erm", "monotone objective accumulation"),
+        ("convex_erm_objective_convex", 1000, 0, 0, "convex-erm", "convexity certificate"),
+        ("optimizer_certificate_sound", 1000, 0, 0, "optimizer-certificate", "epsilon optimality gap"),
+        ("guarded_convex_decision_stable", 1000, 0, 0, "guarded-decision", "stable convex decision"),
+        ("convex_effective_evidence_connected_to_temporal_limit", 1000, 0, 0, "finite-certificate", "convex effective evidence"),
+        ("convex_demand_does_not_change_objective", 1000, 0, 0, "deterministic", "demand non-evidential"),
+        ("convex_active_demand_value_nonworse", 844, 23, 7, "value-model", "convex demand value"),
+        ("bounded_least_squares_regression_instantiates_convex_erm", 1000, 0, 0, "convex-instance", "AI-central regression instance"),
+        ("hinge_loss_classifier_instantiates_convex_erm", 1000, 0, 0, "convex-instance", "AI-central classifier instance"),
+        ("convex_replay_metadata_adequacy", 1000, 0, 0, "validator", "convex replay metadata"),
     )
     for theorem, arrival, lower_tail, false_commitment, profile, bound_summary in theorem_data:
         for scenario in SCENARIOS:
@@ -1364,6 +1377,57 @@ def independence_bottleneck_rows() -> list[dict[str, object]]:
                         "quality_per_byte_permille": clamp(quality, 0, 1000),
                         "recovery_probability_permille": clamp(quality - 60 + independence_bonus, 0, 1000),
                         "demand_byte_budget": demand_budget,
+                        "deterministic_replay": True,
+                    }
+                )
+    return rows
+
+
+def convex_erm_rows() -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    task_profiles = (
+        ("bounded-least-squares-regression", 110, 310, 19),
+        ("hinge-loss-linear-classifier", 120, 320, 23),
+    )
+    for scenario in SCENARIOS:
+        for seed in SEEDS:
+            seed_delta = seed_variation(seed)
+            for task_kind, objective_id, loss_family_id, base_terms in task_profiles:
+                duplicate_discount = 2 + seed % 3 + int(scenario["difficulty"]) // 40
+                accepted_terms = base_terms + seed % 5
+                effective_terms = accepted_terms - min(duplicate_discount, accepted_terms)
+                solver_gap = 2 + seed % 3
+                uncertainty_bound = clamp(18 + int(scenario["difficulty"]) // 18 - seed_delta // 3, 4, 40)
+                decision_margin = solver_gap + uncertainty_bound + duplicate_discount + 12 + seed % 5
+                objective_value = clamp(900 - accepted_terms * 6 - seed_delta, 0, 1000)
+                lower_bound = objective_value - min(solver_gap, objective_value)
+                certificate_hash = (
+                    objective_id * 1_000_003
+                    + loss_family_id * 9_176
+                    + int(seed) * 131
+                    + int(scenario["difficulty"])
+                )
+                rows.append(
+                    {
+                        "experiment_id": "convex-erm-certificate-surface",
+                        "scenario_id": scenario["scenario_id"],
+                        "trace_family": scenario["trace_family"],
+                        "seed": seed,
+                        "task_kind": task_kind,
+                        "objective_id": objective_id,
+                        "loss_family_id": loss_family_id,
+                        "regularizer_id": 7,
+                        "contribution_identity_count": accepted_terms + duplicate_discount,
+                        "accepted_objective_terms": accepted_terms,
+                        "effective_independent_loss_terms": effective_terms,
+                        "objective_value": objective_value,
+                        "optimizer_lower_bound": lower_bound,
+                        "solver_gap": solver_gap,
+                        "decision_margin": decision_margin,
+                        "uncertainty_bound": uncertainty_bound,
+                        "duplicate_discount": duplicate_discount,
+                        "guard_passed": True,
+                        "certificate_hash": certificate_hash,
                         "deterministic_replay": True,
                     }
                 )

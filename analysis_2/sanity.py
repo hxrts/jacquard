@@ -112,6 +112,15 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
         "recovery_probability_permille", "demand_byte_budget",
         "deterministic_replay",
     ),
+    "active_belief_convex_erm.csv": (
+        "experiment_id", "scenario_id", "trace_family", "seed", "task_kind",
+        "objective_id", "loss_family_id", "regularizer_id",
+        "contribution_identity_count", "accepted_objective_terms",
+        "effective_independent_loss_terms", "objective_value",
+        "optimizer_lower_bound", "solver_gap", "decision_margin",
+        "uncertainty_bound", "duplicate_discount", "guard_passed",
+        "certificate_hash", "deterministic_replay",
+    ),
     "coded_inference_experiment_a_landscape.csv": (
         "experiment_id", "scenario_id", "seed", "policy_or_mode",
         "fixed_budget_label", "statistic_kind", "merge_operation",

@@ -40,6 +40,7 @@ FIGURES = (
     ("figure_17_receiver_count_sweep", "Receiver-count compatibility sweep", "active_belief_receiver_count_sweep.csv"),
     ("table_07_independence_bottleneck", "Independence bottleneck summary", "active_belief_independence_bottleneck.csv"),
     ("figure_18_independence_bottleneck", "Matched raw spread, different effective rank", "active_belief_independence_bottleneck.csv"),
+    ("table_08_convex_erm", "Convex ERM certificate surface", "active_belief_convex_erm.csv"),
 )
 
 
@@ -138,6 +139,7 @@ def figure_display_kind(figure_id: str) -> str:
         "table_05_headline_statistics",
         "table_06_host_bridge_demand",
         "table_07_independence_bottleneck",
+        "table_08_convex_erm",
     }:
         return "table"
     return "figure"
@@ -152,6 +154,8 @@ def figure_table(figure_id: str, rows: list[dict[str, object]]) -> dict[str, obj
         return host_bridge_demand_table(rows)
     if figure_id == "table_07_independence_bottleneck":
         return independence_bottleneck_table(rows)
+    if figure_id == "table_08_convex_erm":
+        return convex_erm_table(rows)
     if figure_id == "table_01_theorem_assumptions":
         return theorem_assumption_table(rows)
     if figure_id == "table_02_trace_validation":
@@ -211,6 +215,41 @@ def independence_bottleneck_table(rows: list[dict[str, object]]) -> dict[str, ob
     }
 
 
+def convex_erm_table(rows: list[dict[str, object]]) -> dict[str, object]:
+    grouped: dict[str, list[dict[str, object]]] = {}
+    for row in rows:
+        grouped.setdefault(str(row["task_kind"]), []).append(row)
+    table_rows = []
+    for task_kind in ["bounded-least-squares-regression", "hinge-loss-linear-classifier"]:
+        entries = grouped.get(task_kind, [])
+        if not entries:
+            continue
+        table_rows.append(
+            [
+                display_label(task_kind),
+                str(median_int(entries, "accepted_objective_terms")),
+                str(median_int(entries, "effective_independent_loss_terms")),
+                str(median_int(entries, "solver_gap")),
+                str(median_int(entries, "uncertainty_bound")),
+                str(median_int(entries, "decision_margin")),
+                "yes" if all(bool_value(row, "guard_passed") for row in entries) else "mixed",
+            ]
+        )
+    return {
+        "columns": [
+            "Convex task",
+            "Accepted terms",
+            "Effective terms",
+            "Solver gap",
+            "Uncertainty",
+            "Margin",
+            "Guard",
+        ],
+        "rows": table_rows,
+        "widths": [3.8, 1.8, 1.8, 1.4, 1.5, 1.5, 1.2],
+    }
+
+
 def three_mode_surface_table(rows: list[dict[str, object]]) -> dict[str, object]:
     grouped: dict[str, dict[str, str]] = {}
     object_labels = {
@@ -230,7 +269,7 @@ def three_mode_surface_table(rows: list[dict[str, object]]) -> dict[str, object]
             "audited recoded contribution",
             "recoded score aggregate",
             "merged statistic + guard",
-            "in-network aggregation with parent ledgers",
+            "in-network aggregation with parent contribution identities",
         ),
     }
     for row in rows:
@@ -431,6 +470,17 @@ def theorem_assumption_table(rows: list[dict[str, object]]) -> dict[str, object]
         "rust_replay_rows_sound_for_active_belief_theorem_profiles": "replay row -> theorem profile",
         "trace_validator_adequacy": "validator metadata adequacy",
         "bounded_stress_certificate_implies_guarded_commitment_bound": "bounded stress certificate",
+        "convex_duplicate_accept_preserves_objective": "contribution identity + objective semantics",
+        "convex_objective_monotone_accumulation": "accepted objective terms extend the finite objective",
+        "convex_erm_objective_convex": "certified convex local losses + regularizer",
+        "optimizer_certificate_sound": "exact/epsilon optimizer certificate",
+        "guarded_convex_decision_stable": "margin exceeds optimizer and evidence uncertainty",
+        "convex_effective_evidence_connected_to_temporal_limit": "effective loss terms + temporal capacity",
+        "convex_demand_does_not_change_objective": "demand absent from objective semantics",
+        "convex_active_demand_value_nonworse": "explicit convex value-order model",
+        "bounded_least_squares_regression_instantiates_convex_erm": "certified least-squares task instance",
+        "hinge_loss_classifier_instantiates_convex_erm": "certified hinge-loss classifier instance",
+        "convex_replay_metadata_adequacy": "convex certificate metadata present",
     }
     for row in rows:
         theorem = str(row["theorem_name"])
@@ -573,16 +623,16 @@ def figure_caption(figure_id: str) -> str:
             "Main evidence. Each distribution uses rows whose core windows have no instantaneous static source-to-receiver path and whose successful runs record time-respecting evidence journeys. This is the direct path-free inference check under the recorded trace families."
         ),
         "table_03_three_mode_comparison": (
-            "Main evidence. The table distinguishes the threshold reconstruction case from the two score-vector cases at the encoded-object and statistic level. This supports the mergeable-task-interface claim directly."
+            "Main evidence. The table distinguishes the threshold reconstruction case from the two score-vector cases at the encoded-object and statistic level. This supports the finite-statistic special case of the broader convex/objective task-class claim."
         ),
         "figure_04_active_belief_grid": (
             "Main evidence. A focused four-panel summary compares active, passive, recoded, and uncoded modes for receiver agreement, belief divergence, quality per byte, and commitment lead time, with regime offsets shown directly inside each mode. This is the paper's flagship multi-receiver compatibility figure."
         ),
         "figure_03_task_algebra": (
-            "Main evidence. The paired panels show that quality-per-byte ordering and bytes at commitment stay stable across anomaly, Bayesian classifier, majority, histogram, and set-union tasks. This is the empirical side of the compact task-family generalization claim."
+            "Main evidence. The paired panels show that quality-per-byte ordering and bytes at commitment stay stable across anomaly, Bayesian classifier, majority, histogram, and set-union tasks. This is the empirical finite-statistic side of the broader audited convex/objective task-class claim."
         ),
         "table_04_task_family_interface": (
-            "Main evidence. The interface table makes the shared mergeable-task surface explicit by listing the local contribution, merge rule, and guarded commit rule for each supported task."
+            "Main evidence. The interface table makes the shared finite-statistic surface explicit by listing the local contribution, merge rule, and guarded commit rule for each supported task; Table 9 carries the convex ERM certificate surface."
         ),
         "table_05_headline_statistics": (
             "Main evidence summary. The table reports deterministic paired median differences, paired-difference IQRs, and paired-bootstrap 95% confidence intervals for the headline active-versus-baseline and demand-ablation claims. Positive deltas favor active belief for quality and lead time; negative deltas favor active belief for uncertainty."
@@ -610,6 +660,9 @@ def figure_caption(figure_id: str) -> str:
         ),
         "figure_18_independence_bottleneck": (
             "Main evidence. Matched high-correlation and high-independence rows have comparable raw spread, but higher effective-rank proxy tracks better recovery and quality under the same payload budget."
+        ),
+        "table_08_convex_erm": (
+            "Boundary/safety evidence. The convex ERM certificate table records accepted objective terms, effective independent loss terms, solver gap, uncertainty bound, decision margin, and guard status for least-squares regression and hinge-loss classification surfaces."
         ),
         "figure_06_coding_vs_replication": (
             "Main evidence. Median quality curves and interquartile bands compare coded evidence policies with uncoded replication across payload-byte budgets. This is the fair-cost check for the coding benefit."

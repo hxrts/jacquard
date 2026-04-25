@@ -35,7 +35,7 @@ class ActiveBeliefReportSanityTests(unittest.TestCase):
             path_rows = read_csv(report_dir / "active_belief_path_validation.csv")
             demand_rows = read_csv(report_dir / "active_belief_demand_ablation.csv")
             headline_rows = read_csv(report_dir / "active_belief_headline_statistics.csv")
-            self.assertEqual(23, len(claim_map))
+            self.assertEqual(26, len(claim_map))
             self.assertGreaterEqual(len(raw_rounds), 4000)
             self.assertGreaterEqual(len(receiver_runs), 2000)
             self.assertGreaterEqual(len(path_rows), 200)

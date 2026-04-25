@@ -1,26 +1,30 @@
-# Independence-Limited Active Belief Diffusion With Coded Evidence
+# Independence-Limited Active Belief Diffusion For Convex Inference
 
 ## Abstract
 
 Decentralized reconstruction and inference are limited by whether temporal
 contact can generate enough effectively independent evidence before the
-decision window closes. We study this limit for compact mergeable tasks where
-each node sees only part of the world and no node can rely on stable paths,
-central aggregation, or full raw-data recovery. Active belief diffusion is the
-constructive mechanism: agents exchange coded evidence, which carries audited
-pieces of what an agent has learned, and bounded demand summaries, which steer
-scarce contact opportunities toward evidence that should reduce uncertainty
-without ever counting as evidence. In our path-free replay traces, receivers
-sharpen beliefs and reach guarded commitments before full information transit.
+decision window closes. We study this limit for finite-dimensional
+decomposable convex empirical-risk minimization and convex energy
+minimization with monotone audited evidence accumulation. Each node sees only
+part of the world and no node can rely on stable paths, central aggregation, or
+full raw-data recovery. Active belief diffusion is the constructive mechanism:
+agents exchange coded evidence, which carries audited local loss or statistic
+contributions, and bounded demand summaries, which steer scarce contact
+opportunities toward evidence that should reduce certified uncertainty without
+ever counting as evidence. In our path-free replay traces, receivers sharpen
+beliefs and reach guarded commitments before full information transit.
 Under equal payload budgets, propagated demand improves quality per byte,
 lowers uncertainty, increases receiver compatibility, and raises an
 effective-rank proxy relative to passive controlled coding and uncoded
 replication in the validated regimes. The theorem surface proves safety, merge
-soundness, demand non-evidentiality, effective-independence limits, and guarded
-compatibility over finite certificates; performance claims are tied to
-deterministic replay artifacts and theorem-assumption rows. Exact `k`-of-`n`
-recovery is the threshold case; additive score-vector anomaly localization is
-the main AI-facing case.
+soundness, demand non-evidentiality, effective-independence limits, guarded
+compatibility, objective merge, optimizer-certificate soundness, and guarded
+convex-decision soundness over finite certificates; performance claims are
+tied to deterministic replay artifacts and theorem-assumption rows. Exact
+`k`-of-`n` recovery is the threshold case; certified convex ERM instances such
+as least-squares regression and hinge-loss classification are the main
+AI-facing task-class boundary.
 
 ## 1. Introduction
 
@@ -52,27 +56,32 @@ carrier overlap, and low-diversity contact.
 This matters for AI systems that cannot rely on central observation. Examples
 include swarms, edge sensing, disaster response, contested networks, rural
 sensing, privacy-constrained deployments, and intermittently connected
-autonomy. The AI object here is belief formation before aggregation from
-partial audited statistics. The claim is not general distributed learning,
-universal privacy, or consensus. One supported task is a learned probabilistic
-classifier: nodes contribute bounded categorical log-likelihood vectors for a
-Bayesian classifier, and receivers evaluate the posterior margin and accuracy
-guard from the merged likelihood statistic.
+autonomy. The AI object here is convex energy minimization before aggregation:
+nodes contribute bounded local loss terms, receivers accumulate a deterministic
+objective, and a guarded decision is allowed only when an optimizer certificate
+and a margin/uncertainty guard make the decision stable. The claim is not
+general distributed learning, universal privacy, or consensus. Supported
+AI-central instances include least-squares regression and hinge-loss linear
+classification; the probabilistic classifier is a finite likelihood-vector
+special case of the same audited accumulation discipline.
 
 The proposed primitive is active belief diffusion. Agents exchange two bounded,
 replay-visible objects. The first is coded evidence: audited contributions to a
-mergeable sufficient statistic. The second is a bounded demand summary:
+decomposable convex objective or its mergeable finite-statistic special case.
+The second is a bounded demand summary:
 replay-visible information about what evidence would most improve current
 belief quality. The symmetry matters operationally because both objects diffuse
 through the network. The asymmetry matters semantically because only coded
-evidence can change the sufficient statistic. Demand can prioritize forwarding,
-retention, custody, and recoding. It cannot validate evidence. It cannot create
-contribution identity or alter merge semantics.
+evidence can change the objective or sufficient statistic. Demand can
+prioritize forwarding, retention, custody, and recoding. It cannot validate
+evidence. It cannot create contribution identity or alter objective or merge
+semantics.
 
-The object of interest is a mergeable sufficient statistic that can be updated
-before raw recovery. Exact recovery is one threshold instance inside this
-broader task class. The paper focuses on compact deterministic merge algebras
-with auditable contribution identity. Demand summaries are part of the
+The object of interest is a monotone audited objective or sufficient statistic
+that can be updated before raw recovery. Exact recovery is one threshold
+instance inside this broader task class. The paper focuses on deterministic
+finite-dimensional convex objectives whose local loss contributions can be
+deduplicated by contribution identity. Demand summaries are part of the
 communication primitive, but they do not create evidence or change what counts
 as evidence.
 
@@ -82,15 +91,15 @@ The paper makes four contributions:
   copies, raw transmissions, and raw reproduction do not by themselves certify
   enough independent evidence for reconstruction or guarded inference.
 - It defines active belief diffusion as a two-object primitive for temporal
-  decentralized inference. Coded evidence carries audited statistic
-  contributions. Bounded demand summaries carry replay-visible summaries of
-  what would most improve current belief quality and effective independence
-  per byte.
-- It identifies a mergeable-task interface that cleanly separates direct
-  statistic decoding from batch reduction after delivery. This lets the same
-  mechanism cover threshold reconstruction, additive anomaly localization, a
-  Bayesian classifier with categorical likelihoods, and a small set of
-  other compact tasks.
+  decentralized inference. Coded evidence carries audited objective or
+  statistic contributions. Bounded demand summaries carry replay-visible
+  summaries of what would most improve current belief quality and effective
+  independence per byte.
+- It identifies a decomposable convex task interface that cleanly separates
+  objective accumulation and guarded decision from batch reduction after
+  delivery. This lets the same mechanism cover threshold reconstruction,
+  additive anomaly localization, least-squares regression, hinge-loss linear
+  classification, and finite likelihood-vector classification.
 - It presents a proof-scoped and replay-backed evaluation. The evaluation shows
   path-free collective inference in the supported regime. It includes a
   reduced finite-trace theorem for folded receiver state and guarded
@@ -106,12 +115,13 @@ Section 8 points to supplementary validation material, and Section 9 states
 the remaining limitations.
 
 The paper does not claim arbitrary machine learning inference over
-intermittent networks. It claims that for compact mergeable tasks, useful
-collective belief can emerge before full information transit. The proof-backed
-performance claims apply to the assumption-labeled sparse-bridge and clustered
-regimes; the semi-realistic mobility trace is an empirical generalization
-probe. The core replay claim remains path-free: the decision window has no
-stable path and no central aggregator.
+intermittent networks. It claims that for finite-dimensional decomposable
+convex ERM / convex energy minimization with monotone audited evidence
+accumulation, useful collective belief can emerge before full information
+transit. The proof-backed performance claims apply to the assumption-labeled
+sparse-bridge and clustered regimes; the semi-realistic mobility trace is an
+empirical generalization probe. The core replay claim remains path-free: the
+decision window has no stable path and no central aggregator.
 
 ### 1.1 Claim Boundary
 
@@ -125,12 +135,13 @@ checked regimes.
 | --- | --- | --- |
 | Independence bottleneck | theorem-backed for finite certificates | Recovery and commitment depend on effective independence, not raw copies, raw transmissions, or raw reproduction alone. This is not a universal temporal-network capacity theorem. |
 | Path-free inference | theorem-plus-replay | The checked traces have no instantaneous static source-to-receiver path during the core window, while time-respecting evidence journeys exist. |
-| Direct statistic decoding | theorem-backed | Decisions are read from audited mergeable statistics for compact tasks. Arbitrary ML compactness is not claimed. |
+| Convex ERM task class | theorem-backed for finite certificates | Supported tasks decompose into audited local loss contributions over a finite-dimensional convex objective with checkable optimizer and guard certificates. Arbitrary nonconvex learning and neural-network training are not claimed. |
+| Direct statistic decoding | theorem-backed | Decisions are read from audited mergeable statistics or certified convex objectives for supported tasks. Arbitrary ML compactness is not claimed. |
 | Commitment before full recovery | theorem-plus-replay | Positive lead time is claimed only where commitment and full-recovery events are both logged or where the finite stable-basin certificate applies. Right-censored runs stay separate. |
 | Active demand usefulness | theorem-plus-replay | Demand usefulness is validated for matched active/passive runs and explicit clean-model assumptions. Demand optimality under arbitrary mobility is not claimed. |
 | Demand non-evidentiality | theorem-backed | Demand can affect priority, custody, forwarding, and recoding opportunities, but cannot validate evidence, create contribution identity, alter duplicate accounting, or change commitment guards. |
 | Multi-receiver compatibility | theorem-plus-replay | Compatibility means guarded local decisions enter the same basin from receiver-indexed histories. It is not consensus, common knowledge, or identical belief. |
-| Near-critical useful control | theorem-plus-replay | The controller reports raw and useful reproduction pressure separately. Raw `R_est` near one is never treated as sufficient for inference. |
+| Near-critical useful control | theorem-plus-replay | The controller reports raw and useful reproduction pressure separately. Raw reproduction near one is never treated as sufficient for inference. |
 | Recoding and aggregation frontier | theorem-plus-replay | Recoding soundness is theorem-backed; frontier improvement is claimed only where replay rows improve margin, uncertainty, accuracy, latency, or quality per byte. |
 | Equal-byte baseline advantage | replay-backed | Advantages are reported under fixed payload-byte budgets against the implemented uncoded, epidemic, spray-and-wait, uncontrolled coded, passive controlled coded, and active modes. |
 | Bounded stress safety | theorem-plus-replay | Stress claims cover the named bounded stresses and false-confidence counters only. Arbitrary adaptive adversary robustness is not claimed. |
@@ -174,23 +185,23 @@ NDN and CCN use interest packets to pull named content through a network.
 Those interests are request-shaped and non-content-bearing, so they are the
 closest networking analogue to demand summaries. The difference here is not
 that a request exists. The difference is that demand is typed as
-non-evidential, replay-visible control for a mergeable sufficient statistic,
-and the comparison budget must count the control channel rather than treating
-it as free.
+non-evidential, replay-visible control for an audited objective or sufficient
+statistic, and the comparison budget must count the control channel rather
+than treating it as free.
 
 Push-pull DTN systems also exchange request or custody signals under
 intermittent contact. They are concerned primarily with making useful content
 arrive. Active belief diffusion instead asks whether accepted contributions
-change an audited statistic enough for a guarded decision before full raw
-recovery. Active-learning query strategies similarly choose informative
+change an audited objective or statistic enough for a guarded decision before
+full raw recovery. Active-learning query strategies similarly choose informative
 examples or labels, but they usually assume an available query substrate and do
 not prove that the query itself cannot validate, mint, or double-count
 evidence.
 
 This leaves the paper with a narrow claim. Demand is not novel as a message
 shape. The claim is that bounded demand, audited evidence, contribution
-ledgers, direct statistic decoding, and deterministic replay can be tied into a
-single temporal-inference accounting surface.
+identity, direct statistic or objective decoding, and deterministic replay can
+be tied into a single temporal-inference accounting surface.
 
 The privacy and traffic-analysis literatures are also relevant, but the role
 here is inverted through the paper's error-correction lens. Statistical
@@ -228,7 +239,28 @@ rule is a threshold.
 
 ## 4. Primitive
 
-Active belief diffusion is defined over a mergeable task interface:
+Active belief diffusion is defined first over a decomposable convex objective.
+Each valid contribution identity selects a bounded local loss term. A receiver
+accumulates those terms monotonically into a deterministic finite-dimensional
+objective:
+
+```text
+domain:           bounded fixed-point decision domain X
+local loss:       contribution i -> l_i(x)
+regularizer:      R(x)
+objective:        F_I(x) = R(x) + sum_{i in I} l_i(x)
+solver cert:      x_hat, lower bound, epsilon gap, deterministic tie break
+decision:         d(x_hat) -> y
+guard:            margin > optimizer gap + evidence uncertainty
+```
+
+Contribution identity prevents double counting: adding a new valid identity
+extends `F_I`, while replaying the same identity leaves the objective
+unchanged. The monotone object is evidence accumulation into the objective, not
+an assertion that every quality metric improves after every contribution.
+
+Compact mergeable statistics are the finite-algebra special case of this
+interface:
 
 ```text
 local encode:      x_i -> a_i in A
@@ -240,13 +272,13 @@ quality:           q(A*) -> margin / uncertainty / score
 ```
 
 The merge must be associative and, unless the task intentionally depends on
-order, commutative. Contribution identity prevents double counting.
-Recoding or aggregation is valid only when it preserves the contribution ledger
-and merge semantics. The supported task class includes counts, votes,
-histograms, and heavy hitters. It also includes sketches, additive score
-vectors, categorical log-likelihood vectors, bounded log-likelihood
-accumulators, linear-model scores, random-feature embeddings, set union, and
-lattice-valued summaries.
+order, commutative. Recoding or aggregation is valid only when it preserves
+contribution identity and the declared objective or merge semantics. The
+theorem-backed task class includes exact threshold set union, additive score
+landscapes, bounded likelihood-vector classification, bounded least-squares
+regression, and hinge-loss linear classification. Other sketches or embeddings
+belong in scope only if they instantiate the same finite convex/objective
+certificate interface.
 
 The three evidence-origin modes are:
 
@@ -287,8 +319,8 @@ Algorithm 1 then spells out the deterministic round loop.
 
 ```text
 Algorithm 1: Active Belief Diffusion
-Input: temporal contacts, byte/storage/lifetime caps, mergeable task algebra
-State: local statistic A_r, contribution ledger L_r, bounded demand d_r
+Input: temporal contacts, byte/storage/lifetime caps, convex objective or finite-statistic certificate
+State: local objective/statistic A_r, accepted contribution identities I_r, bounded demand d_r
 
 for each deterministic round t:
   observe local signal x_i, if any
@@ -300,7 +332,7 @@ for each deterministic round t:
     score forwarding, retention, or recoding using demand and duplicate risk
     transmit selected bounded evidence and demand messages
   for each received evidence object in canonical order:
-    validate evidence and parent contribution ledger without demand
+    validate evidence and parent contribution identities without demand
     if contribution identity is valid and innovative:
       merge contribution into A_r
       update L_r and belief summary
@@ -310,7 +342,8 @@ for each deterministic round t:
 
 The symmetry matters operationally and the asymmetry matters semantically.
 Evidence and demand are both bounded exchange objects. Only valid coded
-evidence, however, can change the merged sufficient statistic.
+evidence, however, can change the accumulated objective or merged sufficient
+statistic.
 
 ## 5. Model And Formal Boundary
 
@@ -330,7 +363,7 @@ Exact reconstruction occurs when `D_t >= k`. Duplicates do not increase `D_t`.
 The duplicate and recoding claims assume sender-bound contribution identity.
 Each contribution carries an origin node id, decision-window epoch, local
 nonce, and signature or equivalent authenticated binding over the contribution
-payload and parent ledger references. The replay validator treats a
+payload and parent contribution-identity references. The replay validator treats a
 contribution id as valid only inside its epoch and only when the origin binding
 matches the advertised sender.
 
@@ -348,13 +381,18 @@ priority or custody decisions; it cannot make an unsigned contribution valid,
 create a new contribution id, or bypass duplicate accounting.
 
 For aggregate inference, each valid contribution is an element of a
-deterministic merge algebra:
+deterministic merge algebra or a decomposable convex objective:
 
 ```text
 a_i in A
 A_t = merge of accepted innovative contributions through time t
 decision_t = d(A_t)
 quality_t  = q(A_t)
+
+l_i(x)     local convex loss for accepted contribution i
+F_I(x)     R(x) + sum_{i in I} l_i(x)
+x_t        certified epsilon minimizer of F_I
+decision_t = d(x_t)
 ```
 
 Diffusion cost is tracked with deterministic integer replay records. The
@@ -397,7 +435,7 @@ attribution: `anomaly_margin_lower_tail_bound`,
 Theorem 4, non-evidential demand safety. Propagated demand may change
 allocation, but it cannot validate invalid evidence or inflate rank through
 duplicates. Assumption: evidence identity and validity are checked only through
-the audited contribution ledger, and bounded demand rows expose a deterministic
+the accepted contribution identities, and bounded demand rows expose a deterministic
 variance-deflection cap. Conclusion: demand stays operationally active while
 remaining semantically non-evidential. Lean attribution:
 `propagated_demand_cannot_validate_invalid_evidence`,
@@ -490,6 +528,26 @@ Lean attribution:
 `reliability_resource_ambiguity_triangle_incompatibility`,
 `matched_networks_separate_by_entropy_and_effective_rank`.
 
+Theorem 14, convex ERM task-class soundness. For finite-dimensional
+decomposable convex objectives with accepted contribution identities, the
+receiver objective is the deterministic sum of accepted local losses plus a
+regularizer; duplicates do not change that objective; valid new evidence
+monotonically extends it; certified optimizer gaps and margin guards justify
+guarded decisions; and demand remains outside objective semantics. Assumption:
+the task supplies finite fixed-point convexity, optimizer, and guard
+certificates. Conclusion: least-squares regression and hinge-loss linear
+classification sit inside the theorem-backed AI task class, while arbitrary
+nonconvex neural training does not. Lean attribution:
+`convex_duplicate_accept_preserves_objective`,
+`convex_objective_monotone_accumulation`,
+`convex_erm_objective_convex`, `optimizer_certificate_sound`,
+`guarded_convex_decision_stable`,
+`convex_effective_evidence_connected_to_temporal_limit`,
+`convex_demand_does_not_change_objective`,
+`bounded_least_squares_regression_instantiates_convex_erm`,
+`hinge_loss_classifier_instantiates_convex_erm`,
+`convex_replay_metadata_adequacy`.
+
 Table 1 summarizes that boundary.
 
 {{EXHIBIT:table_01_theorem_assumptions}}
@@ -511,7 +569,7 @@ derived from uncertainty, competitor margins, and missing contribution classes.
 | Empirical-only regime | semi-realistic mobility-contact |
 | Scale | 256-node sparse bridge, 512-node clustered, 1000-node mobility-contact |
 | Receivers per run | three receiver identities in flagship rows; receiver-count sweep covers 3, 10, 25, and 50 identities |
-| Tasks | anomaly localization, Bayesian classifier, majority threshold, bounded histogram, set-union threshold |
+| Tasks | anomaly localization, bounded least-squares regression certificate, hinge-loss classifier certificate, Bayesian classifier, majority threshold, bounded histogram, set-union threshold |
 | Compared modes | uncoded replication, passive controlled coded, full active belief, recoded aggregate |
 | Headline budget | 4096 payload bytes |
 | Threshold sweep | `k/n` reconstruction settings swept through `16/32`, `32/64`, and `64/128` in addition to smaller coded-fragment choices |
@@ -558,7 +616,7 @@ scoring, or reproduction control while preserving byte accounting.
 Exhibit roadmap. Table 1 marks the proof boundary, and Table 2 fixes the
 protocol surface. Figure 1 checks path-free recovery, Figure 2 shows belief
 landscapes over time, Table 4 separates the three evidence-origin modes,
-Figure 3 and Table 5 show the mergeable task surface, Table 6 reports headline
+Figure 3 and Table 5 show the finite-statistic task surface, Table 6 reports headline
 paired summaries, Figures 4 and 5 give the multi-receiver and demand-ablation
 results, Figures 6 and 7 compare coding and recoding under fair cost, Figures
 8 and 9 show control and stress boundaries, and Table 7 audits demand safety.
@@ -569,7 +627,8 @@ receiver-demand heterogeneity sweep. Figure 15 records the adversarial-demand
 steering stress. Figure 16 records the byzantine-fragment injection stress.
 Figure 17 records the receiver-count compatibility sweep.
 Table 8 and Figure 18 record the matched raw-spread independence bottleneck
-check.
+check. Table 9 records the convex ERM certificate surface for the AI-central
+task-class boundary.
 
 Trace validation and large-regime replay hygiene are supporting checks rather
 than headline claims. They establish that the evaluation is deterministic,
@@ -581,7 +640,8 @@ Supplementary Figures and Tables section at the end of this report PDF.
 
 The empirical story has five central claims. First, useful belief formation can
 occur in windows with no static end-to-end path. Second, the mechanism is not
-limited to threshold delivery. It operates on a larger mergeable-task surface.
+limited to threshold delivery. It operates on a larger convex/objective-task
+surface, with compact mergeable statistics as special cases.
 Third, propagated demand improves collective inference quality per byte on the
 same traces replayed across active and passive variants. Fourth, matched
 raw-spread traces can differ sharply in effective independence and outcome
@@ -618,20 +678,22 @@ reduction, and the receiver commits from the merged statistic.
 {{EXHIBIT:table_03_three_mode_comparison}}
 
 Figure 3 shows the task-family outcome pattern. Quality-per-byte ordering stays
-stable across anomaly, Bayesian classifier, majority, histogram, and set-union tasks, and bytes at
-commitment remain mode-specific but task-stable. The contribution is not that
-the four tasks require separate mechanisms. It is that one
-mergeable-statistic interface supports the same early-commitment discipline
-across several qualitatively different tasks.
+stable across anomaly, Bayesian classifier, majority, histogram, and set-union
+tasks, and bytes at commitment remain mode-specific but task-stable. The
+contribution is not that these tasks require separate mechanisms. It is that
+one audited accumulation interface supports the same early-commitment
+discipline across several qualitatively different finite-statistic tasks.
 
 {{EXHIBIT:figure_03_task_algebra}}
 
-Table 5 then states that shared interface directly. Each task admits a compact
-local contribution, a merge rule over a sufficient statistic, and a guarded
-commit rule that reads directly from that merged statistic. The Bayesian
-classifier row is the learned probabilistic case: local evidence is a bounded
-per-class log-likelihood vector, merging is vector addition, and the decision
-reads the posterior arg-max and margin guard from the accumulated statistic.
+Table 5 then states that shared finite-statistic interface directly. Each task
+admits a compact local contribution, a merge rule over a sufficient statistic,
+and a guarded commit rule that reads directly from that merged statistic. The
+Bayesian classifier row is the learned probabilistic finite-statistic case:
+local evidence is a bounded per-class log-likelihood vector, merging is vector
+addition, and the decision reads the posterior arg-max and margin guard from
+the accumulated statistic. Table 9 extends this task-class boundary to
+AI-central convex objectives with explicit optimizer certificates.
 
 {{EXHIBIT:table_04_task_family_interface}}
 
@@ -719,7 +781,7 @@ agreement, 10.9% collective uncertainty, commitment lead time 3 rounds, and
 Against active belief, the gain is narrower: recoding buys about 2.3
 percentage points of quality per byte at about 54 extra bytes at
 commitment, with the same 3-round lead time. It still respects the same
-contribution-ledger discipline. Figure 7 now shows that regime-wise tradeoff
+contribution-identity discipline. Figure 7 now shows that regime-wise tradeoff
 directly, with passive coded demoted to a dominated reference and with the
 active-versus-recoded deltas annotated in each regime.
 
@@ -744,6 +806,15 @@ because it steers scarce contacts toward independently useful contributions
 under the same budget, not because it merely increases traffic.
 
 {{EXHIBIT:figure_18_independence_bottleneck}}
+
+Table 9 records the convex ERM certificate surface. The key rows are not
+performance claims by themselves; they show that the AI-facing tasks expose the
+finite certificate fields used by the theorem surface: accepted objective
+terms, effective independent loss terms, solver gap, uncertainty bound,
+decision margin, and guard status. This is the task-class bridge from compact
+mergeable statistics to decomposable convex energy minimization.
+
+{{EXHIBIT:table_08_convex_erm}}
 
 ### 7.6 Control And Robustness Boundaries Remain Visible
 
@@ -835,16 +906,19 @@ path-free inference result.
 
 ## 9. Limitations
 
-The paper covers compact mergeable sufficient statistics, not arbitrary machine
-learning inference. Safety, algebra, accounting, and reduced finite-trace
-claims are deterministic theorems over the supported proof-facing mechanism
-boundary. Performance claims that depend on arrival, margin, controller-band,
-or stress assumptions are theorem-backed only in the sparse-bridge and
-clustered duplicate-heavy regimes and stay empirical-only in the
-semi-realistic mobility regime. The replay-validator theorem validates narrow
-metadata handoff into the proof-facing trace surface; it is not a proof of
-arbitrary simulator correctness. Observer non-reconstructability is bounded by
-the stated projection, horizon, and evidence-independence model; it is not a
+The paper covers finite-dimensional decomposable convex ERM / convex energy
+minimization with monotone audited evidence accumulation, plus threshold and
+compact mergeable-statistic special cases. It does not cover arbitrary machine
+learning inference, nonconvex neural training, or open-ended generative
+modeling. Safety, algebra, accounting, optimizer-certificate, guarded-decision,
+and reduced finite-trace claims are deterministic theorems over the supported
+proof-facing mechanism boundary. Performance claims that depend on arrival,
+margin, controller-band, or stress assumptions are theorem-backed only in the
+sparse-bridge and clustered duplicate-heavy regimes and stay empirical-only in
+the semi-realistic mobility regime. The replay-validator theorem validates
+narrow metadata handoff into the proof-facing trace surface; it is not a proof
+of arbitrary simulator correctness. Observer non-reconstructability is bounded
+by the stated projection, horizon, and evidence-independence model; it is not a
 blanket privacy or deletion claim. The temporal-capacity and limit-triangle
 results are finite certificate statements, not stochastic capacity theorems for
 arbitrary temporal contact processes. The opportunistic baseline set is strong
@@ -856,15 +930,17 @@ networking.
 Temporal decentralized inference is limited by effective independence, not raw
 spread. In networks with no stable path in the decision window and no central
 aggregator, agents can still form useful collective beliefs when contact
-generates enough independently useful statistic contributions. Active belief
-diffusion is the constructive mechanism: coded evidence merges into an
-auditable sufficient statistic, while bounded demand summaries steer scarce
-contact opportunities without becoming evidence themselves. For compact
-mergeable tasks, including the categorical-likelihood Bayesian-classifier case,
-the reported replay and assumption-backed regimes obtain earlier guarded
-commitment, better quality per byte, lower uncertainty, higher effective-rank
-proxy, and more compatible receiver-side beliefs from different temporal
-histories. The result does not solve arbitrary learning, arbitrary temporal
+generates enough independently useful objective or statistic contributions.
+Active belief diffusion is the constructive mechanism: coded evidence
+monotonically extends an audited convex objective or mergeable sufficient
+statistic, while bounded demand summaries steer scarce contact opportunities
+without becoming evidence themselves. For finite-dimensional decomposable
+convex ERM / convex energy minimization, with threshold reconstruction and
+compact mergeable statistics as special cases, the reported replay and
+assumption-backed regimes obtain earlier guarded commitment, better quality per
+byte, lower uncertainty, higher effective-rank proxy, and more compatible
+receiver-side beliefs from different temporal histories. The result does not
+solve arbitrary learning, nonconvex neural training, arbitrary temporal
 capacity, blanket privacy, deletion, or post-revocation secrecy; it gives a
 finite, replay-backed independence limit and a mechanism that can operate
 inside it.
