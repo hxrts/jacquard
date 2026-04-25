@@ -48,6 +48,7 @@ lean_lib JacquardVerification where
     `Field.TemporalIndependenceLimits,
     `Field.TemporalTraceClass,
     `Field.TemporalIndependenceCapacity,
+    `Field.ConvexERM,
     `Field.CodedDiffusion,
     `Field.CodedDiffusionStrong,
     `Field.CostAPI,

@@ -11,6 +11,7 @@ import Field.ActiveBeliefDecisionSufficiency
 import Field.TemporalIndependenceLimits
 import Field.TemporalTraceClass
 import Field.TemporalIndependenceCapacity
+import Field.ConvexERM
 import Field.LocalModel
 import Field.PrivateProtocol
 import Field.Boundary

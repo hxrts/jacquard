@@ -705,6 +705,43 @@ The existing `measured_r_est_permille` remains the useful reproduction value
 for backward compatibility with earlier artifacts. New paper text should prefer
 the raw/useful split when discussing near-critical control.
 
+### Convex ERM Task-Class Correspondence
+
+`Field/ConvexERM.lean` defines the production theorem boundary for the larger
+task class used by the active-belief paper: finite-dimensional decomposable
+convex ERM / convex energy minimization with monotone audited evidence
+accumulation and certified guarded decisions. The file deliberately excludes
+arbitrary nonconvex learning and neural-network training.
+
+| Lean object | Rust/replay counterpart | Role |
+| --- | --- | --- |
+| `ConvexERMTask` | convex-task metadata rows: objective id, loss-family id, regularizer id, decision map, and guard fields | Formal supported task interface. |
+| `ConvexERMState` | receiver-side convex artifact rows with accepted contribution identities, optimizer gap, decision margin, and uncertainty bound | Receiver state for certified objective progress. |
+| `ConvexERMContribution` | contribution id and loss-family fields in convex replay rows | Valid local objective contribution. |
+| `convexLossSum`, `convexObjective` | accepted objective-term rows | Deterministic objective induced by accepted evidence. |
+| `acceptConvexContribution` | duplicate-suppressed contribution acceptance | Objective-level contribution identity accounting. |
+| `convex_duplicate_accept_preserves_state` | duplicate evidence rows | Duplicate copies preserve receiver state. |
+| `convex_duplicate_accept_preserves_objective` | duplicate evidence rows and objective hashes | Duplicate copies do not change the energy landscape. |
+| `convex_objective_monotone_accumulation` | accepted objective-term count and objective certificate rows | New valid evidence monotonically extends the accumulated objective. |
+| `validConvexERMTask`, `convex_erm_objective_convex` | theorem-assumption rows for convex task validity | Convexity preservation certificate. |
+| `OptimizerCertificate`, `validOptimizerCertificate`, `optimizer_certificate_sound` | solver gap, objective value, lower bound, and certificate hash rows | Checkable exact/epsilon optimizer certificate. |
+| `canonicalOptimizerReplay`, `optimizer_certificate_replay_canonical` | deterministic tie-break and certificate hash fields | Canonical optimizer replay surface. |
+| `ConvexDecisionGuard`, `convexGuardPasses`, `guarded_convex_decision_stable` | decision margin, solver gap, uncertainty bound, duplicate discount, and guard-status rows | Certified guarded early decision. |
+| `convex_commitment_can_precede_full_recovery` | commitment-before-full-recovery rows | Stable decision may occur before all possible objective terms arrive. |
+| `ConvexEffectiveEvidenceCertificate` | raw copies, raw transmissions, accepted objective terms, effective loss terms, raw/useful reproduction rows | Convex-task effective-evidence certificate. |
+| `convex_effective_loss_terms_bounded_by_raw_copies` | raw-copy versus effective-loss rows | Raw copies are only an upper bound. |
+| `convex_effective_loss_terms_bounded_by_raw_transmissions` | raw-transmission versus effective-loss rows | Raw transmissions are only an upper bound. |
+| `convex_useful_reproduction_bounded_by_raw_reproduction` | raw/useful reproduction split | Useful convex evidence is bounded by raw spread. |
+| `convex_effective_evidence_connected_to_temporal_limit` | temporal independence and effective-rank rows | Convex ERM connects to temporal error-correction limits. |
+| `ConvexDemandMessage`, `convex_demand_does_not_change_objective` | demand-byte and demand-message rows | Demand is non-evidential for convex objectives. |
+| `convex_demand_guided_acceptance_matches_plain_acceptance` | demand-guided acceptance rows | Demand changes transport priority, not objective semantics. |
+| `ConvexDemandValueComparison`, `convex_active_demand_value_nonworse` | active/passive same-budget value rows | Restricted value-order theorem for active demand. |
+| `BoundedLeastSquaresRegressionInstance`, `bounded_least_squares_regression_instantiates_convex_erm` | least-squares convex-task artifact rows | AI-central regression instance. |
+| `HingeLossClassifierInstance`, `hinge_loss_classifier_instantiates_convex_erm` | hinge-loss classifier artifact rows | AI-central classification instance. |
+| `convex_ai_central_instance_available` | task-family interface rows | Shows the class includes central AI convex inference tasks. |
+| `ConvexERMReplayRow`, `validConvexERMReplayRow`, `convex_replay_metadata_adequacy` | convex ERM replay CSV rows and theorem-assumption metadata | Report/replay metadata is adequate to instantiate theorem assumptions. |
+| `convex_task_class_excludes_nonconvex_training` | paper limitation text | Boundary theorem: nonconvex neural training is outside the supported class. |
+
 ### Theorem Dependency Table
 
 | Paper claim | Lean object | Depends on | Rust/replay target |
