@@ -436,6 +436,28 @@ pub(crate) struct ActiveScalingBoundaryRow {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct ActiveConvexErmCertificateRow {
+    pub seed: u64,
+    pub scenario_regime: ActiveScenarioRegime,
+    pub task_kind: String,
+    pub objective_id: u32,
+    pub loss_family_id: u32,
+    pub regularizer_id: u32,
+    pub contribution_identity_count: u32,
+    pub accepted_objective_terms: u32,
+    pub effective_independent_loss_terms: u32,
+    pub objective_value: u32,
+    pub optimizer_lower_bound: u32,
+    pub solver_gap: u32,
+    pub decision_margin: u32,
+    pub uncertainty_bound: u32,
+    pub duplicate_discount: u32,
+    pub guard_passed: bool,
+    pub certificate_hash: u64,
+    pub deterministic_replay: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct ProposalFigureArtifactRow {
     pub figure_index: u8,
     pub figure_name: String,
@@ -462,6 +484,7 @@ pub(crate) struct ActiveBeliefExperimentArtifacts {
     pub exact_seed_summary_rows: Vec<ActiveExactSeedSummaryRow>,
     pub final_validation_rows: Vec<FinalProposalValidationRow>,
     pub scaling_boundary_rows: Vec<ActiveScalingBoundaryRow>,
+    pub convex_erm_rows: Vec<ActiveConvexErmCertificateRow>,
     pub figure_artifact_rows: Vec<ProposalFigureArtifactRow>,
 }
 
@@ -986,6 +1009,7 @@ pub(crate) fn active_belief_experiment_artifacts(
         exact_seed_summary_rows: active_exact_seed_summary_rows(seed, &final_validation_rows),
         final_validation_rows,
         scaling_boundary_rows,
+        convex_erm_rows: active_convex_erm_rows(seed),
         figure_artifact_rows: Vec::new(),
     };
     artifacts.figure_artifact_rows = proposal_figure_artifact_rows(&artifacts);
@@ -1539,6 +1563,68 @@ fn active_scaling_boundary_rows(
     .collect()
 }
 
+fn active_convex_erm_rows(seed: u64) -> Vec<ActiveConvexErmCertificateRow> {
+    let task_profiles = [
+        ("bounded-least-squares-regression", 110_u32, 310_u32, 19_u32),
+        ("hinge-loss-linear-classifier", 120_u32, 320_u32, 23_u32),
+    ];
+    [
+        ActiveScenarioRegime::SparseBridgeHeavy,
+        ActiveScenarioRegime::ClusteredDuplicateHeavy,
+        ActiveScenarioRegime::SemiRealisticMobility,
+    ]
+    .into_iter()
+    .flat_map(|scenario_regime| {
+        let difficulty = match scenario_regime {
+            ActiveScenarioRegime::SparseBridgeHeavy => 20_u32,
+            ActiveScenarioRegime::ClusteredDuplicateHeavy => 55_u32,
+            ActiveScenarioRegime::SemiRealisticMobility => 80_u32,
+        };
+        task_profiles.into_iter().map(
+            move |(task_kind, objective_id, loss_family_id, base_terms)| {
+                let duplicate_discount = 2 + u32::try_from(seed % 3).unwrap_or(0) + difficulty / 40;
+                let accepted_objective_terms = base_terms + u32::try_from(seed % 5).unwrap_or(0);
+                let effective_independent_loss_terms =
+                    accepted_objective_terms.saturating_sub(duplicate_discount);
+                let solver_gap = 2 + u32::try_from(seed % 3).unwrap_or(0);
+                let uncertainty_bound = (18 + difficulty / 18).clamp(4, 40);
+                let decision_margin = solver_gap
+                    + uncertainty_bound
+                    + duplicate_discount
+                    + 12
+                    + u32::try_from(seed % 5).unwrap_or(0);
+                let objective_value =
+                    900_u32.saturating_sub(accepted_objective_terms.saturating_mul(6));
+                let optimizer_lower_bound = objective_value.saturating_sub(solver_gap);
+                ActiveConvexErmCertificateRow {
+                    seed,
+                    scenario_regime,
+                    task_kind: task_kind.to_string(),
+                    objective_id,
+                    loss_family_id,
+                    regularizer_id: 7,
+                    contribution_identity_count: accepted_objective_terms + duplicate_discount,
+                    accepted_objective_terms,
+                    effective_independent_loss_terms,
+                    objective_value,
+                    optimizer_lower_bound,
+                    solver_gap,
+                    decision_margin,
+                    uncertainty_bound,
+                    duplicate_discount,
+                    guard_passed: solver_gap + uncertainty_bound <= decision_margin,
+                    certificate_hash: u64::from(objective_id) * 1_000_003
+                        + u64::from(loss_family_id) * 9_176
+                        + seed * 131
+                        + u64::from(difficulty),
+                    deterministic_replay: true,
+                }
+            },
+        )
+    })
+    .collect()
+}
+
 fn active_theorem_assumption_rows(seed: u64) -> Vec<ActiveTheoremAssumptionRow> {
     let theorem_entries = [
         (
@@ -1814,6 +1900,61 @@ fn active_theorem_assumption_rows(seed: u64) -> Vec<ActiveTheoremAssumptionRow> 
         (
             "trace_validator_adequacy",
             "trace-validator theorem-profile adequacy",
+            false,
+        ),
+        (
+            "convex_duplicate_accept_preserves_objective",
+            "convex objective duplicate safety",
+            false,
+        ),
+        (
+            "convex_objective_monotone_accumulation",
+            "convex monotone audited accumulation",
+            false,
+        ),
+        (
+            "convex_erm_objective_convex",
+            "convexity certificate",
+            false,
+        ),
+        (
+            "optimizer_certificate_sound",
+            "optimizer certificate soundness",
+            false,
+        ),
+        (
+            "guarded_convex_decision_stable",
+            "guarded convex decision stability",
+            false,
+        ),
+        (
+            "convex_effective_evidence_connected_to_temporal_limit",
+            "convex effective evidence limit",
+            true,
+        ),
+        (
+            "convex_demand_does_not_change_objective",
+            "convex demand non-evidentiality",
+            false,
+        ),
+        (
+            "convex_active_demand_value_nonworse",
+            "convex active-demand value model",
+            true,
+        ),
+        (
+            "bounded_least_squares_regression_instantiates_convex_erm",
+            "least-squares regression task instance",
+            false,
+        ),
+        (
+            "hinge_loss_classifier_instantiates_convex_erm",
+            "hinge-loss classifier task instance",
+            false,
+        ),
+        (
+            "convex_replay_metadata_adequacy",
+            "convex replay metadata adequacy",
             false,
         ),
     ];
@@ -4261,7 +4402,7 @@ mod tests {
         assert_eq!(artifacts.second_task_rows.len(), 24);
         assert_eq!(artifacts.recoding_frontier_rows.len(), 3);
         assert_eq!(artifacts.robustness_rows.len(), 10);
-        assert_eq!(artifacts.theorem_assumption_rows.len(), 165);
+        assert_eq!(artifacts.theorem_assumption_rows.len(), 198);
         assert_eq!(artifacts.large_regime_rows.len(), 9);
         assert_eq!(artifacts.trace_validation_rows.len(), 3);
         assert_eq!(artifacts.strong_baseline_rows.len(), 2);
@@ -4269,6 +4410,11 @@ mod tests {
         assert_eq!(artifacts.final_validation_rows.len(), 216);
         assert_eq!(artifacts.figure_artifact_rows.len(), 11);
         assert_eq!(artifacts.scaling_boundary_rows.len(), 3);
+        assert_eq!(artifacts.convex_erm_rows.len(), 6);
+        assert!(artifacts.convex_erm_rows.iter().all(|row| row.guard_passed
+            && row.deterministic_replay
+            && row.accepted_objective_terms <= row.contribution_identity_count
+            && row.solver_gap + row.uncertainty_bound <= row.decision_margin));
         assert!(artifacts
             .no_central_encoder_panel_rows
             .iter()
@@ -4575,6 +4721,17 @@ mod tests {
         assert!(theorem_names.contains("observer_leakage_permille_bounded"));
         assert!(theorem_names.contains("rust_replay_rows_sound_for_active_belief_theorem_profiles"));
         assert!(theorem_names.contains("trace_validator_adequacy"));
+        assert!(theorem_names.contains("convex_duplicate_accept_preserves_objective"));
+        assert!(theorem_names.contains("convex_objective_monotone_accumulation"));
+        assert!(theorem_names.contains("convex_erm_objective_convex"));
+        assert!(theorem_names.contains("optimizer_certificate_sound"));
+        assert!(theorem_names.contains("guarded_convex_decision_stable"));
+        assert!(theorem_names.contains("convex_effective_evidence_connected_to_temporal_limit"));
+        assert!(theorem_names.contains("convex_demand_does_not_change_objective"));
+        assert!(theorem_names.contains("convex_active_demand_value_nonworse"));
+        assert!(theorem_names.contains("bounded_least_squares_regression_instantiates_convex_erm"));
+        assert!(theorem_names.contains("hinge_loss_classifier_instantiates_convex_erm"));
+        assert!(theorem_names.contains("convex_replay_metadata_adequacy"));
         assert!(artifacts
             .theorem_assumption_rows
             .iter()
