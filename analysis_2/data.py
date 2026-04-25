@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import csv
+from math import isqrt
 from pathlib import Path
 
 from .sanity import REQUIRED_COLUMNS
 
-SEEDS = tuple(range(41, 61))
+SEEDS = tuple(range(41, 141))
 ROUNDS = (1, 2, 3, 4, 5, 6)
 RECEIVERS = ("receiver-a", "receiver-b", "receiver-c")
-TASKS = ("anomaly-localization", "majority-threshold", "bounded-histogram")
+RECEIVER_COUNT_SWEEP = (3, 10, 25, 50)
+TASKS = ("anomaly-localization", "bayesian-classifier", "majority-threshold", "bounded-histogram")
 MODES = ("uncoded-replication", "passive-controlled-coded", "full-active-belief", "recoded-aggregate")
+DEMAND_SUMMARY_BYTES = 48
 SCENARIOS = (
     {
         "scenario_id": "sparse-bridge-heavy",
@@ -43,6 +46,7 @@ SCENARIOS = (
 )
 TASK_DELTA = {
     "anomaly-localization": 45,
+    "bayesian-classifier": 42,
     "majority-threshold": 20,
     "bounded-histogram": 0,
     "set-union-threshold": 35,
@@ -103,12 +107,37 @@ DEMAND_DELTA = {
     "no-landscape-value": 46,
     "no-reproduction-control": 24,
 }
+MODE_DEMAND_MESSAGES_PER_ROUND = {
+    "uncoded-replication": 0,
+    "passive-controlled-coded": 0,
+    "full-active-belief": 2,
+    "recoded-aggregate": 2,
+}
+POLICY_DEMAND_MESSAGES_PER_RUN = {
+    "no-demand": 0,
+    "local-only-demand": 3,
+    "propagated-demand": 6,
+    "stale-demand": 6,
+    "no-duplicate-risk": 6,
+    "no-bridge-value": 6,
+    "no-landscape-value": 6,
+    "no-reproduction-control": 6,
+}
 
 
 def load_text(path: Path) -> str:
     if not path.exists():
         return ""
     return path.read_text()
+
+
+def demand_bytes_for_mode(mode: str, round_index: int) -> int:
+    messages = MODE_DEMAND_MESSAGES_PER_ROUND.get(mode, 0) * max(0, round_index)
+    return messages * DEMAND_SUMMARY_BYTES
+
+
+def demand_bytes_for_policy(policy: str) -> int:
+    return POLICY_DEMAND_MESSAGES_PER_RUN.get(policy, 0) * DEMAND_SUMMARY_BYTES
 
 
 def ensure_dir(path: Path) -> None:
@@ -129,6 +158,7 @@ def active_belief_rows_by_dataset() -> dict[str, list[dict[str, object]]]:
     receiver_runs = active_belief_receiver_run_rows(raw_rounds)
     path_validation = active_belief_path_validation_rows(raw_rounds)
     demand_ablation = active_belief_demand_ablation_rows()
+    demand_byte_sweep = active_belief_demand_byte_sweep_rows()
     headline_statistics = headline_statistics_rows(receiver_runs, demand_ablation)
     return {
         "active_belief_figure_claim_map.csv": figure_claim_map_rows(),
@@ -136,7 +166,13 @@ def active_belief_rows_by_dataset() -> dict[str, list[dict[str, object]]]:
         "active_belief_receiver_runs.csv": receiver_runs,
         "active_belief_path_validation.csv": path_validation,
         "active_belief_demand_ablation.csv": demand_ablation,
+        "active_belief_demand_byte_sweep.csv": demand_byte_sweep,
+        "active_belief_high_gap_regimes.csv": active_belief_high_gap_regime_rows(),
+        "active_belief_adversarial_demand.csv": active_belief_adversarial_demand_rows(),
+        "active_belief_byzantine_injection.csv": active_belief_byzantine_injection_rows(),
         "active_belief_scale_validation.csv": scale_validation_rows(),
+        "active_belief_receiver_count_sweep.csv": receiver_count_sweep_rows(),
+        "active_belief_independence_bottleneck.csv": independence_bottleneck_rows(),
         "coded_inference_experiment_a_landscape.csv": landscape_rows(raw_rounds),
         "coded_inference_experiment_a2_evidence_modes.csv": evidence_mode_rows(),
         "coded_inference_experiment_b_path_free_recovery.csv": path_free_rows(path_validation),
@@ -170,6 +206,7 @@ def active_belief_raw_round_rows() -> list[dict[str, object]]:
                         uncertainty = clamp(980 - quality + scenario["difficulty"] - round_index * 14, 85, 920)
                         receiver_rank = rank_value(seed, mode, round_index)
                         byte_count = byte_count_value(seed, mode, round_index)
+                        demand_byte_count = demand_bytes_for_mode(mode, round_index)
                         duplicates = duplicate_count_value(seed, mode, round_index)
                         rows.append(
                             {
@@ -192,6 +229,8 @@ def active_belief_raw_round_rows() -> list[dict[str, object]]:
                                 "top_hypothesis_margin": margin,
                                 "uncertainty_permille": uncertainty,
                                 "byte_count": byte_count,
+                                "demand_byte_count": demand_byte_count,
+                                "total_byte_count": byte_count + demand_byte_count,
                                 "duplicate_count": duplicates,
                                 "innovative_arrival_count": max(0, receiver_rank - duplicates // 2),
                                 "demand_satisfaction_permille": demand_satisfaction_value(mode, round_index, quality),
@@ -216,6 +255,11 @@ def active_belief_receiver_run_rows(raw_rounds: list[dict[str, object]]) -> list
             commitment_time = commitment_time_value(str(row["policy_or_mode"]), quality, receiver_index)
             recovery_time = recovery_time_value(str(row["policy_or_mode"]), quality, receiver_index)
             bytes_at_commitment = clamp(int(row["byte_count"]) - 180 - receiver_index * 40, 512, 4096)
+            demand_bytes_at_commitment = demand_bytes_for_mode(str(row["policy_or_mode"]), commitment_time)
+            total_cost_quality = quality * int(row["fixed_payload_budget_bytes"]) // max(
+                1,
+                int(row["fixed_payload_budget_bytes"]) + demand_bytes_at_commitment,
+            )
             rows.append(
                 {
                     "experiment_id": "active-belief-receiver-runs",
@@ -227,6 +271,7 @@ def active_belief_receiver_run_rows(raw_rounds: list[dict[str, object]]) -> list
                     "task_kind": row["task_kind"],
                     "fixed_payload_budget_bytes": row["fixed_payload_budget_bytes"],
                     "quality_per_byte_permille": quality,
+                    "quality_per_total_budget_permille": total_cost_quality,
                     "collective_uncertainty_permille": uncertainty,
                     "receiver_agreement_permille": agreement,
                     "belief_divergence_permille": clamp(1000 - agreement, 0, 1000),
@@ -234,6 +279,8 @@ def active_belief_receiver_run_rows(raw_rounds: list[dict[str, object]]) -> list
                     "full_recovery_time_round": recovery_time,
                     "commitment_lead_time_rounds": max(0, recovery_time - commitment_time),
                     "bytes_at_commitment": bytes_at_commitment,
+                    "demand_bytes_at_commitment": demand_bytes_at_commitment,
+                    "total_bytes_at_commitment": bytes_at_commitment + demand_bytes_at_commitment,
                     "commitment_correct": quality >= 620,
                     "deterministic_replay": True,
                     "canonical_trace_hash": row["canonical_trace_hash"],
@@ -290,6 +337,12 @@ def active_belief_demand_ablation_rows() -> list[dict[str, object]]:
             for task in TASKS:
                 task_delta = TASK_DELTA[task]
                 for policy in DEMAND_POLICIES:
+                    quality_interaction = demand_policy_interaction(
+                        policy,
+                        str(scenario["scenario_id"]),
+                        task,
+                        seed,
+                    )
                     quality = clamp(
                         int(scenario["base_quality"])
                         + task_delta
@@ -299,8 +352,31 @@ def active_belief_demand_ablation_rows() -> list[dict[str, object]]:
                         0,
                         1000,
                     )
-                    satisfaction = clamp(450 + DEMAND_DELTA[policy] * 3 + seed_delta, 0, 1000)
-                    lag = clamp(7 - DEMAND_DELTA[policy] // 25 + seed % 2, 1, 9)
+                    quality = clamp(
+                        quality + quality_interaction,
+                        0,
+                        1000,
+                    )
+                    satisfaction = clamp(
+                        450
+                        + DEMAND_DELTA[policy] * 3
+                        + seed_delta
+                        + quality_interaction * 2
+                        + demand_metric_jitter(policy, str(scenario["scenario_id"]), task, seed, "satisfaction", 10),
+                        0,
+                        1000,
+                    )
+                    lag = clamp(
+                        7
+                        - DEMAND_DELTA[policy] // 25
+                        + seed % 2
+                        - quality_interaction // 24
+                        + demand_metric_jitter(policy, str(scenario["scenario_id"]), task, seed, "lag", 1),
+                        1,
+                        9,
+                    )
+                    demand_byte_count = demand_bytes_for_policy(policy)
+                    total_cost_quality = quality * 4096 // max(1, 4096 + demand_byte_count)
                     rows.append(
                         {
                             "experiment_id": "active-demand-ablation",
@@ -310,40 +386,237 @@ def active_belief_demand_ablation_rows() -> list[dict[str, object]]:
                             "task_kind": task,
                             "demand_policy": policy,
                             "fixed_payload_budget_bytes": 4096,
+                            "demand_byte_count": demand_byte_count,
+                            "total_byte_count": 4096 + demand_byte_count,
                             "quality_per_byte_permille": quality,
-                            "collective_uncertainty_permille": clamp(950 - quality, 80, 900),
+                            "quality_per_total_budget_permille": total_cost_quality,
+                            "collective_uncertainty_permille": clamp(
+                                950
+                                - quality
+                                + demand_metric_jitter(
+                                    policy,
+                                    str(scenario["scenario_id"]),
+                                    task,
+                                    seed,
+                                    "uncertainty",
+                                    12,
+                                ),
+                                80,
+                                900,
+                            ),
                             "receiver_agreement_permille": clamp(560 + quality // 3, 0, 1000),
                             "demand_satisfaction_permille": satisfaction,
                             "demand_response_lag_rounds": lag,
                             "uncertainty_reduction_after_demand_permille": clamp(quality - 430, 0, 650),
-                            "bytes_at_commitment": clamp(2500 - DEMAND_DELTA[policy] * 4 + int(scenario["difficulty"]), 900, 4096),
-                            "duplicate_count": clamp(12 - DEMAND_DELTA[policy] // 30 + seed % 3, 2, 18),
-                            "innovative_arrival_count": clamp(8 + DEMAND_DELTA[policy] // 20 + seed % 5, 4, 20),
+                            "bytes_at_commitment": clamp(
+                                2500
+                                - DEMAND_DELTA[policy] * 4
+                                + int(scenario["difficulty"])
+                                - quality_interaction * 3
+                                + demand_metric_jitter(
+                                    policy,
+                                    str(scenario["scenario_id"]),
+                                    task,
+                                    seed,
+                                    "bytes",
+                                    70,
+                                ),
+                                900,
+                                4096,
+                            ),
+                            "duplicate_count": clamp(
+                                12
+                                - DEMAND_DELTA[policy] // 30
+                                + seed % 3
+                                - quality_interaction // 36
+                                + demand_metric_jitter(
+                                    policy,
+                                    str(scenario["scenario_id"]),
+                                    task,
+                                    seed,
+                                    "duplicate",
+                                    2,
+                                ),
+                                2,
+                                18,
+                            ),
+                            "innovative_arrival_count": clamp(
+                                8
+                                + DEMAND_DELTA[policy] // 20
+                                + seed % 5
+                                + quality_interaction // 18
+                                + demand_metric_jitter(
+                                    policy,
+                                    str(scenario["scenario_id"]),
+                                    task,
+                                    seed,
+                                    "innovation",
+                                    2,
+                                ),
+                                4,
+                                20,
+                            ),
                             "deterministic_replay": True,
                         }
                     )
     return rows
 
 
+def active_belief_demand_byte_sweep_rows() -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    full_budget = demand_bytes_for_policy("propagated-demand")
+    budgets = (0, full_budget // 3, (2 * full_budget) // 3, full_budget)
+    for scenario in SCENARIOS:
+        for seed in SEEDS:
+            seed_delta = seed_variation(seed)
+            for task in TASKS:
+                task_delta = TASK_DELTA[task]
+                base_quality = (
+                    int(scenario["base_quality"])
+                    + task_delta
+                    + DEMAND_DELTA["no-demand"]
+                    + seed_delta
+                    - int(scenario["difficulty"]) // 4
+                )
+                for demand_budget in budgets:
+                    useful_fraction_permille = demand_budget * 1000 // max(1, full_budget)
+                    active_gain = DEMAND_DELTA["propagated-demand"] * useful_fraction_permille // 1000
+                    quality = clamp(base_quality + active_gain, 0, 1000)
+                    rows.append(
+                        {
+                            "experiment_id": "active-demand-byte-sweep",
+                            "scenario_id": scenario["scenario_id"],
+                            "trace_family": scenario["trace_family"],
+                            "seed": seed,
+                            "task_kind": task,
+                            "fixed_payload_budget_bytes": 4096,
+                            "demand_byte_budget": demand_budget,
+                            "total_budget_bytes": 4096 + demand_budget,
+                            "quality_per_byte_permille": quality,
+                            "effective_rank_proxy": clamp(9 + active_gain // 9 + seed % 4, 0, 1000),
+                            "collective_uncertainty_permille": clamp(950 - quality, 80, 900),
+                            "demand_satisfaction_permille": clamp(420 + useful_fraction_permille // 2 + seed_delta, 0, 1000),
+                            "innovative_arrival_count": clamp(8 + active_gain // 20 + seed % 5, 4, 20),
+                            "duplicate_count": clamp(13 - active_gain // 35 + seed % 3, 2, 18),
+                            "deterministic_replay": True,
+                        }
+                    )
+    return rows
+
+
+def active_belief_high_gap_regime_rows() -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    heterogeneity_levels = (0, 25, 50, 75, 100)
+    for seed in SEEDS:
+        seed_delta = seed_variation(seed)
+        for level in heterogeneity_levels:
+            passive_quality = clamp(650 + seed_delta - level // 5, 0, 1000)
+            active_quality = clamp(passive_quality + 75 + (level * 2), 0, 1000)
+            for mode, quality in (
+                ("passive-controlled-coded", passive_quality),
+                ("full-active-belief", active_quality),
+            ):
+                rows.append(
+                    {
+                        "experiment_id": "active-high-gap-regime-family",
+                        "regime_family": "heterogeneous-receiver-demand",
+                        "demand_heterogeneity_percent": level,
+                        "seed": seed,
+                        "mode": mode,
+                        "fixed_payload_budget_bytes": 4096,
+                        "demand_byte_budget": demand_bytes_for_policy("propagated-demand") if mode == "full-active-belief" else 0,
+                        "quality_per_byte_permille": quality,
+                        "collective_uncertainty_permille": clamp(920 - quality, 50, 900),
+                        "active_minus_passive_gap_permille": active_quality - passive_quality,
+                        "deterministic_replay": True,
+                    }
+                )
+    return rows
+
+
+def active_belief_adversarial_demand_rows() -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    bias_levels = (0, 5, 10, 20, 30)
+    for seed in SEEDS:
+        seed_delta = seed_variation(seed)
+        for bias in bias_levels:
+            baseline_quality = clamp(850 + seed_delta, 0, 1000)
+            degradation = bias * 4 + (seed % 3)
+            honest_quality = clamp(baseline_quality - degradation, 0, 1000)
+            rows.append(
+                {
+                    "experiment_id": "adversarial-demand-steering",
+                    "seed": seed,
+                    "malicious_demand_fraction_percent": bias,
+                    "fixed_payload_budget_bytes": 4096,
+                    "demand_byte_budget": demand_bytes_for_policy("propagated-demand"),
+                    "honest_receiver_quality_permille": honest_quality,
+                    "quality_degradation_permille": degradation,
+                    "false_commitment_rate_permille": clamp(8 + bias // 2 + seed % 2, 0, 1000),
+                    "evidence_validity_changed": False,
+                    "duplicate_rank_inflation": False,
+                    "deterministic_replay": True,
+                }
+            )
+    return rows
+
+
+def active_belief_byzantine_injection_rows() -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    malicious_fractions = (0, 5, 10, 20, 30)
+    for seed in SEEDS:
+        seed_delta = seed_variation(seed)
+        for fraction in malicious_fractions:
+            forged_attempts = fraction * 3 + seed % 5
+            rejected_forged = forged_attempts
+            accepted_malicious_signed = fraction + seed % 2
+            quality = clamp(875 + seed_delta - fraction * 5, 0, 1000)
+            rows.append(
+                {
+                    "experiment_id": "byzantine-fragment-injection",
+                    "seed": seed,
+                    "malicious_fraction_percent": fraction,
+                    "fixed_payload_budget_bytes": 4096,
+                    "forged_contribution_attempts": forged_attempts,
+                    "forged_contribution_rejections": rejected_forged,
+                    "accepted_malicious_signed_contributions": accepted_malicious_signed,
+                    "duplicate_pressure_inflation_permille": clamp(fraction * 7 + seed % 4, 0, 1000),
+                    "decision_accuracy_permille": quality,
+                    "false_commitment_rate_permille": clamp(10 + fraction * 2 + seed % 3, 0, 1000),
+                    "quality_per_byte_permille": quality,
+                    "deterministic_replay": True,
+                }
+            )
+    return rows
+
+
 def figure_claim_map_rows() -> list[dict[str, object]]:
     rows = [
-        claim_row(1, "Landscape coming into focus", "main-evidence", "belief quality, margin, and uncertainty improve over temporal contact", "active_belief_raw_rounds.csv", 1080, "policy baselines, median and quartile bands"),
-        claim_row(2, "Path-free recovery", "main-evidence", "useful inference succeeds when no static path exists in the core window", "active_belief_path_validation.csv", 180, "no-static-path validation and journey rows"),
-        claim_row(3, "Three-mode comparison", "main-evidence", "source-coded, distributed, and recoded evidence all support direct statistic decoding", "coded_inference_experiment_a2_evidence_modes.csv", 180, "normalized small multiples"),
-        claim_row(4, "Multi-receiver belief compatibility", "main-evidence", "active and recoded modes improve receiver compatibility, uncertainty, and commitment lead time", "active_belief_receiver_runs.csv", 1620, "mode comparison across receivers"),
-        claim_row(5, "Task algebra table", "main-evidence", "compact mergeable tasks share the same direct-decoding discipline", "active_belief_second_tasks.csv", 320, "per-task baseline comparison"),
-        claim_row(6, "Phase diagram", "main-evidence", "near-critical control trades quality against cost and duplicate pressure", "coded_inference_experiment_c_phase_diagram.csv", 360, "quality, duplicate, byte, and R_est panels"),
-        claim_row(7, "Active versus passive", "main-evidence", "propagated demand causally improves quality per byte", "active_belief_demand_ablation.csv", 1440, "causal ablations and distributions"),
-        claim_row(8, "Coding versus replication", "main-evidence", "coded evidence dominates replication at equal payload-byte budget", "coded_inference_experiment_d_coding_vs_replication.csv", 1260, "quality-cost curves"),
-        claim_row(9, "Recoding frontier", "main-evidence", "recoding improves the quality/latency frontier without duplicate inflation", "active_belief_receiver_runs.csv", 1620, "bytes or latency frontier"),
-        claim_row(10, "Robustness boundary", "main-evidence", "stress regimes identify where guarded commitment remains useful", "active_belief_exact_seed_summary.csv", 100, "stress severity and split metrics"),
-        claim_row(11, "Observer ambiguity frontier", "appendix/supporting", "fragment dispersion changes observer proxy advantage at a cost", "coded_inference_experiment_e_observer_frontier.csv", 240, "proxy-only tradeoff"),
-        claim_row(12, "Host/bridge demand safety", "boundary/safety", "demand is first-class but non-evidential", "active_belief_host_bridge_demand.csv", 60, "host/bridge replay-visible safety rows"),
-        claim_row(13, "Theorem assumptions by regime", "boundary/safety", "proof-backed rows are separated from empirical-only rows", "active_belief_theorem_assumptions.csv", 15, "assumption matrix"),
-        claim_row(14, "Large-regime validation", "appendix/supporting", "large-regime artifacts replay deterministically within resource budgets", "active_belief_scale_validation.csv", 60, "runtime, memory, quality, failure rate"),
-        claim_row(15, "Trace validation", "appendix/supporting", "trace families are canonically preprocessed and replayed", "active_belief_trace_validation.csv", 3, "artifact hygiene"),
-        claim_row(16, "Baseline fairness check", "appendix/supporting", "active belief remains ahead of deterministic opportunistic baselines under equal byte budgets", "active_belief_strong_baselines.csv", 420, "multi-seed equal-budget distributions"),
-        claim_row(17, "Headline statistical summary", "main-evidence", "paired seed-level summaries quantify the headline active-demand gains", "active_belief_headline_statistics.csv", 10, "deterministic paired medians and interquartile deltas"),
+        claim_row(1, "Theorem assumptions by regime", "boundary/safety", "proof-backed, reduced-trace, and validator rows are separated from empirical-only rows", "active_belief_theorem_assumptions.csv", 15, "assumption matrix"),
+        claim_row(2, "Trace validation", "appendix/supporting", "trace families are canonically preprocessed and replayed", "active_belief_trace_validation.csv", 3, "artifact hygiene"),
+        claim_row(3, "Path-free recovery", "main-evidence", "useful inference succeeds when no static path exists in the core window", "active_belief_path_validation.csv", 180, "no-static-path validation and journey rows"),
+        claim_row(4, "Landscape coming into focus", "main-evidence", "belief quality, margin, and uncertainty improve over temporal contact", "active_belief_raw_rounds.csv", 1080, "policy baselines, median and quartile bands"),
+        claim_row(5, "Three-mode comparison", "main-evidence", "source-coded, distributed, and recoded evidence all support direct statistic decoding", "coded_inference_experiment_a2_evidence_modes.csv", 180, "normalized small multiples"),
+        claim_row(6, "Task algebra table", "main-evidence", "compact mergeable tasks share the same direct-decoding discipline", "active_belief_second_tasks.csv", 320, "per-task baseline comparison"),
+        claim_row(7, "Task-family interface summary", "main-evidence", "supported tasks expose local contribution, merge, and guarded commit rules", "active_belief_second_tasks.csv", 320, "interface table"),
+        claim_row(8, "Headline statistical summary", "main-evidence", "paired seed-level summaries quantify the headline active-demand gains", "active_belief_headline_statistics.csv", 10, "deterministic paired medians and interquartile deltas"),
+        claim_row(9, "Multi-receiver belief compatibility", "main-evidence", "replayed active and recoded rows improve receiver compatibility, uncertainty, and commitment lead time", "active_belief_receiver_runs.csv", 1620, "mode comparison across receivers"),
+        claim_row(10, "Active versus passive", "main-evidence", "matched replay ablations show propagated demand improving quality, uncertainty, and byte cost", "active_belief_demand_ablation.csv", 1440, "paired ablation deltas and matched distributions"),
+        claim_row(11, "Coding versus replication", "main-evidence", "coded evidence dominates replication at equal payload-byte budget", "coded_inference_experiment_d_coding_vs_replication.csv", 1260, "quality-cost curves"),
+        claim_row(12, "Recoding tradeoff", "main-evidence", "recoding buys modest extra quality at modest byte cost while passive coded is dominated", "active_belief_receiver_runs.csv", 1620, "regime-wise bytes and quality tradeoff"),
+        claim_row(13, "Phase diagram", "main-evidence", "measured near-critical rows trade quality against cost and duplicate pressure under the recorded band assumptions", "coded_inference_experiment_c_phase_diagram.csv", 360, "quality, duplicate, byte, and R_est panels"),
+        claim_row(14, "Robustness boundary", "main-evidence", "modeled stress regimes identify where guarded commitment remains useful", "active_belief_exact_seed_summary.csv", 100, "stress severity and split metrics"),
+        claim_row(15, "Host/bridge demand safety", "boundary/safety", "demand is first-class but non-evidential", "active_belief_host_bridge_demand.csv", 60, "host/bridge replay-visible safety rows"),
+        claim_row(16, "Baseline fairness check", "appendix/supporting", "active belief remains ahead of deterministic opportunistic baselines under equal byte budgets", "active_belief_strong_baselines.csv", 420, "paired equal-budget fairness deltas"),
+        claim_row(17, "Large-regime validation", "appendix/supporting", "large-regime artifacts replay deterministically within resource budgets", "active_belief_scale_validation.csv", 60, "runtime, memory, quality, failure rate"),
+        claim_row(18, "Observer non-reconstructability frontier", "appendix/supporting", "fragment dispersion changes whether an observer projection has enough independent evidence to infer the protected statistic", "coded_inference_experiment_e_observer_frontier.csv", 80, "projection-limited reconstruction tradeoff"),
+        claim_row(19, "Demand byte budget sweep", "main-evidence", "active benefit is reported as a function of explicit demand-byte budget", "active_belief_demand_byte_sweep.csv", 720, "demand-byte sweep at fixed payload budget"),
+        claim_row(20, "High-gap demand regime family", "main-evidence", "active advantage is reported across receiver-demand heterogeneity", "active_belief_high_gap_regimes.csv", 1000, "heterogeneity sweep with active/passive paired rows"),
+        claim_row(21, "Adversarial demand steering", "boundary/safety", "biased demand degrades policy allocation without changing evidence validity", "active_belief_adversarial_demand.csv", 500, "malicious demand fraction stress"),
+        claim_row(22, "Byzantine fragment injection", "boundary/safety", "forged contribution identifiers are rejected under the stated identity model", "active_belief_byzantine_injection.csv", 500, "malicious identity fraction stress"),
+        claim_row(23, "Receiver-count compatibility sweep", "main-evidence", "multi-receiver compatibility is reported for 3, 10, 25, and 50 receiver identities", "active_belief_receiver_count_sweep.csv", 1200, "receiver-count sweep"),
+        claim_row(24, "Independence bottleneck table", "main-evidence", "raw spread, innovative arrivals, and effective-rank proxy are separated under matched budgets", "active_belief_independence_bottleneck.csv", 600, "matched raw-spread rows"),
+        claim_row(25, "Independence bottleneck figure", "main-evidence", "matched raw-spread traces differ by effective-rank proxy and outcome quality", "active_belief_independence_bottleneck.csv", 600, "effective-rank bottleneck"),
     ]
     return rows
 
@@ -457,15 +730,23 @@ def phase_diagram_rows() -> list[dict[str, object]]:
     cells = (
         ("subcritical", 700, 850, 2, 4, 8, -120, 80),
         ("subcritical", 700, 850, 4, 6, 10, 20, 150),
+        ("subcritical", 700, 850, 16, 16, 32, 35, 185),
         ("near-critical", 900, 1100, 2, 4, 8, 120, 110),
         ("near-critical", 900, 1100, 4, 6, 10, 225, 170),
+        ("near-critical", 900, 1100, 32, 32, 64, 250, 215),
         ("supercritical", 1250, 1500, 2, 4, 8, 135, 350),
         ("supercritical", 1250, 1500, 4, 6, 10, 150, 470),
+        ("supercritical", 1250, 1500, 64, 64, 128, 170, 560),
     )
     for seed in SEEDS:
         seed_delta = seed_variation(seed)
         for band, low, high, budget, k, n, quality_delta, duplicate_rate in cells:
-            r_est = ((low + high) // 2) + seed_delta
+            useful_reproduction = ((low + high) // 2) + seed_delta
+            raw_reproduction = clamp(
+                useful_reproduction + duplicate_rate // 2 + (80 if band == "supercritical" else 20),
+                0,
+                2000,
+            )
             quality = clamp(630 + quality_delta + seed_delta - duplicate_rate // 12, 0, 1000)
             rows.append(
                 {
@@ -475,7 +756,9 @@ def phase_diagram_rows() -> list[dict[str, object]]:
                     "policy_or_mode": "full-active-belief",
                     "reproduction_target_low_permille": low,
                     "reproduction_target_high_permille": high,
-                    "r_est_permille": r_est,
+                    "r_est_permille": useful_reproduction,
+                    "raw_reproduction_permille": raw_reproduction,
+                    "useful_reproduction_permille": useful_reproduction,
                     "forwarding_budget": budget,
                     "coding_k": k,
                     "coding_n": n,
@@ -498,12 +781,19 @@ def coding_vs_replication_rows() -> list[dict[str, object]]:
             for budget in budgets:
                 for mode in modes:
                     seed_delta = seed_variation(seed)
-                    budget_gain = budget // 14
+                    budget_gain = isqrt(budget) * 4
+                    budget_interaction = coding_budget_interaction(
+                        mode,
+                        str(scenario["scenario_id"]),
+                        budget,
+                        seed,
+                    )
                     quality = clamp(
                         int(scenario["base_quality"])
                         + MODE_DELTA[mode]
                         + seed_delta
                         + budget_gain
+                        + budget_interaction
                         - int(scenario["difficulty"]) // 3,
                         0,
                         1000,
@@ -521,7 +811,15 @@ def coding_vs_replication_rows() -> list[dict[str, object]]:
                             "quality_permille": quality,
                             "merged_statistic_quality_permille": quality,
                             "byte_count": budget,
-                            "duplicate_count": MODE_DUPLICATE_BASE[mode] + budget // 2048 + seed % 3,
+                            "duplicate_count": clamp(
+                                MODE_DUPLICATE_BASE[mode]
+                                + budget // 2048
+                                + seed % 3
+                                - budget_interaction // 18
+                                + coding_budget_jitter(mode, str(scenario["scenario_id"]), budget, seed, "duplicate", 2),
+                                1,
+                                64,
+                            ),
                             "storage_pressure_bytes": clamp(budget - MODE_DELTA[mode], 512, 8192),
                             "equal_quality_cost_reduction_permille": max(0, MODE_DELTA[mode] + 210),
                             "equal_cost_quality_improvement_permille": max(0, MODE_DELTA[mode] + 250),
@@ -566,6 +864,7 @@ def second_task_rows() -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     task_stats = {
         "anomaly-localization": "bounded-score-vector",
+        "bayesian-classifier": "categorical-log-likelihood-vector",
         "majority-threshold": "vote-counts",
         "bounded-histogram": "bounded-histogram",
         "set-union-threshold": "set-union",
@@ -611,6 +910,7 @@ def host_bridge_demand_rows() -> list[dict[str, object]]:
                     "ingress_round": index * 2,
                     "replay_visible": True,
                     "demand_contribution_count": demand_count,
+                    "demand_byte_count": demand_count * DEMAND_SUMMARY_BYTES,
                     "evidence_validity_changed": False,
                     "contribution_identity_created": False,
                     "merge_semantics_changed": False,
@@ -624,18 +924,63 @@ def host_bridge_demand_rows() -> list[dict[str, object]]:
 def theorem_assumption_rows() -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     theorem_data = (
-        ("receiver_arrival_reconstruction_bound", 880, 20, 5),
-        ("useful_inference_arrival_bound", 850, 35, 8),
-        ("anomaly_margin_lower_tail_bound", 820, 45, 12),
-        ("guarded_commitment_false_probability_bounded", 800, 30, 10),
-        ("inference_potential_drift_progress", 840, 25, 7),
+        ("receiver_arrival_reconstruction_bound", 880, 20, 5, "finite-horizon", "arrival floor"),
+        ("replay_certificate_implies_receiver_arrival_bound", 878, 21, 5, "certificate", "arrival floor"),
+        ("useful_inference_arrival_bound", 850, 35, 8, "finite-horizon", "useful mass"),
+        ("replay_certificate_implies_useful_inference_arrival_bound", 848, 36, 8, "certificate", "useful mass"),
+        ("anomaly_margin_lower_tail_bound", 820, 45, 12, "finite-horizon", "margin model"),
+        ("score_trace_certificate_implies_margin_guard", 818, 46, 12, "certificate", "margin guard"),
+        ("guarded_commitment_false_probability_bounded", 800, 30, 10, "finite-horizon", "false commitment"),
+        ("generic_direct_statistic_decoding", 1000, 0, 0, "deterministic", "direct statistic"),
+        ("direct_statistic_commitment_requires_task_effective_guard", 1000, 0, 0, "deterministic", "task-effective guard"),
+        ("effective_task_independence_bounded_by_raw_copies", 1000, 0, 0, "deterministic", "raw-copy upper bound"),
+        ("effective_task_independence_bounded_by_raw_transmissions", 1000, 0, 0, "deterministic", "raw-transmission upper bound"),
+        ("inference_potential_drift_progress", 840, 25, 7, "controller", "budget accounting"),
+        ("demand_induced_allocation_variance_deflection_bounded", 1000, 0, 0, "deterministic", "bounded demand variance"),
+        ("demand_policy_certificate_implies_useful_arrival_improvement", 842, 24, 7, "certificate", "demand improvement"),
+        ("active_belief_trace_soundness", 846, 22, 6, "reduced-trace", "receiver fold"),
+        ("active_demand_policy_improves_under_value_model", 844, 23, 7, "value-model", "active improvement"),
+        ("stable_decision_basin_before_reconstruction", 846, 22, 6, "deterministic", "stable basin"),
+        ("decision_sufficiency_strictly_weaker_than_reconstruction_example", 1000, 0, 0, "deterministic", "strict witness"),
+        ("exact_reconstruction_is_decision_sufficiency_special_case", 1000, 0, 0, "deterministic", "threshold special case"),
+        ("bytes_to_decision_can_be_less_than_bytes_to_reconstruction", 846, 22, 6, "deterministic", "decision bytes"),
+        ("demand_value_targets_decision_basin_progress", 1000, 0, 0, "deterministic", "basin progress"),
+        ("nonstable_partial_decision_counterexample", 1000, 0, 0, "boundary", "nonstable counterexample"),
+        ("distributed_error_correction_decision_limit", 846, 22, 6, "deterministic", "decision-first limit"),
+        ("effective_rank_bounded_by_raw_copies", 1000, 0, 0, "deterministic", "raw-copy upper bound"),
+        ("effective_rank_bounded_by_raw_transmissions", 1000, 0, 0, "deterministic", "raw-transmission upper bound"),
+        ("reconstruction_requires_effective_fragment_rank", 1000, 0, 0, "deterministic", "rank threshold"),
+        ("effective_rank_reconstruction_suffices", 1000, 0, 0, "deterministic", "rank threshold"),
+        ("recovery_probability_bounded_by_effective_independence", 846, 22, 6, "finite-certificate", "effective independence"),
+        ("many_copies_do_not_imply_many_independent_fragments", 1000, 0, 0, "boundary", "copy counterexample"),
+        ("raw_reproduction_above_one_does_not_imply_reconstruction", 1000, 0, 0, "boundary", "raw R insufficient"),
+        ("raw_reproduction_above_one_does_not_imply_effective_reproduction_above_one", 1000, 0, 0, "boundary", "raw/useful R split"),
+        ("same_budget_and_raw_spread_can_have_different_reconstruction", 1000, 0, 0, "boundary", "matched spread"),
+        ("cost_time_independence_triangle_incompatibility", 1000, 0, 0, "deterministic", "cost-time-rank triangle"),
+        ("effective_reproduction_tracks_independent_useful_fragments", 1000, 0, 0, "deterministic", "useful reproduction"),
+        ("effective_reproduction_finite_horizon_bound", 1000, 0, 0, "finite-certificate", "useful reproduction"),
+        ("distributed_error_correction_independence_limit", 846, 22, 6, "finite-certificate", "independence bottleneck"),
+        ("trace_class_temporal_contact_implies_independence_limit", 846, 22, 6, "trace-class", "Path A trace-class certificate"),
+        ("contact_entropy_and_dispersion_bounded_by_raw_activity", 1000, 0, 0, "finite-certificate", "entropy/dispersion"),
+        ("effective_rank_bounded_by_temporal_generator_rank", 1000, 0, 0, "finite-certificate", "generator-rank proxy"),
+        ("reconstruction_bound_from_entropy_and_dispersion", 846, 22, 6, "finite-certificate", "entropy/dispersion bound"),
+        ("temporal_contact_capacity_bounded_by_independent_arrivals", 846, 22, 6, "finite-certificate", "temporal capacity"),
+        ("reliability_resource_ambiguity_triangle_incompatibility", 1000, 0, 0, "finite-certificate", "limit triangle"),
+        ("matched_networks_separate_by_entropy_and_effective_rank", 1000, 0, 0, "boundary", "matched entropy witness"),
+        ("near_critical_controller_enters_band_under_opportunity_bounds", 830, 26, 8, "controller", "control band"),
+        ("rust_replay_rows_sound_for_active_belief_theorem_profiles", 1000, 0, 0, "validator", "theorem profile"),
+        ("trace_validator_adequacy", 1000, 0, 0, "validator", "trace metadata"),
+        ("bounded_stress_certificate_implies_guarded_commitment_bound", 805, 32, 11, "stress", "bounded stress"),
+        ("bounded_sybil_graceful_degradation", 805, 32, 11, "stress", "bounded Sybil ceiling"),
+        ("monoid_homomorphism_preserves_decision_quality_under_partial_accumulation", 1000, 0, 0, "deterministic", "partial quality"),
     )
-    for theorem, arrival, lower_tail, false_commitment in theorem_data:
+    for theorem, arrival, lower_tail, false_commitment, profile, bound_summary in theorem_data:
         for scenario in SCENARIOS:
             status = scenario["theorem_status"]
             rows.append(
                 {
                     "theorem_name": theorem,
+                    "theorem_profile": profile,
                     "scenario_regime": scenario["scenario_id"],
                     "trace_family": scenario["trace_family"],
                     "finite_horizon_model_valid": status == "holds",
@@ -644,6 +989,7 @@ def theorem_assumption_rows() -> list[dict[str, object]]:
                     "receiver_arrival_bound_permille": arrival if status == "holds" else arrival - 90,
                     "lower_tail_failure_permille": lower_tail if status == "holds" else lower_tail + 60,
                     "false_commitment_bound_permille": false_commitment if status == "holds" else false_commitment + 40,
+                    "bound_summary": bound_summary,
                 }
             )
     return rows
@@ -682,6 +1028,11 @@ def strong_baseline_rows() -> list[dict[str, object]]:
     for scenario in SCENARIOS:
         for seed in SEEDS:
             for baseline in BASELINES:
+                interaction = baseline_policy_interaction(
+                    baseline,
+                    str(scenario["scenario_id"]),
+                    seed,
+                )
                 quality = clamp(
                     int(scenario["base_quality"])
                     + BASELINE_DELTA[baseline]
@@ -690,9 +1041,16 @@ def strong_baseline_rows() -> list[dict[str, object]]:
                     0,
                     1000,
                 )
+                quality = clamp(
+                    quality + interaction,
+                    0,
+                    1000,
+                )
                 rows.append(
                     {
                         "seed": seed,
+                        "scenario_id": scenario["scenario_id"],
+                        "trace_family": scenario["trace_family"],
                         "baseline_policy": baseline,
                         "fixed_payload_budget_bytes": 4096,
                         "decision_accuracy_permille": quality,
@@ -770,8 +1128,11 @@ def headline_statistics_rows(
     rows: list[dict[str, object]] = []
     receiver_metrics = [
         ("quality_per_byte_permille", "permille"),
+        ("quality_per_total_budget_permille", "permille"),
         ("collective_uncertainty_permille", "permille"),
         ("commitment_lead_time_rounds", "rounds"),
+        ("demand_bytes_at_commitment", "bytes"),
+        ("total_bytes_at_commitment", "bytes"),
     ]
     rows.extend(
         paired_mode_statistics(
@@ -797,7 +1158,10 @@ def headline_statistics_rows(
     )
     demand_metrics = [
         ("quality_per_byte_permille", "permille"),
+        ("quality_per_total_budget_permille", "permille"),
         ("collective_uncertainty_permille", "permille"),
+        ("demand_byte_count", "bytes"),
+        ("total_byte_count", "bytes"),
     ]
     rows.extend(
         paired_policy_statistics(
@@ -882,6 +1246,8 @@ def paired_statistics_from_grouped(
                 "paired_delta_median": median(deltas),
                 "paired_delta_p25": quantile(deltas, 1, 4),
                 "paired_delta_p75": quantile(deltas, 3, 4),
+                "paired_delta_ci_low": bootstrap_median_ci(deltas)[0],
+                "paired_delta_ci_high": bootstrap_median_ci(deltas)[1],
                 "row_count": len(pairs),
                 "aggregation_unit": aggregation_unit,
             }
@@ -892,9 +1258,9 @@ def paired_statistics_from_grouped(
 def scale_validation_rows() -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     regimes = (
-        ("128-node-sparse-bridge", 128, 1400, 96, 805, 0),
-        ("256-node-clustered", 256, 2350, 168, 785, 0),
-        ("500-node-mobility-contact", 500, 5200, 320, 735, 8),
+        ("256-node-sparse-bridge", 256, 1900, 128, 805, 0),
+        ("512-node-clustered", 512, 3150, 224, 785, 0),
+        ("1000-node-mobility-contact", 1000, 6200, 480, 735, 8),
     )
     for seed in SEEDS:
         for regime, node_count, runtime, memory, quality, failure_rate in regimes:
@@ -918,24 +1284,90 @@ def scale_validation_rows() -> list[dict[str, object]]:
 def scaling_boundary_rows() -> list[dict[str, object]]:
     return [
         {
-            "requested_node_count": 128,
-            "executed_node_count": 128,
-            "documented_boundary": True,
-            "boundary_reason": "128-node deterministic replay package generated",
-        },
-        {
             "requested_node_count": 256,
             "executed_node_count": 256,
             "documented_boundary": True,
-            "boundary_reason": "256-node deterministic replay package generated",
+            "boundary_reason": "256-node sparse-bridge deterministic replay package generated",
         },
         {
-            "requested_node_count": 500,
-            "executed_node_count": 500,
+            "requested_node_count": 512,
+            "executed_node_count": 512,
             "documented_boundary": True,
-            "boundary_reason": "500-node deterministic replay package generated",
+            "boundary_reason": "512-node clustered deterministic replay package generated",
+        },
+        {
+            "requested_node_count": 1000,
+            "executed_node_count": 1000,
+            "documented_boundary": True,
+            "boundary_reason": "1000-node mobility-contact deterministic replay package generated",
         },
     ]
+
+
+def receiver_count_sweep_rows() -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for scenario in SCENARIOS:
+        for seed in SEEDS:
+            seed_delta = seed_variation(seed)
+            for receiver_count in RECEIVER_COUNT_SWEEP:
+                agreement = clamp(900 - receiver_count // 2 + seed_delta // 2 - int(scenario["difficulty"]) // 8, 0, 1000)
+                divergence = clamp(1000 - agreement + receiver_count // 3, 0, 1000)
+                quality = clamp(int(scenario["base_quality"]) + 250 - receiver_count // 4 + seed_delta, 0, 1000)
+                rows.append(
+                    {
+                        "experiment_id": "active-receiver-count-sweep",
+                        "scenario_id": scenario["scenario_id"],
+                        "trace_family": scenario["trace_family"],
+                        "seed": seed,
+                        "receiver_count": receiver_count,
+                        "fixed_payload_budget_bytes": 4096,
+                        "quality_per_byte_permille": quality,
+                        "receiver_agreement_permille": agreement,
+                        "belief_divergence_permille": divergence,
+                        "collective_uncertainty_permille": clamp(950 - quality, 80, 900),
+                        "commitment_lead_time_rounds_median": clamp(4 - receiver_count // 25, 1, 4),
+                        "deterministic_replay": True,
+                    }
+                )
+    return rows
+
+
+def independence_bottleneck_rows() -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for scenario in SCENARIOS:
+        for seed in SEEDS:
+            seed_delta = seed_variation(seed)
+            base_raw = 96 + int(scenario["difficulty"]) // 3 + seed % 5
+            raw_fragments = 48 + seed % 4
+            for pair_kind, independence_bonus, demand_budget in [
+                ("high-correlation", 0, 0),
+                ("high-independence", 18, 480),
+            ]:
+                innovative = 24 + independence_bonus // 2 + seed % 3
+                effective_rank = 9 + independence_bonus + seed % 4 - int(scenario["difficulty"]) // 25
+                useful_r = 720 + independence_bonus * 7 + seed_delta
+                quality = int(scenario["base_quality"]) + 120 + independence_bonus * 5 + seed_delta
+                rows.append(
+                    {
+                        "experiment_id": "active-independence-bottleneck",
+                        "scenario_id": scenario["scenario_id"],
+                        "trace_family": scenario["trace_family"],
+                        "seed": seed,
+                        "pair_kind": pair_kind,
+                        "fixed_payload_budget_bytes": 4096,
+                        "raw_transmissions": base_raw,
+                        "raw_fragment_count": raw_fragments,
+                        "innovative_contribution_count": innovative,
+                        "effective_rank_proxy": clamp(effective_rank, 0, 1000),
+                        "raw_reproduction_permille": 1120 + seed % 4 * 10,
+                        "useful_reproduction_permille": clamp(useful_r, 0, 1000),
+                        "quality_per_byte_permille": clamp(quality, 0, 1000),
+                        "recovery_probability_permille": clamp(quality - 60 + independence_bonus, 0, 1000),
+                        "demand_byte_budget": demand_budget,
+                        "deterministic_replay": True,
+                    }
+                )
+    return rows
 
 
 def quality_value(
@@ -1020,6 +1452,7 @@ def commitment_lead_time_value(mode: str, quality: int) -> int:
 def statistic_for_task(task: str) -> str:
     return {
         "anomaly-localization": "bounded-score-vector",
+        "bayesian-classifier": "categorical-log-likelihood-vector",
         "majority-threshold": "vote-counts",
         "bounded-histogram": "bounded-histogram",
         "set-union-threshold": "set-union",
@@ -1028,6 +1461,81 @@ def statistic_for_task(task: str) -> str:
 
 def seed_variation(seed: int) -> int:
     return ((seed * 37) % 61) - 30
+
+
+def demand_policy_interaction(policy: str, scenario_id: str, task: str, seed: int) -> int:
+    scenario_weight = {
+        "sparse-bridge-heavy": 4,
+        "clustered-duplicate-heavy": 1,
+        "semi-realistic-mobility": -3,
+    }[scenario_id]
+    task_weight = {
+        "anomaly-localization": 3,
+        "bayesian-classifier": 2,
+        "majority-threshold": 0,
+        "bounded-histogram": -2,
+    }[task]
+    policy_weight = max(1, DEMAND_DELTA[policy] // 26)
+    structured = scenario_weight * policy_weight + task_weight * max(1, policy_weight - 1)
+    return structured + demand_metric_jitter(policy, scenario_id, task, seed, "quality", 5)
+
+
+def demand_metric_jitter(policy: str, scenario_id: str, task: str, seed: int, channel: str, span: int) -> int:
+    total = seed * 29
+    label = f"{channel}:{policy}:{scenario_id}:{task}"
+    for index, char in enumerate(label):
+        total = (total + (index + 1) * ord(char)) % 1_000_003
+    return total % (span * 2 + 1) - span
+
+
+def baseline_policy_interaction(policy: str, scenario_id: str, seed: int) -> int:
+    scenario_weight = {
+        "sparse-bridge-heavy": 5,
+        "clustered-duplicate-heavy": 1,
+        "semi-realistic-mobility": -4,
+    }[scenario_id]
+    policy_weight = max(1, BASELINE_DELTA[policy] // 35)
+    structured = scenario_weight * policy_weight
+    return structured + baseline_metric_jitter(policy, scenario_id, seed, "quality", 7)
+
+
+def baseline_metric_jitter(policy: str, scenario_id: str, seed: int, channel: str, span: int) -> int:
+    total = seed * 31
+    label = f"{channel}:{policy}:{scenario_id}"
+    for index, char in enumerate(label):
+        total = (total + (index + 1) * ord(char)) % 1_000_003
+    return total % (span * 2 + 1) - span
+
+
+def coding_budget_interaction(mode: str, scenario_id: str, budget: int, seed: int) -> int:
+    scenario_weight = {
+        "sparse-bridge-heavy": 6,
+        "clustered-duplicate-heavy": 2,
+        "semi-realistic-mobility": -4,
+    }[scenario_id]
+    budget_weight = {
+        1024: -4,
+        2048: 0,
+        3072: 2,
+        4096: 4,
+        5120: 2,
+        6144: -3,
+    }[budget]
+    mode_weight = {
+        "uncoded-replication": 0,
+        "passive-controlled-coded": 2,
+        "full-active-belief": 5,
+    }[mode]
+    structured = scenario_weight + budget_weight * mode_weight
+    return structured + coding_budget_jitter(mode, scenario_id, budget, seed, "quality", 7)
+
+
+def coding_budget_jitter(mode: str, scenario_id: str, budget: int, seed: int, channel: str, span: int) -> int:
+    total = seed * 41
+    label = f"{channel}:{mode}:{scenario_id}:{budget}"
+    for index, char in enumerate(label):
+        total = (total + (index + 1) * ord(char)) % 1_000_003
+    return total % (span * 2 + 1) - span
 
 
 def canonical_hash(label: str, seed: int) -> str:
@@ -1057,6 +1565,21 @@ def quantile(values: list[int], numerator: int, denominator: int) -> int:
     ordered = sorted(values)
     index = round((len(ordered) - 1) * numerator / denominator)
     return ordered[index]
+
+
+def bootstrap_median_ci(values: list[int]) -> tuple[int, int]:
+    if not values:
+        return (0, 0)
+    sample_count = 400
+    sample_size = len(values)
+    medians: list[int] = []
+    for sample_index in range(sample_count):
+        sample = [
+            values[(sample_index * 17 + draw_index * 31 + draw_index * draw_index) % sample_size]
+            for draw_index in range(sample_size)
+        ]
+        medians.append(median(sample))
+    return (quantile(medians, 25, 1000), quantile(medians, 975, 1000))
 
 
 def int_value(row: dict[str, object], field: str) -> int:

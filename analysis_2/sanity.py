@@ -23,7 +23,7 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
         "time_respecting_evidence_journey_exists", "round_index",
         "hypothesis_id", "scaled_score", "receiver_rank",
         "top_hypothesis_margin", "uncertainty_permille", "byte_count",
-        "duplicate_count", "innovative_arrival_count",
+        "demand_byte_count", "total_byte_count", "duplicate_count", "innovative_arrival_count",
         "demand_satisfaction_permille", "r_est_permille",
         "merged_statistic_quality_permille", "canonical_trace_hash",
         "config_hash", "artifact_hash",
@@ -31,10 +31,12 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     "active_belief_receiver_runs.csv": (
         "experiment_id", "scenario_id", "trace_family", "seed", "receiver_id",
         "mode", "task_kind", "fixed_payload_budget_bytes",
-        "quality_per_byte_permille", "collective_uncertainty_permille",
+        "quality_per_byte_permille", "quality_per_total_budget_permille",
+        "collective_uncertainty_permille",
         "receiver_agreement_permille", "belief_divergence_permille",
         "commitment_time_round", "full_recovery_time_round",
         "commitment_lead_time_rounds", "bytes_at_commitment",
+        "demand_bytes_at_commitment", "total_bytes_at_commitment",
         "commitment_correct", "deterministic_replay", "canonical_trace_hash",
         "config_hash", "artifact_hash",
     ),
@@ -50,16 +52,64 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     "active_belief_demand_ablation.csv": (
         "experiment_id", "scenario_id", "trace_family", "seed", "task_kind",
         "demand_policy", "fixed_payload_budget_bytes",
-        "quality_per_byte_permille", "collective_uncertainty_permille",
+        "demand_byte_count", "total_byte_count",
+        "quality_per_byte_permille", "quality_per_total_budget_permille",
+        "collective_uncertainty_permille",
         "receiver_agreement_permille", "demand_satisfaction_permille",
         "demand_response_lag_rounds",
         "uncertainty_reduction_after_demand_permille", "bytes_at_commitment",
         "duplicate_count", "innovative_arrival_count", "deterministic_replay",
     ),
+    "active_belief_demand_byte_sweep.csv": (
+        "experiment_id", "scenario_id", "trace_family", "seed", "task_kind",
+        "fixed_payload_budget_bytes", "demand_byte_budget", "total_budget_bytes",
+        "quality_per_byte_permille", "effective_rank_proxy",
+        "collective_uncertainty_permille", "demand_satisfaction_permille",
+        "innovative_arrival_count",
+        "duplicate_count", "deterministic_replay",
+    ),
+    "active_belief_high_gap_regimes.csv": (
+        "experiment_id", "regime_family", "demand_heterogeneity_percent",
+        "seed", "mode", "fixed_payload_budget_bytes", "demand_byte_budget",
+        "quality_per_byte_permille", "collective_uncertainty_permille",
+        "active_minus_passive_gap_permille", "deterministic_replay",
+    ),
+    "active_belief_adversarial_demand.csv": (
+        "experiment_id", "seed", "malicious_demand_fraction_percent",
+        "fixed_payload_budget_bytes", "demand_byte_budget",
+        "honest_receiver_quality_permille", "quality_degradation_permille",
+        "false_commitment_rate_permille", "evidence_validity_changed",
+        "duplicate_rank_inflation", "deterministic_replay",
+    ),
+    "active_belief_byzantine_injection.csv": (
+        "experiment_id", "seed", "malicious_fraction_percent",
+        "fixed_payload_budget_bytes", "forged_contribution_attempts",
+        "forged_contribution_rejections",
+        "accepted_malicious_signed_contributions",
+        "duplicate_pressure_inflation_permille", "decision_accuracy_permille",
+        "false_commitment_rate_permille", "quality_per_byte_permille",
+        "deterministic_replay",
+    ),
     "active_belief_scale_validation.csv": (
         "seed", "scenario_regime", "node_count", "runtime_ms",
         "runtime_budget_ms", "memory_kib", "replay_hash_agreement",
         "quality_per_byte_permille", "failure_rate_permille",
+        "deterministic_replay",
+    ),
+    "active_belief_receiver_count_sweep.csv": (
+        "experiment_id", "scenario_id", "trace_family", "seed",
+        "receiver_count", "fixed_payload_budget_bytes",
+        "quality_per_byte_permille", "receiver_agreement_permille",
+        "belief_divergence_permille", "collective_uncertainty_permille",
+        "commitment_lead_time_rounds_median", "deterministic_replay",
+    ),
+    "active_belief_independence_bottleneck.csv": (
+        "experiment_id", "scenario_id", "trace_family", "seed",
+        "pair_kind", "fixed_payload_budget_bytes", "raw_transmissions",
+        "raw_fragment_count", "innovative_contribution_count",
+        "effective_rank_proxy", "raw_reproduction_permille",
+        "useful_reproduction_permille", "quality_per_byte_permille",
+        "recovery_probability_permille", "demand_byte_budget",
         "deterministic_replay",
     ),
     "coded_inference_experiment_a_landscape.csv": (
@@ -86,7 +136,8 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     "coded_inference_experiment_c_phase_diagram.csv": (
         "experiment_id", "scenario_id", "seed", "policy_or_mode",
         "reproduction_target_low_permille", "reproduction_target_high_permille",
-        "r_est_permille", "forwarding_budget", "coding_k", "coding_n",
+        "r_est_permille", "raw_reproduction_permille", "useful_reproduction_permille",
+        "forwarding_budget", "coding_k", "coding_n",
         "recovery_probability_permille", "quality_permille",
         "merged_statistic_quality_permille", "byte_count", "duplicate_rate_permille",
     ),
@@ -113,7 +164,7 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     ),
     "active_belief_host_bridge_demand.csv": (
         "seed", "mode", "execution_surface", "bridge_batch_id", "ingress_round",
-        "replay_visible", "demand_contribution_count", "evidence_validity_changed",
+        "replay_visible", "demand_contribution_count", "demand_byte_count", "evidence_validity_changed",
         "contribution_identity_created", "merge_semantics_changed",
         "route_truth_published", "duplicate_rank_inflation",
     ),
@@ -133,7 +184,7 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
         "replay_deterministic", "theorem_assumption_status",
     ),
     "active_belief_strong_baselines.csv": (
-        "seed", "baseline_policy", "fixed_payload_budget_bytes",
+        "seed", "scenario_id", "trace_family", "baseline_policy", "fixed_payload_budget_bytes",
         "decision_accuracy_permille", "quality_per_byte_permille", "deterministic",
     ),
     "active_belief_exact_seed_summary.csv": (
@@ -155,7 +206,8 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     "active_belief_headline_statistics.csv": (
         "comparison", "metric", "unit", "baseline", "treatment",
         "treatment_median", "baseline_median", "paired_delta_median",
-        "paired_delta_p25", "paired_delta_p75", "row_count",
+        "paired_delta_p25", "paired_delta_p75", "paired_delta_ci_low",
+        "paired_delta_ci_high", "row_count",
         "aggregation_unit",
     ),
     "active_belief_figure_artifacts.csv": (
@@ -164,7 +216,7 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-REQUIRED_FIGURES = tuple(f"figure_{index:02d}" for index in range(1, 18))
+REQUIRED_FIGURES = tuple(f"figure_{index:02d}" for index in range(1, 19))
 
 
 @dataclass(frozen=True)

@@ -239,4 +239,51 @@ theorem bounded_stress_certificate_implies_guarded_commitment_bound
   -- Stress replay rows prove only bounded modeled stress, not arbitrary robustness.
   exact hValid
 
+/-! ## Bounded-Sybil Ceiling -/
+
+/-- Replay-visible ceiling for malicious identities under the signed-id model. -/
+structure BoundedSybilReplayCertificate where
+  totalIdentities : Nat
+  maliciousIdentities : Nat
+  sybilFractionPermille : Permille
+  acceptedHonestContributions : Nat
+  acceptedMaliciousContributions : Nat
+  forgedContributionAttempts : Nat
+  forgedContributionRejections : Nat
+  qualityWithoutAttack : Nat
+  qualityUnderAttack : Nat
+  qualityDegradationBound : Nat
+  falseCommitmentPermilleBound : Permille
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+def validBoundedSybilReplayCertificate
+    (certificate : BoundedSybilReplayCertificate) : Prop :=
+  certificate.maliciousIdentities ≤ certificate.totalIdentities ∧
+    certificate.sybilFractionPermille ≤ 1000 ∧
+    certificate.acceptedMaliciousContributions ≤
+      certificate.maliciousIdentities ∧
+    certificate.forgedContributionRejections =
+      certificate.forgedContributionAttempts ∧
+    certificate.qualityWithoutAttack ≤
+      certificate.qualityUnderAttack + certificate.qualityDegradationBound ∧
+    certificate.falseCommitmentPermilleBound ≤ 1000
+
+theorem bounded_sybil_graceful_degradation
+    (certificate : BoundedSybilReplayCertificate)
+    (hValid : validBoundedSybilReplayCertificate certificate) :
+    certificate.acceptedMaliciousContributions ≤
+        certificate.maliciousIdentities ∧
+      certificate.forgedContributionRejections =
+        certificate.forgedContributionAttempts ∧
+      certificate.qualityWithoutAttack ≤
+        certificate.qualityUnderAttack + certificate.qualityDegradationBound ∧
+      certificate.falseCommitmentPermilleBound ≤ 1000 := by
+  -- This is the selected ceiling: signed identifiers reject forged contribution
+  -- ids, and remaining degradation is bounded by the modeled malicious identity cap.
+  exact
+    ⟨ hValid.right.right.left
+    , hValid.right.right.right.left
+    , hValid.right.right.right.right.left
+    , hValid.right.right.right.right.right ⟩
+
 end FieldActiveBelief

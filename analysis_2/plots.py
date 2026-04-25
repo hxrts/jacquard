@@ -23,6 +23,10 @@ ACTIVE_BELIEF_FIGURE_WIDTH_INCHES = 11.0
 ACTIVE_BELIEF_FIGURE_HEIGHT_INCHES = 4.8
 
 
+def pct(value: int | float) -> float:
+    return round(float(value) / 10.0, 1)
+
+
 def save_active_belief_plot_artifact(
     report_dir: Path,
     figure_id: str,
@@ -70,6 +74,18 @@ def render_figure(
         return phase_small_multiples(title, rows, width, height)
     if figure_id == "figure_05_active_vs_passive":
         return demand_ablation_paired_deltas(title, rows, width, height)
+    if figure_id == "figure_13_demand_byte_sweep":
+        return demand_byte_sweep(title, rows, width, height)
+    if figure_id == "figure_14_high_gap_regimes":
+        return high_gap_regime_sweep(title, rows, width, height)
+    if figure_id == "figure_15_adversarial_demand":
+        return adversarial_demand_steering(title, rows, width, height)
+    if figure_id == "figure_16_byzantine_injection":
+        return byzantine_injection_stress(title, rows, width, height)
+    if figure_id == "figure_17_receiver_count_sweep":
+        return receiver_count_sweep(title, rows, width, height)
+    if figure_id == "figure_18_independence_bottleneck":
+        return independence_bottleneck(title, rows, width, height)
     if figure_id == "figure_06_coding_vs_replication":
         return coding_cost_curve(title, rows, width, height)
     if figure_id == "figure_07_recoding_tradeoff":
@@ -78,7 +94,7 @@ def render_figure(
         return robustness_small_multiples(title, rows, width, height)
     if figure_id == "figure_12_observer_ambiguity":
         return observer_proxy_boxplots(title, rows, width, height)
-    if figure_id == "table_05_host_bridge_demand":
+    if figure_id == "table_06_host_bridge_demand":
         return demand_safety_matrix(title, rows, width, height)
     if figure_id == "table_01_theorem_assumptions":
         return theorem_assumption_matrix(title, rows, width, height)
@@ -110,9 +126,9 @@ def landscape_distribution(title: str, rows: list[dict[str, object]], width: int
             "mode": mode,
             "round": round_index,
             "metric": metric,
-            "low": quantile(scores, 0.25),
-            "median": quantile(scores, 0.50),
-            "high": quantile(scores, 0.75),
+            "low": pct(quantile(scores, 0.25)),
+            "median": pct(quantile(scores, 0.50)),
+            "high": pct(quantile(scores, 0.75)),
         }
         for (mode, round_index, metric), scores in grouped.items()
     ]
@@ -123,7 +139,7 @@ def landscape_distribution(title: str, rows: list[dict[str, object]], width: int
         tooltip=["mode:N", "metric:N", "round:Q", "low:Q", "median:Q", "high:Q"],
     )
     band = base.mark_area(opacity=0.18).encode(
-        y=alt.Y("high:Q", title="Permille"),
+        y=alt.Y("high:Q", title="Percent"),
         y2="low:Q",
     )
     line = base.mark_line(point=True, strokeWidth=2.3).encode(y="median:Q")
@@ -132,7 +148,7 @@ def landscape_distribution(title: str, rows: list[dict[str, object]], width: int
         .mark_text(dx=10, dy=-4, font=PLOT_FONT, fontSize=9, color="#334155")
         .encode(
             x=alt.X("round:Q", title="Round", axis=alt.Axis(tickMinStep=1)),
-            y=alt.Y("median:Q", title="Permille"),
+            y=alt.Y("median:Q", title="Percent"),
             text="mode:N",
             color=alt.Color("mode:N", legend=None),
         )
@@ -149,7 +165,7 @@ def path_free_distribution(title: str, rows: list[dict[str, object]], width: int
     values = [
         {
             "mode": display_label(str(row["policy_or_mode"])),
-            "success": int_value(row, "path_free_success_permille"),
+            "success": pct(int_value(row, "path_free_success_permille")),
             "static path absent": "yes" if bool_value(row, "no_static_path_in_core_window") else "no",
             "journey": "yes" if bool_value(row, "time_respecting_evidence_journey_exists") else "no",
         }
@@ -158,7 +174,7 @@ def path_free_distribution(title: str, rows: list[dict[str, object]], width: int
     data = alt.InlineData(values=values)
     base = alt.Chart(data).encode(
         x=alt.X("mode:N", title=None, sort=mode_order, axis=alt.Axis(labelAngle=-20)),
-        y=alt.Y("success:Q", title="Path-free success (permille)", scale=alt.Scale(domain=[0, 1000])),
+        y=alt.Y("success:Q", title="Path-free success (%)", scale=alt.Scale(domain=[0, 100])),
         color=alt.Color("mode:N", legend=None),
         tooltip=["mode:N", "success:Q", "static path absent:N", "journey:N"],
     )
@@ -166,9 +182,10 @@ def path_free_distribution(title: str, rows: list[dict[str, object]], width: int
     medians = []
     grouped: dict[str, list[int]] = defaultdict(list)
     for row in values:
-        grouped[str(row["mode"])].append(int(row["success"]))
+        grouped[str(row["mode"])].append(float(row["success"]))
     for mode, scores in grouped.items():
-        medians.append({"mode": mode, "median": quantile(scores, 0.50), "label": str(quantile(scores, 0.50))})
+        median_value = quantile(scores, 0.50)
+        medians.append({"mode": mode, "median": median_value, "label": f"{median_value:.1f}"})
     labels = (
         alt.Chart(alt.InlineData(values=medians))
         .mark_text(dy=-10, font=PLOT_FONT, fontSize=10, color="#334155")
@@ -223,7 +240,7 @@ def evidence_mode_small_multiples(
         .mark_bar()
         .encode(
             x=alt.X("condition:N", title=None, axis=alt.Axis(labelAngle=-15)),
-            y=alt.Y("mean(value):Q", title="Normalized or permille value", scale=alt.Scale(domain=[0, 1000])),
+            y=alt.Y("mean(value):Q", title="Normalized score (0-1000)", scale=alt.Scale(domain=[0, 1000])),
             color=alt.Color("condition:N", legend=None),
             column=alt.Column("metric:N", title=None),
             tooltip=["condition:N", "metric:N", alt.Tooltip("mean(value):Q", title="mean")],
@@ -264,7 +281,7 @@ def receiver_metric_grid(title: str, rows: list[dict[str, object]], width: int, 
                     "regime": regime,
                     "mode": display_label(mode),
                     "metric": metric,
-                    "value": int_value(row, field),
+                    "value": pct(int_value(row, field)) if field.endswith("_permille") else int_value(row, field),
                 }
             )
     lead_values = []
@@ -283,9 +300,9 @@ def receiver_metric_grid(title: str, rows: list[dict[str, object]], width: int, 
         )
     data = alt.InlineData(values=values)
     metric_specs = [
-        ("receiver agreement", "Receiver agreement", [740, 950]),
-        ("belief divergence", "Belief divergence (permille)", [50, 280]),
-        ("quality per byte", "Quality per byte (permille)", [450, 1025]),
+        ("receiver agreement", "Receiver agreement (%)", [74, 95]),
+        ("belief divergence", "Belief divergence (%)", [5, 28]),
+        ("quality per byte", "Quality per byte (%)", [45, 102.5]),
         ("commitment lead time", "Commitment lead time (rounds)", [0.5, 4.5]),
     ]
     regime_scale = alt.Scale(
@@ -347,6 +364,7 @@ def task_baseline_distribution(title: str, rows: list[dict[str, object]], width:
     mode_order = ["active belief", "passive coded", "recoded aggregate", "uncoded"]
     task_order = [
         "anomaly localization",
+        "bayesian classifier",
         "majority threshold",
         "bounded histogram",
         "set union threshold",
@@ -360,7 +378,7 @@ def task_baseline_distribution(title: str, rows: list[dict[str, object]], width:
             {
                 "task": task,
                 "mode": mode,
-                "value": int_value(row, "quality_per_byte_permille"),
+                "value": pct(int_value(row, "quality_per_byte_permille")),
             }
         )
         bytes_values.append(
@@ -375,7 +393,7 @@ def task_baseline_distribution(title: str, rows: list[dict[str, object]], width:
         .mark_boxplot(size=18)
         .encode(
             x=alt.X("mode:N", title=None, sort=mode_order, axis=alt.Axis(labelAngle=-15)),
-            y=alt.Y("value:Q", title="Quality per byte"),
+            y=alt.Y("value:Q", title="Quality per byte (%)", scale=alt.Scale(domain=[10, 35])),
             color=alt.Color("task:N", sort=task_order, legend=alt.Legend(title="Task")),
             xOffset=alt.XOffset("task:N", sort=task_order),
             tooltip=["mode:N", "task:N", alt.Tooltip("value:Q", title="quality per byte")],
@@ -409,6 +427,8 @@ def phase_small_multiples(title: str, rows: list[dict[str, object]], width: int,
         budget = int_value(row, "forwarding_budget")
         for field in [
             "r_est_permille",
+            "raw_reproduction_permille",
+            "useful_reproduction_permille",
             "quality_permille",
             "duplicate_rate_permille",
             "byte_count",
@@ -424,11 +444,13 @@ def phase_small_multiples(title: str, rows: list[dict[str, object]], width: int,
                 "budget": f"budget {budget}",
                 "label": label,
                 "selected": band == "near critical",
-                "r_est": quantile(metrics["r_est_permille"], 0.50),
-                "quality": quantile(metrics["quality_permille"], 0.50),
-                "duplicate": quantile(metrics["duplicate_rate_permille"], 0.50),
+                "r_est": pct(quantile(metrics["r_est_permille"], 0.50)),
+                "raw_reproduction": pct(quantile(metrics["raw_reproduction_permille"], 0.50)),
+                "useful_reproduction": pct(quantile(metrics["useful_reproduction_permille"], 0.50)),
+                "quality": pct(quantile(metrics["quality_permille"], 0.50)),
+                "duplicate": pct(quantile(metrics["duplicate_rate_permille"], 0.50)),
                 "bytes": quantile(metrics["byte_count"], 0.50),
-                "recovery": quantile(metrics["recovery_probability_permille"], 0.50),
+                "recovery": pct(quantile(metrics["recovery_probability_permille"], 0.50)),
             }
         )
     point_encoding = {
@@ -437,7 +459,8 @@ def phase_small_multiples(title: str, rows: list[dict[str, object]], width: int,
         "tooltip": [
             "band:N",
             "budget:N",
-            alt.Tooltip("r_est:Q", title="median R_est"),
+            alt.Tooltip("raw_reproduction:Q", title="median raw R"),
+            alt.Tooltip("useful_reproduction:Q", title="median useful R"),
             alt.Tooltip("quality:Q", title="median quality"),
             alt.Tooltip("duplicate:Q", title="median duplicate"),
             alt.Tooltip("bytes:Q", title="median bytes"),
@@ -446,18 +469,18 @@ def phase_small_multiples(title: str, rows: list[dict[str, object]], width: int,
     }
     data = alt.InlineData(values=values)
     target_band = (
-        alt.Chart(alt.InlineData(values=[{"x1": 900, "x2": 1100, "y1": 450, "y2": 900}]))
+        alt.Chart(alt.InlineData(values=[{"x1": 90, "x2": 110, "y1": 45, "y2": 90}]))
         .mark_rect(color="#bbf7d0", opacity=0.14)
         .encode(
-            x=alt.X("x1:Q", scale=alt.Scale(domain=[700, 1450])),
+            x=alt.X("x1:Q", scale=alt.Scale(domain=[70, 145])),
             x2="x2:Q",
-            y=alt.Y("y1:Q", scale=alt.Scale(domain=[450, 900])),
+            y=alt.Y("y1:Q", scale=alt.Scale(domain=[45, 90])),
             y2="y2:Q",
         )
     )
     re_panel = alt.Chart(data).encode(
-        x=alt.X("r_est:Q", title="Median R_est", scale=alt.Scale(domain=[700, 1450])),
-        y=alt.Y("quality:Q", title="Median quality (permille)", scale=alt.Scale(domain=[450, 900])),
+        x=alt.X("useful_reproduction:Q", title="Median useful R (%)", scale=alt.Scale(domain=[70, 145])),
+        y=alt.Y("quality:Q", title="Median quality (%)", scale=alt.Scale(domain=[45, 90])),
         **point_encoding,
     )
     re_points = re_panel.mark_point(filled=True, size=120)
@@ -467,8 +490,8 @@ def phase_small_multiples(title: str, rows: list[dict[str, object]], width: int,
         .mark_point(filled=False, size=220, stroke="#0f172a", strokeWidth=2)
     )
     duplicate_panel = alt.Chart(data).encode(
-        x=alt.X("duplicate:Q", title="Median duplicate rate (permille)", scale=alt.Scale(domain=[70, 520])),
-        y=alt.Y("quality:Q", title="Median quality (permille)", scale=alt.Scale(domain=[450, 900])),
+        x=alt.X("duplicate:Q", title="Median duplicate rate (%)", scale=alt.Scale(domain=[7, 52])),
+        y=alt.Y("quality:Q", title="Median quality (%)", scale=alt.Scale(domain=[45, 90])),
         **point_encoding,
     )
     duplicate_points = duplicate_panel.mark_point(filled=True, size=120)
@@ -512,16 +535,16 @@ def demand_ablation_paired_deltas(title: str, rows: list[dict[str, object]], wid
         )
         grouped[key][str(row["demand_policy"])] = row
     metric_specs = [
-        ("quality", "Quality gain", "quality_per_byte_permille", 1, "permille points"),
-        ("uncertainty", "Uncertainty reduction", "collective_uncertainty_permille", -1, "permille points"),
+        ("quality", "Quality gain", "quality_per_byte_permille", 1, "percentage points"),
+        ("uncertainty", "Uncertainty reduction", "collective_uncertainty_permille", -1, "percentage points"),
         ("bytes", "Byte reduction at commitment", "bytes_at_commitment", -1, "bytes"),
     ]
     values: list[dict[str, object]] = []
     domains: dict[str, tuple[int, int]] = {}
     for metric_key, metric_label_text, field, direction, unit in metric_specs:
-        metric_values: list[int] = []
+        metric_values: list[float] = []
         for baseline_policy, comparison_label in comparison_map:
-            deltas: list[int] = []
+            deltas: list[float] = []
             for entry in grouped.values():
                 propagated = entry.get("propagated-demand")
                 baseline = entry.get(baseline_policy)
@@ -529,7 +552,8 @@ def demand_ablation_paired_deltas(title: str, rows: list[dict[str, object]], wid
                     continue
                 propagated_value = int_value(propagated, field)
                 baseline_value = int_value(baseline, field)
-                delta = (propagated_value - baseline_value) * direction
+                raw_delta = (propagated_value - baseline_value) * direction
+                delta = pct(raw_delta) if field.endswith("_permille") else raw_delta
                 deltas.append(delta)
             if not deltas:
                 continue
@@ -552,7 +576,7 @@ def demand_ablation_paired_deltas(title: str, rows: list[dict[str, object]], wid
         if metric_values:
             span_low = min(metric_values)
             span_high = max(metric_values)
-            padding = max(6, (span_high - span_low) // 8)
+            padding = max(1.0, (span_high - span_low) / 8.0)
             domains[metric_key] = (min(0, span_low - padding), span_high + padding)
     chart_data = alt.InlineData(values=values)
     panels = []
@@ -594,7 +618,7 @@ def coding_cost_curve(title: str, rows: list[dict[str, object]], width: int, hei
     grouped: dict[tuple[str, int], list[int]] = defaultdict(list)
     for row in rows:
         grouped[(display_label(str(row["policy_or_mode"])), int_value(row, "fixed_payload_budget_bytes"))].append(
-            int_value(row, "quality_permille")
+            pct(int_value(row, "quality_permille"))
         )
     values = [
         {
@@ -616,7 +640,7 @@ def coding_cost_curve(title: str, rows: list[dict[str, object]], width: int, hei
         tooltip=["mode:N", "budget:Q", "low:Q", "median:Q", "high:Q"],
     )
     band = base.mark_area(opacity=0.14).encode(
-        y=alt.Y("high:Q", title="Quality (permille)", scale=alt.Scale(domain=[350, 1025])),
+        y=alt.Y("high:Q", title="Quality (%)", scale=alt.Scale(domain=[35, 102.5])),
         y2="low:Q",
     )
     line = base.mark_line(point=True, strokeWidth=2.4).encode(y="median:Q")
@@ -626,12 +650,268 @@ def coding_cost_curve(title: str, rows: list[dict[str, object]], width: int, hei
         .mark_text(dx=10, dy=-8, font=PLOT_FONT, fontSize=9, color="#334155")
         .encode(
             x=alt.X("budget:Q", title="Payload-byte budget", scale=alt.Scale(domain=[800, 6400])),
-            y=alt.Y("median:Q", title="Quality (permille)", scale=alt.Scale(domain=[350, 1025])),
-            text=alt.Text("median:Q", format=".0f"),
+            y=alt.Y("median:Q", title="Quality (%)", scale=alt.Scale(domain=[35, 102.5])),
+            text=alt.Text("median:Q", format=".1f"),
             color=alt.Color("mode:N", legend=None),
         )
     )
     chart = alt.layer(band, line, labels).properties(width=width, height=height, title=title)
+    return _configure_chart(chart)
+
+
+def demand_byte_sweep(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
+    grouped: dict[tuple[int, str], dict[str, list[int]]] = defaultdict(
+        lambda: {"quality": [], "uncertainty": [], "rank": []}
+    )
+    for row in rows:
+        key = (int_value(row, "demand_byte_budget"), display_label(str(row["scenario_id"])))
+        grouped[key]["quality"].append(int_value(row, "quality_per_byte_permille"))
+        grouped[key]["uncertainty"].append(int_value(row, "collective_uncertainty_permille"))
+        grouped[key]["rank"].append(int_value(row, "effective_rank_proxy"))
+    values: list[dict[str, object]] = []
+    for (budget, regime), metrics in grouped.items():
+        values.append(
+            {
+                "demand budget bytes": budget,
+                "regime": regime,
+                "quality per byte": pct(quantile(metrics["quality"], 0.50)),
+                "collective uncertainty": pct(quantile(metrics["uncertainty"], 0.50)),
+                "effective rank": quantile(metrics["rank"], 0.50),
+            }
+        )
+    base = alt.Chart(alt.InlineData(values=values)).encode(
+        x=alt.X("demand budget bytes:Q", title="Demand-byte budget"),
+        color=alt.Color("regime:N", legend=alt.Legend(title="Regime")),
+        tooltip=["regime:N", "demand budget bytes:Q", "quality per byte:Q", "collective uncertainty:Q"],
+    )
+    quality = base.mark_line(point=True, strokeWidth=2.4).encode(
+        y=alt.Y("quality per byte:Q", title="Quality per byte (%)", scale=alt.Scale(domain=[45, 75])),
+    )
+    uncertainty = base.mark_line(point=True, strokeDash=[5, 3], strokeWidth=2.0).encode(
+        y=alt.Y("collective uncertainty:Q", title="Quality / uncertainty (%)", scale=alt.Scale(domain=[25, 55])),
+    )
+    rank = base.mark_line(point=True, strokeDash=[2, 2], strokeWidth=2.0).encode(
+        y=alt.Y("effective rank:Q", title="Quality / uncertainty (%)", scale=alt.Scale(domain=[0, 55])),
+    )
+    return _configure_chart((quality + uncertainty + rank).properties(width=width, height=height, title=title))
+
+
+def high_gap_regime_sweep(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
+    grouped: dict[tuple[int, str], list[int]] = defaultdict(list)
+    for row in rows:
+        grouped[(int_value(row, "demand_heterogeneity_percent"), str(row["mode"]))].append(
+            int_value(row, "quality_per_byte_permille")
+        )
+    values: list[dict[str, object]] = []
+    for (level, mode), scores in grouped.items():
+        values.append(
+            {
+                "demand heterogeneity (%)": level,
+                "mode": display_label(mode),
+                "quality per byte": pct(quantile(scores, 0.50)),
+            }
+        )
+    chart = (
+        alt.Chart(alt.InlineData(values=values))
+        .mark_line(point=True, strokeWidth=2.4)
+        .encode(
+            x=alt.X("demand heterogeneity (%):Q", title="Receiver-demand heterogeneity (%)"),
+            y=alt.Y("quality per byte:Q", title="Quality per byte (%)", scale=alt.Scale(domain=[55, 95])),
+            color=alt.Color("mode:N", legend=alt.Legend(title="Mode")),
+            tooltip=["mode:N", "demand heterogeneity (%):Q", "quality per byte:Q"],
+        )
+        .properties(width=width, height=height, title=title)
+    )
+    return _configure_chart(chart)
+
+
+def adversarial_demand_steering(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
+    grouped: dict[int, dict[str, list[int]]] = defaultdict(lambda: {"quality": [], "degradation": [], "false": []})
+    for row in rows:
+        level = int_value(row, "malicious_demand_fraction_percent")
+        grouped[level]["quality"].append(int_value(row, "honest_receiver_quality_permille"))
+        grouped[level]["degradation"].append(int_value(row, "quality_degradation_permille"))
+        grouped[level]["false"].append(int_value(row, "false_commitment_rate_permille"))
+    values: list[dict[str, object]] = []
+    for level, metrics in grouped.items():
+        values.extend(
+            [
+                {
+                    "malicious demand (%)": level,
+                    "metric": "honest quality",
+                    "value": pct(quantile(metrics["quality"], 0.50)),
+                },
+                {
+                    "malicious demand (%)": level,
+                    "metric": "quality degradation",
+                    "value": pct(quantile(metrics["degradation"], 0.50)),
+                },
+                {
+                    "malicious demand (%)": level,
+                    "metric": "false commitment",
+                    "value": pct(quantile(metrics["false"], 0.50)),
+                },
+            ]
+        )
+    chart = (
+        alt.Chart(alt.InlineData(values=values))
+        .mark_line(point=True, strokeWidth=2.4)
+        .encode(
+            x=alt.X("malicious demand (%):Q", title="Malicious demand emitters (%)"),
+            y=alt.Y("value:Q", title="Metric (%)", scale=alt.Scale(domain=[0, 90])),
+            color=alt.Color("metric:N", legend=alt.Legend(title="Metric")),
+            tooltip=["malicious demand (%):Q", "metric:N", "value:Q"],
+        )
+        .properties(width=width, height=height, title=title)
+    )
+    return _configure_chart(chart)
+
+
+def byzantine_injection_stress(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
+    grouped: dict[int, dict[str, list[int]]] = defaultdict(lambda: {"accuracy": [], "false": [], "duplicate": []})
+    for row in rows:
+        fraction = int_value(row, "malicious_fraction_percent")
+        grouped[fraction]["accuracy"].append(int_value(row, "decision_accuracy_permille"))
+        grouped[fraction]["false"].append(int_value(row, "false_commitment_rate_permille"))
+        grouped[fraction]["duplicate"].append(int_value(row, "duplicate_pressure_inflation_permille"))
+    values: list[dict[str, object]] = []
+    for fraction, metrics in grouped.items():
+        values.extend(
+            [
+                {
+                    "malicious nodes (%)": fraction,
+                    "metric": "decision accuracy",
+                    "value": pct(quantile(metrics["accuracy"], 0.50)),
+                },
+                {
+                    "malicious nodes (%)": fraction,
+                    "metric": "false commitment",
+                    "value": pct(quantile(metrics["false"], 0.50)),
+                },
+                {
+                    "malicious nodes (%)": fraction,
+                    "metric": "duplicate pressure",
+                    "value": pct(quantile(metrics["duplicate"], 0.50)),
+                },
+            ]
+        )
+    chart = (
+        alt.Chart(alt.InlineData(values=values))
+        .mark_line(point=True, strokeWidth=2.4)
+        .encode(
+            x=alt.X("malicious nodes (%):Q", title="Malicious identity fraction (%)"),
+            y=alt.Y("value:Q", title="Metric (%)", scale=alt.Scale(domain=[0, 90])),
+            color=alt.Color("metric:N", legend=alt.Legend(title="Metric")),
+            tooltip=["malicious nodes (%):Q", "metric:N", "value:Q"],
+        )
+        .properties(width=width, height=height, title=title)
+    )
+    return _configure_chart(chart)
+
+
+def receiver_count_sweep(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
+    grouped: dict[tuple[int, str], dict[str, list[int]]] = defaultdict(
+        lambda: {"quality": [], "agreement": [], "divergence": [], "uncertainty": []}
+    )
+    for row in rows:
+        key = (int_value(row, "receiver_count"), display_label(str(row["scenario_id"])))
+        grouped[key]["quality"].append(int_value(row, "quality_per_byte_permille"))
+        grouped[key]["agreement"].append(int_value(row, "receiver_agreement_permille"))
+        grouped[key]["divergence"].append(int_value(row, "belief_divergence_permille"))
+        grouped[key]["uncertainty"].append(int_value(row, "collective_uncertainty_permille"))
+    values: list[dict[str, object]] = []
+    for (receiver_count, regime), metrics in grouped.items():
+        values.extend(
+            [
+                {
+                    "receiver count": receiver_count,
+                    "regime": regime,
+                    "metric": "quality per byte",
+                    "value": pct(quantile(metrics["quality"], 0.50)),
+                },
+                {
+                    "receiver count": receiver_count,
+                    "regime": regime,
+                    "metric": "receiver agreement",
+                    "value": pct(quantile(metrics["agreement"], 0.50)),
+                },
+                {
+                    "receiver count": receiver_count,
+                    "regime": regime,
+                    "metric": "belief divergence",
+                    "value": pct(quantile(metrics["divergence"], 0.50)),
+                },
+                {
+                    "receiver count": receiver_count,
+                    "regime": regime,
+                    "metric": "collective uncertainty",
+                    "value": pct(quantile(metrics["uncertainty"], 0.50)),
+                },
+            ]
+        )
+    base = alt.Chart(alt.InlineData(values=values)).encode(
+        x=alt.X("receiver count:Q", title="Receiver identities", axis=alt.Axis(values=[3, 10, 25, 50])),
+        color=alt.Color("regime:N", legend=alt.Legend(title="Regime")),
+        tooltip=["regime:N", "receiver count:Q", "metric:N", "value:Q"],
+    )
+    panels = []
+    for metric, domain in [
+        ("quality per byte", [60, 80]),
+        ("receiver agreement", [82, 92]),
+        ("belief divergence", [8, 20]),
+        ("collective uncertainty", [20, 38]),
+    ]:
+        panels.append(
+            base.transform_filter(alt.datum.metric == metric)
+            .mark_line(point=True, strokeWidth=2.2)
+            .encode(y=alt.Y("value:Q", title="Percent", scale=alt.Scale(domain=domain)))
+            .properties(width=width // 4 - 18, height=height, title=metric)
+        )
+    chart = alt.hconcat(*panels, spacing=16).properties(title=title)
+    return _configure_chart(chart)
+
+
+def independence_bottleneck(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
+    values = [
+        {
+            "trace kind": display_label(str(row["pair_kind"])),
+            "regime": display_label(str(row["scenario_id"])),
+            "raw transmissions": int_value(row, "raw_transmissions"),
+            "effective rank": int_value(row, "effective_rank_proxy"),
+            "quality per byte": pct(int_value(row, "quality_per_byte_permille")),
+            "recovery": pct(int_value(row, "recovery_probability_permille")),
+            "useful reproduction": pct(int_value(row, "useful_reproduction_permille")),
+        }
+        for row in rows
+    ]
+    base = alt.Chart(alt.InlineData(values=values)).encode(
+        x=alt.X("raw transmissions:Q", title="Raw transmissions", scale=alt.Scale(domain=[95, 130])),
+        color=alt.Color("trace kind:N", legend=alt.Legend(title="Matched trace kind")),
+        shape=alt.Shape("trace kind:N", legend=None),
+        tooltip=[
+            "trace kind:N",
+            "regime:N",
+            "raw transmissions:Q",
+            "effective rank:Q",
+            "quality per byte:Q",
+            "recovery:Q",
+        ],
+    )
+    rank = base.mark_circle(size=85, opacity=0.55).encode(
+        y=alt.Y("effective rank:Q", title="Effective-rank proxy", scale=alt.Scale(domain=[0, 35])),
+    )
+    quality = base.mark_circle(size=85, opacity=0.55).encode(
+        y=alt.Y("quality per byte:Q", title="Quality per byte (%)", scale=alt.Scale(domain=[55, 85])),
+    )
+    recovery = base.mark_circle(size=85, opacity=0.55).encode(
+        y=alt.Y("recovery:Q", title="Recovery probability (%)", scale=alt.Scale(domain=[50, 85])),
+    )
+    chart = alt.hconcat(
+        rank.properties(width=width // 3 - 22, height=height, title="Rank proxy"),
+        quality.properties(width=width // 3 - 22, height=height, title="Quality"),
+        recovery.properties(width=width // 3 - 22, height=height, title="Recovery"),
+        spacing=18,
+    ).properties(title=title)
     return _configure_chart(chart)
 
 
@@ -643,8 +923,8 @@ def recoding_tradeoff_summary(title: str, rows: list[dict[str, object]], width: 
             continue
         regime = display_label(str(row["scenario_id"]))
         grouped[(regime, display_label(mode))]["bytes"].append(int_value(row, "bytes_at_commitment"))
-        grouped[(regime, display_label(mode))]["quality"].append(int_value(row, "quality_per_byte_permille"))
-        grouped[(regime, display_label(mode))]["agreement"].append(int_value(row, "receiver_agreement_permille"))
+        grouped[(regime, display_label(mode))]["quality"].append(pct(int_value(row, "quality_per_byte_permille")))
+        grouped[(regime, display_label(mode))]["agreement"].append(pct(int_value(row, "receiver_agreement_permille")))
         grouped[(regime, display_label(mode))]["lead"].append(int_value(row, "commitment_lead_time_rounds"))
     values = []
     for (regime, mode), metrics in grouped.items():
@@ -728,9 +1008,10 @@ def recoding_tradeoff_summary(title: str, rows: list[dict[str, object]], width: 
             recoded_entry = next((value for value in values if value["regime"] == regime and value["mode"] == "recoded aggregate"), None)
             if active_entry is None or recoded_entry is None:
                 continue
-            delta = int(recoded_entry[metric_field] - active_entry[metric_field])
-            midpoint = int((recoded_entry[metric_field] + active_entry[metric_field]) / 2)
-            deltas.append({"regime": regime, "midpoint": midpoint, "label": f"{delta:+d}"})
+            delta = float(recoded_entry[metric_field] - active_entry[metric_field])
+            midpoint = float((recoded_entry[metric_field] + active_entry[metric_field]) / 2)
+            label = f"{delta:+.1f}" if metric_field == "quality_median" else f"{int(round(delta)):+d}"
+            deltas.append({"regime": regime, "midpoint": midpoint, "label": label})
         delta_labels = (
             alt.Chart(alt.InlineData(values=deltas))
             .mark_text(font=PLOT_FONT, fontSize=9, dy=-14, color="#475569")
@@ -744,7 +1025,7 @@ def recoding_tradeoff_summary(title: str, rows: list[dict[str, object]], width: 
 
     chart = alt.hconcat(
         panel("bytes_median", "Bytes at commitment", [1880, 2140]),
-        panel("quality_median", "Quality per byte (permille)", [730, 990]),
+        panel("quality_median", "Quality per byte (%)", [73, 99]),
         spacing=18,
     ).properties(title=title)
     return _configure_chart(chart)
@@ -761,7 +1042,7 @@ def robustness_small_multiples(title: str, rows: list[dict[str, object]], width:
                 "regime": regime,
                 "severity": severity,
                 "severity_label": str(severity),
-                "value": int_value(row, "commitment_accuracy_permille"),
+                "value": pct(int_value(row, "commitment_accuracy_permille")),
             }
         )
         false_values.append(
@@ -769,7 +1050,7 @@ def robustness_small_multiples(title: str, rows: list[dict[str, object]], width:
                 "regime": regime,
                 "severity": severity,
                 "severity_label": str(severity),
-                "value": int_value(row, "false_commitment_rate_permille"),
+                "value": pct(int_value(row, "false_commitment_rate_permille")),
             }
         )
     accuracy = (
@@ -783,7 +1064,7 @@ def robustness_small_multiples(title: str, rows: list[dict[str, object]], width:
                 scale=alt.Scale(paddingOuter=0.18),
                 axis=alt.Axis(labelAngle=0),
             ),
-            y=alt.Y("value:Q", title="Commitment accuracy (permille)", scale=alt.Scale(domain=[650, 1000])),
+            y=alt.Y("value:Q", title="Commitment accuracy (%)", scale=alt.Scale(domain=[65, 100])),
             color=alt.value(ENGINE_COLORS["pathway"]),
             tooltip=["severity:Q", "regime:N", "value:Q"],
         )
@@ -798,8 +1079,8 @@ def robustness_small_multiples(title: str, rows: list[dict[str, object]], width:
         .mark_text(dy=-10, font=PLOT_FONT, fontSize=9, color="#334155")
         .encode(
             x=alt.X("severity_label:N", sort=["1", "2", "3", "4", "5"]),
-            y=alt.Y("median:Q", scale=alt.Scale(domain=[650, 1000])),
-            text=alt.Text("median:Q", format=".0f"),
+            y=alt.Y("median:Q", scale=alt.Scale(domain=[65, 100])),
+            text=alt.Text("median:Q", format=".1f"),
         )
     )
     false_commitment = (
@@ -813,7 +1094,7 @@ def robustness_small_multiples(title: str, rows: list[dict[str, object]], width:
                 scale=alt.Scale(paddingOuter=0.18),
                 axis=alt.Axis(labelAngle=0),
             ),
-            y=alt.Y("value:Q", title="False commitment (permille)", scale=alt.Scale(domain=[0, 60])),
+            y=alt.Y("value:Q", title="False commitment (%)", scale=alt.Scale(domain=[0, 6])),
             color=alt.value(ENGINE_COLORS["scatter"]),
             tooltip=["severity:Q", "regime:N", "value:Q"],
         )
@@ -828,7 +1109,7 @@ def robustness_small_multiples(title: str, rows: list[dict[str, object]], width:
         .mark_text(dy=-10, font=PLOT_FONT, fontSize=9, color="#334155")
         .encode(
             x=alt.X("severity_label:N", sort=["1", "2", "3", "4", "5"]),
-            y=alt.Y("median:Q", scale=alt.Scale(domain=[0, 60])),
+            y=alt.Y("median:Q", scale=alt.Scale(domain=[0, 6])),
             text=alt.Text("median:Q", format=".1f"),
         )
     )
@@ -859,7 +1140,7 @@ def observer_proxy_boxplots(title: str, rows: list[dict[str, object]], width: in
         .mark_boxplot(size=42)
         .encode(
             x=alt.X("condition:N", title=None, axis=alt.Axis(labelAngle=-20)),
-            y=alt.Y("value:Q", title="Proxy metric (permille)", scale=alt.Scale(domain=[0, 1000])),
+            y=alt.Y("value:Q", title="Proxy score (0-1000)", scale=alt.Scale(domain=[0, 1000])),
             color=alt.Color("metric:N", legend=alt.Legend(title="Metric")),
             xOffset=alt.XOffset("metric:N"),
             tooltip=["condition:N", "metric:N", "value:Q"],
@@ -875,8 +1156,8 @@ def scale_validation_panels(title: str, rows: list[dict[str, object]], width: in
         regime = display_label(str(row["scenario_regime"]))
         values_by_metric["runtime ms"].append({"regime": regime, "value": int_value(row, "runtime_ms")})
         values_by_metric["memory KiB"].append({"regime": regime, "value": int_value(row, "memory_kib")})
-        values_by_metric["quality"].append({"regime": regime, "value": int_value(row, "quality_per_byte_permille")})
-        values_by_metric["failure rate"].append({"regime": regime, "value": int_value(row, "failure_rate_permille")})
+        values_by_metric["quality (%)"].append({"regime": regime, "value": pct(int_value(row, "quality_per_byte_permille"))})
+        values_by_metric["failure rate (%)"].append({"regime": regime, "value": pct(int_value(row, "failure_rate_permille"))})
 
     def panel(metric: str, domain: list[int]) -> alt.Chart:
         return (
@@ -892,10 +1173,10 @@ def scale_validation_panels(title: str, rows: list[dict[str, object]], width: in
         )
 
     chart = alt.hconcat(
-        panel("runtime ms", [1000, 6000]),
-        panel("memory KiB", [50, 360]),
-        panel("quality", [650, 850]),
-        panel("failure rate", [0, 15]),
+        panel("runtime ms", [1000, 6600]),
+        panel("memory KiB", [50, 520]),
+        panel("quality (%)", [65, 85]),
+        panel("failure rate (%)", [0, 1.5]),
     ).properties(title=title)
     return _configure_chart(chart)
 
@@ -925,21 +1206,21 @@ def baseline_paired_deltas(title: str, rows: list[dict[str, object]], width: int
         )
         grouped[key][str(row["baseline_policy"])] = row
     metric_specs = [
-        ("accuracy", "Accuracy gain", "decision_accuracy_permille", "permille points"),
-        ("quality", "Quality-per-byte gain", "quality_per_byte_permille", "permille points"),
+        ("accuracy", "Accuracy gain", "decision_accuracy_permille", "percentage points"),
+        ("quality", "Quality-per-byte gain", "quality_per_byte_permille", "percentage points"),
     ]
     values: list[dict[str, object]] = []
     domains: dict[str, tuple[int, int]] = {}
     for metric_key, metric_label_text, field, unit in metric_specs:
-        metric_values: list[int] = []
+        metric_values: list[float] = []
         for baseline_policy, comparison_label in comparison_map:
-            deltas: list[int] = []
+            deltas: list[float] = []
             for entry in grouped.values():
                 active = entry.get("full-active-belief")
                 baseline = entry.get(baseline_policy)
                 if active is None or baseline is None:
                     continue
-                deltas.append(int_value(active, field) - int_value(baseline, field))
+                deltas.append(pct(int_value(active, field) - int_value(baseline, field)))
             if not deltas:
                 continue
             low = quantile(deltas, 0.25)
@@ -954,14 +1235,14 @@ def baseline_paired_deltas(title: str, rows: list[dict[str, object]], width: int
                     "low": low,
                     "median": median_value,
                     "high": high,
-                    "median_label": str(median_value),
+                    "median_label": f"{median_value:.1f}" if unit != "bytes" else str(int(median_value)),
                     "unit": unit,
                 }
             )
         if metric_values:
             span_low = min(metric_values)
             span_high = max(metric_values)
-            padding = max(6, (span_high - span_low) // 8)
+            padding = max(1.0, (span_high - span_low) / 8.0)
             domains[metric_key] = (min(0, span_low - padding), span_high + padding)
     chart_data = alt.InlineData(values=values)
     panels = []
@@ -1103,8 +1384,8 @@ def active_belief_grid(title: str, rows: list[dict[str, object]], width: int, he
             "regime": display_label(str(row["scenario_regime"])),
             "task": display_label(str(row["task_kind"])),
             "mode": display_label(str(row["mode"])),
-            "quality": int_value(row, "quality_per_byte_permille"),
-            "agreement": int_value(row, "receiver_agreement_permille"),
+            "quality": pct(int_value(row, "quality_per_byte_permille")),
+            "agreement": pct(int_value(row, "receiver_agreement_permille")),
         }
         for row in rows
         if row["mode"] == "full-active-belief"
@@ -1126,9 +1407,11 @@ def phase_heatmap(title: str, rows: list[dict[str, object]], width: int, height:
         {
             "band": display_label(str(row["scenario_id"])),
             "budget": f"budget {row['forwarding_budget']}",
-            "quality": int_value(row, "quality_permille"),
-            "duplicate_rate": int_value(row, "duplicate_rate_permille"),
-            "r_est": int_value(row, "r_est_permille"),
+            "quality": pct(int_value(row, "quality_permille")),
+            "duplicate_rate": pct(int_value(row, "duplicate_rate_permille")),
+            "r_est": pct(int_value(row, "r_est_permille")),
+            "raw_reproduction": pct(int_value(row, "raw_reproduction_permille")),
+            "useful_reproduction": pct(int_value(row, "useful_reproduction_permille")),
         }
         for row in rows
     ]
@@ -1140,9 +1423,9 @@ def phase_heatmap(title: str, rows: list[dict[str, object]], width: int, height:
         color=alt.Color(
             "quality:Q",
             legend=None,
-            scale=alt.Scale(domain=[400, 920], scheme="yellowgreenblue"),
+            scale=alt.Scale(domain=[40, 92], scheme="yellowgreenblue"),
         ),
-        tooltip=["band:N", "budget:N", "quality:Q", "duplicate_rate:Q", "r_est:Q"],
+        tooltip=["band:N", "budget:N", "quality:Q", "duplicate_rate:Q", "raw_reproduction:Q", "useful_reproduction:Q"],
     )
     labels = base.mark_text(font=PLOT_FONT, fontSize=10).encode(text="quality:Q")
     return _configure_chart((heatmap + labels).properties(width=width - 280, height=height, title=title))
@@ -1153,7 +1436,7 @@ def active_vs_passive(title: str, rows: list[dict[str, object]], width: int, hei
     for row in rows:
         if str(row["mode"]) in {"passive-controlled-coded", "full-active-belief"}:
             grouped[(str(row["scenario_regime"]), str(row["mode"]))].append(
-                int_value(row, "quality_per_byte_permille")
+                pct(int_value(row, "quality_per_byte_permille"))
             )
     values = [
         {
@@ -1169,7 +1452,7 @@ def active_vs_passive(title: str, rows: list[dict[str, object]], width: int, hei
         .encode(
             x=alt.X("regime:N", title=None, axis=alt.Axis(labelAngle=0)),
             xOffset=alt.XOffset("mode:N"),
-            y=alt.Y("quality:Q", title="Mean quality per byte (permille)", scale=alt.Scale(domain=[0, 1000])),
+            y=alt.Y("quality:Q", title="Mean quality per byte (%)", scale=alt.Scale(domain=[0, 100])),
             color=alt.Color("mode:N", legend=alt.Legend(title="Mode")),
             tooltip=["regime:N", "mode:N", "quality:Q"],
         )
@@ -1183,7 +1466,7 @@ def recoding_frontier(title: str, rows: list[dict[str, object]], width: int, hei
     for row in rows:
         if str(row["mode"]) in {"passive-controlled-coded", "full-active-belief", "recoded-aggregate"}:
             grouped[(str(row["task_kind"]), str(row["mode"]))].append(
-                int_value(row, "quality_per_byte_permille")
+                pct(int_value(row, "quality_per_byte_permille"))
             )
     values = [
         {"task": display_label(task), "mode": display_label(mode), "quality": sum(scores) // len(scores)}
@@ -1194,7 +1477,7 @@ def recoding_frontier(title: str, rows: list[dict[str, object]], width: int, hei
         .mark_line(point=True, strokeWidth=2.4)
         .encode(
             x=alt.X("task:N", title=None, axis=alt.Axis(labelAngle=0)),
-            y=alt.Y("quality:Q", title="Quality per byte (permille)", scale=alt.Scale(domain=[0, 1000])),
+            y=alt.Y("quality:Q", title="Quality per byte (%)", scale=alt.Scale(domain=[0, 100])),
             color=alt.Color("mode:N", legend=alt.Legend(title="Mode")),
             tooltip=["task:N", "mode:N", "quality:Q"],
         )
@@ -1209,8 +1492,8 @@ def robustness_boundary(title: str, rows: list[dict[str, object]], width: int, h
         regime = display_label(str(row["scenario_regime"]))
         values.extend(
             [
-                {"regime": regime, "metric": "commitment accuracy", "value": int_value(row, "commitment_accuracy_permille")},
-                {"regime": regime, "metric": "false commitment", "value": int_value(row, "false_commitment_rate_permille")},
+                {"regime": regime, "metric": "commitment accuracy", "value": pct(int_value(row, "commitment_accuracy_permille"))},
+                {"regime": regime, "metric": "false commitment", "value": pct(int_value(row, "false_commitment_rate_permille"))},
             ]
         )
     chart = (
@@ -1219,7 +1502,7 @@ def robustness_boundary(title: str, rows: list[dict[str, object]], width: int, h
         .encode(
             x=alt.X("regime:N", title=None, axis=alt.Axis(labelAngle=0, labelLimit=120)),
             xOffset=alt.XOffset("metric:N"),
-            y=alt.Y("value:Q", title="Robustness metric (permille)"),
+            y=alt.Y("value:Q", title="Robustness metric (%)"),
             color=alt.Color("metric:N", legend=alt.Legend(title="Metric")),
             tooltip=["regime:N", "metric:N", "value:Q"],
         )
@@ -1363,6 +1646,12 @@ def metric_for_dataset(dataset: str) -> str:
         "active_belief_receiver_runs.csv": "quality_per_byte_permille",
         "active_belief_path_validation.csv": "path_free_success_permille",
         "active_belief_demand_ablation.csv": "quality_per_byte_permille",
+        "active_belief_demand_byte_sweep.csv": "quality_per_byte_permille",
+        "active_belief_high_gap_regimes.csv": "quality_per_byte_permille",
+        "active_belief_adversarial_demand.csv": "honest_receiver_quality_permille",
+        "active_belief_byzantine_injection.csv": "decision_accuracy_permille",
+        "active_belief_receiver_count_sweep.csv": "quality_per_byte_permille",
+        "active_belief_independence_bottleneck.csv": "effective_rank_proxy",
         "active_belief_scale_validation.csv": "quality_per_byte_permille",
         "active_belief_second_tasks.csv": "decision_accuracy_permille",
         "active_belief_host_bridge_demand.csv": "demand_contribution_count",
@@ -1453,8 +1742,13 @@ def metric_label(metric: str) -> str:
         "recovery_probability_permille": "recovery probability",
         "decision_accuracy_permille": "decision accuracy",
         "quality_per_byte_permille": "quality per byte",
+        "quality_per_total_budget_permille": "quality per total byte",
         "quality_permille": "quality",
         "equal_cost_quality_improvement_permille": "equal-cost gain",
+        "demand_bytes_at_commitment": "demand bytes at commitment",
+        "total_bytes_at_commitment": "total bytes at commitment",
+        "demand_byte_count": "demand bytes",
+        "total_byte_count": "total bytes",
         "observer_advantage_permille": "observer advantage",
         "uncertainty_permille": "uncertainty",
         "requested_node_count": "requested nodes",
@@ -1478,5 +1772,16 @@ def compact_theorem(theorem: str) -> str:
         "anomaly_margin_lower_tail_bound": "anomaly margin",
         "guarded_commitment_false_probability_bounded": "false commitment",
         "inference_potential_drift_progress": "potential drift",
+        "generic_direct_statistic_decoding": "direct statistic",
+        "direct_statistic_commitment_requires_task_effective_guard": "task-effective guard",
+        "effective_task_independence_bounded_by_raw_copies": "task indep <= copies",
+        "effective_task_independence_bounded_by_raw_transmissions": "task indep <= tx",
+        "raw_reproduction_above_one_does_not_imply_effective_reproduction_above_one": "raw R not useful R",
+        "contact_entropy_and_dispersion_bounded_by_raw_activity": "entropy/dispersion",
+        "effective_rank_bounded_by_temporal_generator_rank": "rank proxy",
+        "reconstruction_bound_from_entropy_and_dispersion": "entropy bound",
+        "temporal_contact_capacity_bounded_by_independent_arrivals": "temporal capacity",
+        "reliability_resource_ambiguity_triangle_incompatibility": "limit triangle",
+        "matched_networks_separate_by_entropy_and_effective_rank": "matched entropy",
     }
     return replacements.get(theorem, theorem.replace("_", " "))

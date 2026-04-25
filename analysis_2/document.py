@@ -39,7 +39,6 @@ from analysis.document import (
 
 
 def write_pdf_report(
-    artifact_dir: Path,
     report_dir: Path,
     pdf_path: Path,
     manuscript_text: str,
@@ -71,7 +70,7 @@ def write_pdf_report(
         figure_specs,
     )
     add_unplaced_figures(story, styles, report_dir, figure_specs, placed_exhibits)
-    add_manifest(story, styles, artifact_dir, figure_rows)
+    add_manifest(story, styles, figure_specs)
     doc.build(story)
 
 
@@ -129,7 +128,7 @@ def add_unplaced_figures(
     if not remaining:
         return
     story.append(PageBreak())
-    story.append(Paragraph("Supporting Figures And Audit Tables", styles["Section"]))
+    story.append(Paragraph("Supplementary Figures And Tables", styles["Section"]))
     for spec in remaining:
         story.append(KeepTogether(figure_or_table_flowables(styles, report_dir, spec)))
         story.append(Spacer(1, FIGURE_BLOCK_SPACER))
@@ -140,12 +139,7 @@ def figure_or_table_flowables(
 ) -> list[object]:
     display_kind = str(spec.get("display_kind", "figure"))
     label = "Table" if display_kind == "table" else "Figure"
-    flowables: list[object] = [
-        Paragraph(
-            paper_markup(f"{label} {spec['figure_index']}. {spec['figure_name']}"),
-            styles["Subsection"],
-        )
-    ]
+    flowables: list[object] = []
     if display_kind in {"figure", "figure-with-table"}:
         flowables.append(
             active_figure_flowable(
@@ -167,50 +161,73 @@ def figure_or_table_flowables(
                 list(table["widths"]),
             )
         )
-    flowables.append(Paragraph(paper_markup(str(spec["caption"])), styles["Caption"]))
+    caption_text = f"{label} {spec['display_number']}. {spec['figure_name']}. {spec['caption']}"
+    flowables.append(Paragraph(paper_markup(caption_text), styles["Caption"]))
     return flowables
 
 
 def add_manifest(
     story: list[object],
     styles,
-    artifact_dir: Path,
-    figure_rows: list[dict[str, object]],
+    figure_specs: list[dict[str, object]],
 ) -> None:
     story.append(PageBreak())
-    story.append(Paragraph("Reproducibility Manifest", styles["Section"]))
+    story.append(Paragraph("Data And Reproducibility Notes", styles["Section"]))
     table_rows: list[list[str]] = []
-    for row in figure_rows:
+    for spec in figure_specs:
+        label = "Table" if str(spec.get("display_kind")) == "table" else "Figure"
         table_rows.append(
             [
-                str(row["figure_index"]),
-                str(row["figure_name"]),
-                str(row["source_artifact"]),
-                str(row["artifact_row_count"]),
+                f"{label} {spec['display_number']}",
+                str(spec["figure_name"]),
+                display_source_artifact(str(spec["source_artifact"])),
+                str(spec["artifact_row_count"]),
             ]
         )
     story.append(
         make_table(
-            ["#", "Figure", "Source", "Rows"],
+            ["Label", "Exhibit", "Dataset", "Rows"],
             table_rows,
             styles,
-            [1.0, 5.0, 7.0, 2.0],
+            [1.6, 4.6, 6.8, 2.0],
         )
     )
     story.append(Spacer(1, BLOCK_SPACER))
     story.append(
-        Paragraph(paper_markup(f"Report artifacts: {artifact_dir}"), styles["Body"])
+        Paragraph(
+            paper_markup(
+                "Machine-readable data tables, row counts, and deterministic replay checks are included in the companion artifact package for this report build."
+            ),
+            styles["Body"],
+        )
     )
+
+
+def display_source_artifact(name: str) -> str:
+    labels = {
+        "active_belief_theorem_assumptions.csv": "theorem boundary audit rows",
+        "active_belief_trace_validation.csv": "trace preprocessing and replay audit rows",
+        "active_belief_path_validation.csv": "path-free recovery validation rows",
+        "active_belief_raw_rounds.csv": "receiver-round belief trajectories",
+        "coded_inference_experiment_a2_evidence_modes.csv": "three-mode task-surface rows",
+        "active_belief_second_tasks.csv": "task-family comparison rows",
+        "active_belief_headline_statistics.csv": "headline paired-delta summaries",
+        "active_belief_receiver_runs.csv": "receiver-run outcome summaries",
+        "active_belief_demand_ablation.csv": "demand-ablation matched runs",
+        "coded_inference_experiment_d_coding_vs_replication.csv": "equal-budget coding comparison rows",
+        "active_belief_exact_seed_summary.csv": "stress-boundary seed summaries",
+        "active_belief_host_bridge_demand.csv": "host/bridge demand audit rows",
+        "active_belief_strong_baselines.csv": "equal-budget baseline comparison rows",
+        "active_belief_scale_validation.csv": "large-regime validation rows",
+        "coded_inference_experiment_e_observer_frontier.csv": "observer-proxy tradeoff rows",
+        "coded_inference_experiment_c_phase_diagram.csv": "control-region sweep rows",
+    }
+    return labels.get(name, name.replace(".csv", "").replace("_", " "))
 
 
 def active_figure_flowable(
     report_dir: Path, asset_id: str, max_width: float, max_height: float
 ):
-    svg_path = report_dir / f"{asset_id}.svg"
-    if svg_path.exists():
-        from analysis.document import figure_flowable
-
-        return figure_flowable(report_dir, asset_id, max_width, max_height)
     png_path = report_dir / f"{asset_id}.png"
     if png_path.exists():
         reader = ImageReader(str(png_path))
@@ -220,6 +237,11 @@ def active_figure_flowable(
         image.drawWidth = width_px * scale
         image.drawHeight = height_px * scale
         return image
+    svg_path = report_dir / f"{asset_id}.svg"
+    if svg_path.exists():
+        from analysis.document import figure_flowable
+
+        return figure_flowable(report_dir, asset_id, max_width, max_height)
     from analysis.document import figure_flowable
 
     return figure_flowable(report_dir, asset_id, max_width, max_height)
@@ -239,19 +261,24 @@ def add_markdown(
     code_lines: list[str] = []
     list_item: tuple[str, list[str]] | None = None
     in_code = False
+    pending_table_caption = False
     specs_by_id = {str(spec["figure_id"]): spec for spec in figure_specs}
     placed_exhibits: set[str] = set()
 
     def flush_paragraph() -> None:
+        nonlocal pending_table_caption
         if not paragraph_lines:
             return
         text = " ".join(line.strip() for line in paragraph_lines).strip()
         paragraph_lines.clear()
         if text:
-            story.append(Paragraph(paper_markup(text), styles["Body"]))
+            style_name = "Caption" if pending_table_caption and re.match(r"^Table \d+\.", text) else "Body"
+            story.append(Paragraph(paper_markup(text), styles[style_name]))
             story.append(Spacer(1, INLINE_SPACER))
+        pending_table_caption = False
 
     def flush_table() -> None:
+        nonlocal pending_table_caption
         if not table_lines:
             return
         rows = markdown_table_rows(table_lines)
@@ -259,16 +286,19 @@ def add_markdown(
         if rows:
             story.append(markdown_table(rows, styles))
             story.append(Spacer(1, BLOCK_SPACER))
+            pending_table_caption = True
 
     def flush_code() -> None:
+        nonlocal pending_table_caption
         if not code_lines:
             return
         story.append(Preformatted("\n".join(code_lines), styles["SmallCode"]))
         code_lines.clear()
         story.append(Spacer(1, BLOCK_SPACER))
+        pending_table_caption = False
 
     def flush_list_item() -> None:
-        nonlocal list_item
+        nonlocal list_item, pending_table_caption
         if list_item is None:
             return
         marker, lines = list_item
@@ -277,11 +307,13 @@ def add_markdown(
         if text:
             story.append(list_item_flowable(marker, text, styles))
             story.append(Spacer(1, 3))
+        pending_table_caption = False
 
     for raw_line in markdown.splitlines():
         line = raw_line.rstrip()
         exhibit_id = exhibit_marker(line)
         if exhibit_id and not in_code:
+            pending_table_caption = False
             flush_list_item()
             flush_paragraph()
             flush_table()
@@ -298,6 +330,7 @@ def add_markdown(
                 flush_code()
                 in_code = False
             else:
+                pending_table_caption = False
                 flush_list_item()
                 flush_paragraph()
                 flush_table()
@@ -322,26 +355,31 @@ def add_markdown(
             list_item = (marker, lines)
             continue
         if line.startswith("# "):
+            pending_table_caption = False
             flush_list_item()
             flush_paragraph()
             story.append(
                 Paragraph(paper_markup(line[2:].strip()), styles["TitleCustom"])
             )
         elif line.startswith("## "):
+            pending_table_caption = False
             flush_list_item()
             flush_paragraph()
             story.append(Paragraph(paper_markup(line[3:].strip()), styles["Section"]))
         elif line.startswith("### "):
+            pending_table_caption = False
             flush_list_item()
             flush_paragraph()
             story.append(
                 Paragraph(paper_markup(line[4:].strip()), styles["Subsection"])
             )
         elif line.startswith("- "):
+            pending_table_caption = False
             flush_list_item()
             flush_paragraph()
             list_item = ("\u2022", [line[2:].strip()])
         elif numbered_list_line(line):
+            pending_table_caption = False
             flush_list_item()
             flush_paragraph()
             marker, _, rest = line.strip().partition(".")

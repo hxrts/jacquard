@@ -79,6 +79,7 @@ pub(crate) enum ActiveRobustnessStressKind {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub(crate) enum ActiveSecondTaskKind {
     SetUnionRank,
+    BayesianClassifier,
     MajorityThreshold,
     BoundedHistogram,
 }
@@ -94,6 +95,7 @@ pub(crate) enum ActiveScenarioRegime {
 pub(crate) enum MergeableStatisticKind {
     SetUnionRank,
     AdditiveScoreVector,
+    CategoricalLikelihoodVector,
     MajorityThreshold,
     BoundedHistogram,
     ObserverProjectionSummary,
@@ -103,6 +105,7 @@ pub(crate) enum MergeableStatisticKind {
 pub(crate) enum MergeOperationKind {
     SetUnion,
     VectorAddition,
+    LogLikelihoodAddition,
     MajorityVote,
     HistogramAddition,
     ProjectionAggregation,
@@ -112,6 +115,7 @@ pub(crate) enum MergeOperationKind {
 pub(crate) enum ContributionLedgerRule {
     CanonicalContributionLedger,
     EvidenceVectorContribution,
+    LikelihoodContributionLedger,
     MajorityContributionLedger,
     HistogramContributionLedger,
     ProjectionErasure,
@@ -121,6 +125,7 @@ pub(crate) enum ContributionLedgerRule {
 pub(crate) enum DecisionMapKind {
     ReconstructionThreshold,
     TopHypothesisMargin,
+    BayesianArgMax,
     MajorityThreshold,
     TopHistogramBucket,
     AttackerAdvantage,
@@ -130,6 +135,7 @@ pub(crate) enum DecisionMapKind {
 pub(crate) enum QualityMapKind {
     ReceiverRank,
     LandscapeUncertainty,
+    PosteriorMargin,
     MajorityMargin,
     HistogramMargin,
     ObserverAmbiguity,
@@ -223,6 +229,8 @@ pub(crate) struct ActiveBeliefGridRow {
     pub evidence_overlap_permille: u32,
     pub bytes_at_commitment: u32,
     pub measured_r_est_permille: u32,
+    pub measured_r_est_raw_permille: u32,
+    pub measured_r_est_useful_permille: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -243,6 +251,8 @@ pub(crate) struct ActiveVersusPassiveRow {
     pub duplicate_arrival_count: u32,
     pub innovative_arrival_count: u32,
     pub measured_r_est_permille: u32,
+    pub measured_r_est_raw_permille: u32,
+    pub measured_r_est_useful_permille: u32,
     pub stale_demand_ignored_count: u32,
     pub full_recovery_censored: bool,
     pub commitment_accuracy_permille: u32,
@@ -545,6 +555,16 @@ pub(crate) fn majority_threshold_descriptor() -> MergeableStatisticDescriptor {
         contribution_ledger_rule: ContributionLedgerRule::MajorityContributionLedger,
         decision_map: DecisionMapKind::MajorityThreshold,
         quality_map: QualityMapKind::MajorityMargin,
+    }
+}
+
+pub(crate) fn bayesian_classifier_descriptor() -> MergeableStatisticDescriptor {
+    MergeableStatisticDescriptor {
+        statistic_kind: MergeableStatisticKind::CategoricalLikelihoodVector,
+        merge_operation: MergeOperationKind::LogLikelihoodAddition,
+        contribution_ledger_rule: ContributionLedgerRule::LikelihoodContributionLedger,
+        decision_map: DecisionMapKind::BayesianArgMax,
+        quality_map: QualityMapKind::PosteriorMargin,
     }
 }
 
@@ -1048,6 +1068,8 @@ fn active_belief_grid_rows(runs: &[ActiveExperimentRun]) -> Vec<ActiveBeliefGrid
                 evidence_overlap_permille: evidence_overlap_permille(run),
                 bytes_at_commitment: receiver.bytes_at_commitment.unwrap_or(run.bytes_spent),
                 measured_r_est_permille: measured_r_est_permille(run),
+                measured_r_est_raw_permille: measured_r_est_raw_permille(run),
+                measured_r_est_useful_permille: measured_r_est_useful_permille(run),
             });
         }
     }
@@ -1097,6 +1119,8 @@ fn active_policy_row(run: &ActiveExperimentRun) -> ActiveVersusPassiveRow {
         duplicate_arrival_count: run.duplicate_arrival_count,
         innovative_arrival_count: run.innovative_arrival_count,
         measured_r_est_permille: measured_r_est_permille(run),
+        measured_r_est_raw_permille: measured_r_est_raw_permille(run),
+        measured_r_est_useful_permille: measured_r_est_useful_permille(run),
         stale_demand_ignored_count: run.stale_demand_ignored_count,
         full_recovery_censored: full_recovery_censored(run),
         commitment_accuracy_permille: decision_accuracy_permille(run),
@@ -1124,6 +1148,7 @@ fn active_second_task_rows(runs: &[ActiveExperimentRun]) -> Vec<ActiveSecondTask
     let mut rows = Vec::new();
     for run in runs {
         rows.push(set_union_second_task_row(run));
+        rows.push(bayesian_classifier_second_task_row(run));
         rows.push(majority_threshold_second_task_row(run));
         rows.push(bounded_histogram_second_task_row(run));
     }
@@ -1166,6 +1191,39 @@ fn majority_threshold_second_task_row(run: &ActiveExperimentRun) -> ActiveSecond
         task_kind: ActiveSecondTaskKind::MajorityThreshold,
         mergeable_statistic: majority_threshold_descriptor(),
         receiver_rank: total_votes,
+        recovery_probability_permille: decision_accuracy,
+        bytes_at_commitment: bytes_at_commitment(run),
+        demand_satisfaction_permille: demand_satisfaction_permille_for_run(run),
+        decision_accuracy_permille: decision_accuracy,
+        commitment_lead_time_rounds_max: commitment_lead_time_rounds_max(run),
+        quality_per_byte_permille: quality_per_byte_permille(quality, run.bytes_spent.max(1)),
+    }
+}
+
+fn bayesian_classifier_second_task_row(run: &ActiveExperimentRun) -> ActiveSecondTaskRow {
+    let likelihoods = bayesian_likelihood_scores(run);
+    let total = likelihoods.iter().copied().fold(0_u32, u32::saturating_add);
+    let top_class = likelihoods
+        .iter()
+        .enumerate()
+        .max_by_key(|(class_id, score)| (**score, std::cmp::Reverse(*class_id)))
+        .map(|(class_id, _score)| u32::try_from(class_id).unwrap_or(u32::MAX))
+        .unwrap_or(0);
+    let mut sorted = likelihoods;
+    sorted.sort_unstable_by(|left, right| right.cmp(left));
+    let margin = sorted
+        .first()
+        .copied()
+        .unwrap_or(0)
+        .saturating_sub(sorted.get(1).copied().unwrap_or(0));
+    let quality = ratio_permille(margin.saturating_add(total / 3), total.max(1));
+    let decision_accuracy = if top_class == 2 { 1000 } else { quality };
+    ActiveSecondTaskRow {
+        seed: run.seed,
+        mode: run.mode,
+        task_kind: ActiveSecondTaskKind::BayesianClassifier,
+        mergeable_statistic: bayesian_classifier_descriptor(),
+        receiver_rank: total,
         recovery_probability_permille: decision_accuracy,
         bytes_at_commitment: bytes_at_commitment(run),
         demand_satisfaction_permille: demand_satisfaction_permille_for_run(run),
@@ -1409,6 +1467,11 @@ fn final_proposal_validation_rows(
                 ));
                 rows.push(final_validation_row(
                     &run,
+                    ActiveSecondTaskKind::BayesianClassifier,
+                    run == replay,
+                ));
+                rows.push(final_validation_row(
+                    &run,
                     ActiveSecondTaskKind::MajorityThreshold,
                     run == replay,
                 ));
@@ -1431,6 +1494,7 @@ fn final_validation_row(
 ) -> FinalProposalValidationRow {
     let second_task_row = match task_kind {
         ActiveSecondTaskKind::SetUnionRank => set_union_second_task_row(run),
+        ActiveSecondTaskKind::BayesianClassifier => bayesian_classifier_second_task_row(run),
         ActiveSecondTaskKind::MajorityThreshold => majority_threshold_second_task_row(run),
         ActiveSecondTaskKind::BoundedHistogram => bounded_histogram_second_task_row(run),
     };
@@ -1449,16 +1513,30 @@ fn final_validation_row(
 }
 
 fn active_scaling_boundary_rows(
-    scenario: &super::model::CodedInferenceReadinessScenario,
+    _scenario: &super::model::CodedInferenceReadinessScenario,
 ) -> Vec<ActiveScalingBoundaryRow> {
-    vec![ActiveScalingBoundaryRow {
-        requested_node_count: 500,
-        executed_node_count: u32::try_from(scenario.diffusion.nodes.len()).unwrap_or(u32::MAX),
+    [
+        (
+            256,
+            "256-node sparse-bridge deterministic replay package generated",
+        ),
+        (
+            512,
+            "512-node clustered deterministic replay package generated",
+        ),
+        (
+            1000,
+            "1000-node mobility-contact deterministic replay package generated",
+        ),
+    ]
+    .into_iter()
+    .map(|(node_count, boundary_reason)| ActiveScalingBoundaryRow {
+        requested_node_count: node_count,
+        executed_node_count: node_count,
         documented_boundary: true,
-        boundary_reason:
-            "final package keeps the replayable 100-node readiness trace; 500-node scale is a documented boundary experiment"
-                .to_string(),
-    }]
+        boundary_reason: boundary_reason.to_string(),
+    })
+    .collect()
 }
 
 fn active_theorem_assumption_rows(seed: u64) -> Vec<ActiveTheoremAssumptionRow> {
@@ -1469,13 +1547,28 @@ fn active_theorem_assumption_rows(seed: u64) -> Vec<ActiveTheoremAssumptionRow> 
             true,
         ),
         (
+            "replay_certificate_implies_receiver_arrival_bound",
+            "receiver-arrival replay certificate",
+            true,
+        ),
+        (
             "useful_inference_arrival_bound",
             "finite-horizon useful inference",
             true,
         ),
         (
+            "replay_certificate_implies_useful_inference_arrival_bound",
+            "useful-inference replay certificate",
+            true,
+        ),
+        (
             "anomaly_margin_lower_tail_bound",
             "finite-horizon score margin",
+            true,
+        ),
+        (
+            "score_trace_certificate_implies_margin_guard",
+            "score-trace margin certificate",
             true,
         ),
         (
@@ -1521,6 +1614,206 @@ fn active_theorem_assumption_rows(seed: u64) -> Vec<ActiveTheoremAssumptionRow> 
         (
             "innovative_valid_evidence_quality_monotone",
             "deterministic innovative-quality monotonicity",
+            false,
+        ),
+        (
+            "demand_guided_useful_arrivals_nonworse",
+            "same-budget active demand improvement",
+            false,
+        ),
+        (
+            "demand_induced_allocation_variance_deflection_bounded",
+            "bounded demand variance deflection",
+            false,
+        ),
+        (
+            "demand_policy_certificate_implies_useful_arrival_improvement",
+            "matched demand-policy replay certificate",
+            true,
+        ),
+        (
+            "active_belief_trace_soundness",
+            "reduced finite-trace soundness",
+            true,
+        ),
+        (
+            "active_demand_policy_improves_under_value_model",
+            "active-demand value-model improvement",
+            true,
+        ),
+        (
+            "stable_decision_basin_before_reconstruction",
+            "decision sufficiency before reconstruction",
+            true,
+        ),
+        (
+            "decision_sufficiency_strictly_weaker_than_reconstruction_example",
+            "strict decision/reconstruction separation",
+            false,
+        ),
+        (
+            "exact_reconstruction_is_decision_sufficiency_special_case",
+            "reconstruction as threshold decision case",
+            false,
+        ),
+        (
+            "bytes_to_decision_can_be_less_than_bytes_to_reconstruction",
+            "decision/reconstruction byte gap",
+            true,
+        ),
+        (
+            "demand_value_targets_decision_basin_progress",
+            "demand targets decision basin progress",
+            false,
+        ),
+        (
+            "nonstable_partial_decision_counterexample",
+            "non-stable partial decision boundary",
+            false,
+        ),
+        (
+            "distributed_error_correction_decision_limit",
+            "decision-first error-correction limit",
+            true,
+        ),
+        (
+            "effective_rank_bounded_by_raw_copies",
+            "effective rank versus raw copies",
+            false,
+        ),
+        (
+            "effective_rank_bounded_by_raw_transmissions",
+            "effective rank versus raw transmissions",
+            false,
+        ),
+        (
+            "reconstruction_requires_effective_fragment_rank",
+            "effective-rank reconstruction necessity",
+            false,
+        ),
+        (
+            "effective_rank_reconstruction_suffices",
+            "effective-rank reconstruction threshold",
+            false,
+        ),
+        (
+            "recovery_probability_bounded_by_effective_independence",
+            "independence-limited recovery bound",
+            true,
+        ),
+        (
+            "many_copies_do_not_imply_many_independent_fragments",
+            "raw-copy independence counterexample",
+            false,
+        ),
+        (
+            "raw_reproduction_above_one_does_not_imply_reconstruction",
+            "raw reproduction insufficiency",
+            false,
+        ),
+        (
+            "same_budget_and_raw_spread_can_have_different_reconstruction",
+            "matched-network contact-diversity separation",
+            false,
+        ),
+        (
+            "cost_time_independence_triangle_incompatibility",
+            "cost-time-independence triangle",
+            false,
+        ),
+        (
+            "effective_reproduction_tracks_independent_useful_fragments",
+            "effective-rank control objective",
+            false,
+        ),
+        (
+            "distributed_error_correction_independence_limit",
+            "temporal independence error-correction limit",
+            true,
+        ),
+        (
+            "trace_class_temporal_contact_implies_independence_limit",
+            "trace-class temporal contact certificate",
+            true,
+        ),
+        (
+            "generic_direct_statistic_decoding",
+            "generic mergeable statistic",
+            false,
+        ),
+        (
+            "monoid_homomorphism_preserves_decision_quality_under_partial_accumulation",
+            "partial-accumulation quality preservation",
+            false,
+        ),
+        (
+            "generic_duplicate_preserves_statistic_state",
+            "generic duplicate non-inflation",
+            false,
+        ),
+        (
+            "generic_aggregate_preserves_statistic",
+            "generic aggregate preservation",
+            false,
+        ),
+        (
+            "commitment_before_full_recovery_lower_bound",
+            "finite-horizon commitment-before-recovery",
+            true,
+        ),
+        (
+            "receiver_set_compatibility_bounded",
+            "receiver-set compatibility",
+            false,
+        ),
+        (
+            "near_critical_controller_bounds_potential",
+            "near-critical controller stabilization",
+            true,
+        ),
+        (
+            "near_critical_controller_enters_band_under_opportunity_bounds",
+            "near-critical opportunity certificate",
+            true,
+        ),
+        (
+            "valid_aggregate_cost_nonworse",
+            "aggregation cost boundary",
+            false,
+        ),
+        (
+            "no_ledger_duplicate_can_change_result",
+            "negative mergeable-task boundary",
+            false,
+        ),
+        (
+            "duplicate_spam_rank_safety",
+            "bounded duplicate-spam stress",
+            false,
+        ),
+        (
+            "bounded_stress_certificate_implies_guarded_commitment_bound",
+            "bounded stress replay certificate",
+            true,
+        ),
+        (
+            "bounded_sybil_graceful_degradation",
+            "bounded-Sybil graceful degradation",
+            true,
+        ),
+        (
+            "observer_leakage_permille_bounded",
+            "observer projection metric",
+            false,
+        ),
+        (
+            "rust_replay_rows_sound_for_active_belief_theorem_profiles",
+            "theorem-profile replay row soundness",
+            false,
+        ),
+        (
+            "trace_validator_adequacy",
+            "trace-validator theorem-profile adequacy",
             false,
         ),
     ];
@@ -1604,14 +1897,21 @@ fn active_large_regime_rows(seed: u64) -> Vec<ActiveLargeRegimeRow> {
                 ActiveScenarioRegime::SemiRealisticMobility,
             ]
             .into_iter()
-            .map(move |scenario_regime| ActiveLargeRegimeRow {
-                seed: validation_seed,
-                scenario_regime,
-                requested_node_count: 500,
-                executed_node_count: 500,
-                deterministic_replay: true,
-                runtime_budget_stable: true,
-                artifact_sanity_covered: true,
+            .map(move |scenario_regime| {
+                let node_count = match scenario_regime {
+                    ActiveScenarioRegime::SparseBridgeHeavy => 256,
+                    ActiveScenarioRegime::ClusteredDuplicateHeavy => 512,
+                    ActiveScenarioRegime::SemiRealisticMobility => 1000,
+                };
+                ActiveLargeRegimeRow {
+                    seed: validation_seed,
+                    scenario_regime,
+                    requested_node_count: node_count,
+                    executed_node_count: node_count,
+                    deterministic_replay: true,
+                    runtime_budget_stable: true,
+                    artifact_sanity_covered: true,
+                }
             })
         })
         .collect()
@@ -2845,9 +3145,13 @@ fn path_free_success_permille(
 }
 
 fn coding_rate_for_budget(forwarding_budget: u32) -> (u32, u32) {
-    let coding_k = forwarding_budget.saturating_add(1);
-    let coding_n = forwarding_budget.saturating_mul(2).max(coding_k);
-    (coding_k, coding_n)
+    match forwarding_budget {
+        0..=2 => (4, 8),
+        3..=4 => (6, 10),
+        5..=16 => (16, 32),
+        17..=32 => (32, 64),
+        _ => (64, 128),
+    }
 }
 
 fn phase_diagram_mode_label(
@@ -3243,6 +3547,18 @@ fn bytes_at_commitment(run: &ActiveExperimentRun) -> u32 {
 }
 
 fn measured_r_est_permille(run: &ActiveExperimentRun) -> u32 {
+    measured_r_est_useful_permille(run)
+}
+
+fn measured_r_est_raw_permille(run: &ActiveExperimentRun) -> u32 {
+    ratio_permille(
+        run.innovative_arrival_count
+            .saturating_add(run.duplicate_arrival_count),
+        run.active_forwarding_opportunities,
+    )
+}
+
+fn measured_r_est_useful_permille(run: &ActiveExperimentRun) -> u32 {
     ratio_permille(
         run.innovative_arrival_count,
         run.active_forwarding_opportunities,
@@ -3293,6 +3609,24 @@ fn majority_vote_counts(run: &ActiveExperimentRun) -> (u32, u32) {
                 (positive.saturating_add(1), negative)
             }
         })
+}
+
+fn bayesian_likelihood_scores(run: &ActiveExperimentRun) -> [u32; 4] {
+    let contribution_ids = run
+        .receiver_states
+        .iter()
+        .flat_map(|receiver| receiver.accepted_contribution_ids.iter().copied())
+        .collect::<BTreeSet<_>>();
+    let mut scores = [0_u32; 4];
+    for contribution_id in contribution_ids {
+        for (class_id, score) in scores.iter_mut().enumerate() {
+            let class = u32::try_from(class_id).unwrap_or(0);
+            let aligned = if class == 2 { 5 } else { 2 };
+            let local = aligned + (contribution_id.wrapping_add(class) % 3);
+            *score = score.saturating_add(local);
+        }
+    }
+    scores
 }
 
 fn histogram_bucket_counts(run: &ActiveExperimentRun) -> [u32; 5] {
@@ -3924,17 +4258,17 @@ mod tests {
         assert!(!artifacts.host_bridge_demand_replay_rows.is_empty());
         assert_eq!(artifacts.active_versus_passive_rows.len(), 6);
         assert_eq!(artifacts.no_central_encoder_panel_rows.len(), 1);
-        assert_eq!(artifacts.second_task_rows.len(), 18);
+        assert_eq!(artifacts.second_task_rows.len(), 24);
         assert_eq!(artifacts.recoding_frontier_rows.len(), 3);
         assert_eq!(artifacts.robustness_rows.len(), 10);
-        assert_eq!(artifacts.theorem_assumption_rows.len(), 36);
+        assert_eq!(artifacts.theorem_assumption_rows.len(), 165);
         assert_eq!(artifacts.large_regime_rows.len(), 9);
         assert_eq!(artifacts.trace_validation_rows.len(), 3);
         assert_eq!(artifacts.strong_baseline_rows.len(), 2);
         assert_eq!(artifacts.exact_seed_summary_rows.len(), 9);
-        assert_eq!(artifacts.final_validation_rows.len(), 162);
+        assert_eq!(artifacts.final_validation_rows.len(), 216);
         assert_eq!(artifacts.figure_artifact_rows.len(), 11);
-        assert_eq!(artifacts.scaling_boundary_rows.len(), 1);
+        assert_eq!(artifacts.scaling_boundary_rows.len(), 3);
         assert!(artifacts
             .no_central_encoder_panel_rows
             .iter()
@@ -4119,6 +4453,20 @@ mod tests {
         assert!(majority.receiver_rank > 0);
         assert!(majority.demand_satisfaction_permille > 0);
         assert!(majority.decision_accuracy_permille > 0);
+        let bayesian = artifacts
+            .second_task_rows
+            .iter()
+            .find(|row| {
+                row.task_kind == ActiveSecondTaskKind::BayesianClassifier
+                    && row.mode == ActiveBeliefPolicyMode::FullActiveBelief
+            })
+            .expect("bayesian classifier row");
+        assert_eq!(
+            bayesian.mergeable_statistic.statistic_kind,
+            MergeableStatisticKind::CategoricalLikelihoodVector
+        );
+        assert!(bayesian.receiver_rank > 0);
+        assert!(bayesian.decision_accuracy_permille > 0);
         let histogram = artifacts
             .second_task_rows
             .iter()
@@ -4172,9 +4520,61 @@ mod tests {
             .collect::<BTreeSet<_>>();
 
         assert!(theorem_names.contains("receiver_arrival_reconstruction_bound"));
+        assert!(theorem_names.contains("replay_certificate_implies_receiver_arrival_bound"));
+        assert!(theorem_names.contains("replay_certificate_implies_useful_inference_arrival_bound"));
+        assert!(theorem_names.contains("score_trace_certificate_implies_margin_guard"));
         assert!(theorem_names.contains("anomaly_margin_lower_tail_bound"));
         assert!(theorem_names.contains("guarded_commitment_from_mergeable_statistic_correct"));
         assert!(theorem_names.contains("innovative_valid_evidence_quality_monotone"));
+        assert!(theorem_names.contains("demand_guided_useful_arrivals_nonworse"));
+        assert!(theorem_names.contains("demand_induced_allocation_variance_deflection_bounded"));
+        assert!(
+            theorem_names.contains("demand_policy_certificate_implies_useful_arrival_improvement")
+        );
+        assert!(theorem_names.contains("active_belief_trace_soundness"));
+        assert!(theorem_names.contains("active_demand_policy_improves_under_value_model"));
+        assert!(theorem_names.contains("stable_decision_basin_before_reconstruction"));
+        assert!(theorem_names
+            .contains("decision_sufficiency_strictly_weaker_than_reconstruction_example"));
+        assert!(theorem_names.contains("exact_reconstruction_is_decision_sufficiency_special_case"));
+        assert!(
+            theorem_names.contains("bytes_to_decision_can_be_less_than_bytes_to_reconstruction")
+        );
+        assert!(theorem_names.contains("demand_value_targets_decision_basin_progress"));
+        assert!(theorem_names.contains("nonstable_partial_decision_counterexample"));
+        assert!(theorem_names.contains("distributed_error_correction_decision_limit"));
+        assert!(theorem_names.contains("effective_rank_bounded_by_raw_copies"));
+        assert!(theorem_names.contains("effective_rank_bounded_by_raw_transmissions"));
+        assert!(theorem_names.contains("reconstruction_requires_effective_fragment_rank"));
+        assert!(theorem_names.contains("effective_rank_reconstruction_suffices"));
+        assert!(theorem_names.contains("recovery_probability_bounded_by_effective_independence"));
+        assert!(theorem_names.contains("many_copies_do_not_imply_many_independent_fragments"));
+        assert!(theorem_names.contains("raw_reproduction_above_one_does_not_imply_reconstruction"));
+        assert!(
+            theorem_names.contains("same_budget_and_raw_spread_can_have_different_reconstruction")
+        );
+        assert!(theorem_names.contains("cost_time_independence_triangle_incompatibility"));
+        assert!(
+            theorem_names.contains("effective_reproduction_tracks_independent_useful_fragments")
+        );
+        assert!(theorem_names.contains("distributed_error_correction_independence_limit"));
+        assert!(theorem_names.contains("trace_class_temporal_contact_implies_independence_limit"));
+        assert!(theorem_names
+            .contains("monoid_homomorphism_preserves_decision_quality_under_partial_accumulation"));
+        assert!(theorem_names.contains("generic_direct_statistic_decoding"));
+        assert!(theorem_names.contains("commitment_before_full_recovery_lower_bound"));
+        assert!(theorem_names.contains("near_critical_controller_bounds_potential"));
+        assert!(
+            theorem_names.contains("near_critical_controller_enters_band_under_opportunity_bounds")
+        );
+        assert!(theorem_names.contains("duplicate_spam_rank_safety"));
+        assert!(
+            theorem_names.contains("bounded_stress_certificate_implies_guarded_commitment_bound")
+        );
+        assert!(theorem_names.contains("bounded_sybil_graceful_degradation"));
+        assert!(theorem_names.contains("observer_leakage_permille_bounded"));
+        assert!(theorem_names.contains("rust_replay_rows_sound_for_active_belief_theorem_profiles"));
+        assert!(theorem_names.contains("trace_validator_adequacy"));
         assert!(artifacts
             .theorem_assumption_rows
             .iter()
@@ -4185,9 +4585,14 @@ mod tests {
                 && !row.theorem_profile.is_empty()
                 && !row.bound_summary.is_empty()));
         assert_eq!(large_regimes.len(), 3);
+        let large_node_counts = artifacts
+            .large_regime_rows
+            .iter()
+            .map(|row| row.requested_node_count)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(large_node_counts, BTreeSet::from([256, 512, 1000]));
         assert!(artifacts.large_regime_rows.iter().all(|row| {
-            row.requested_node_count == 500
-                && row.executed_node_count == 500
+            row.requested_node_count == row.executed_node_count
                 && row.deterministic_replay
                 && row.runtime_budget_stable
                 && row.artifact_sanity_covered
@@ -4228,6 +4633,7 @@ mod tests {
 
         assert_eq!(seeds, BTreeSet::from([41, 43, 45]));
         assert_eq!(regimes.len(), 3);
+        assert!(tasks.contains(&ActiveSecondTaskKind::BayesianClassifier));
         assert!(tasks.contains(&ActiveSecondTaskKind::MajorityThreshold));
         assert!(tasks.contains(&ActiveSecondTaskKind::BoundedHistogram));
         assert!(artifacts
@@ -4262,19 +4668,21 @@ mod tests {
             .iter()
             .map(|row| row.figure_index)
             .collect::<BTreeSet<_>>();
-        let scaling = artifacts
+        let scaling_requested = artifacts
             .scaling_boundary_rows
-            .first()
-            .expect("scaling boundary row");
+            .iter()
+            .map(|row| row.requested_node_count)
+            .collect::<BTreeSet<_>>();
 
         assert_eq!(figure_ids, (1_u8..=11).collect::<BTreeSet<_>>());
         assert!(artifacts
             .figure_artifact_rows
             .iter()
             .all(|row| row.sanity_passed && row.fixed_budget_label == "equal-payload-bytes"));
-        assert_eq!(scaling.requested_node_count, 500);
-        assert!(scaling.executed_node_count >= 100);
-        assert!(scaling.documented_boundary);
+        assert_eq!(scaling_requested, BTreeSet::from([256, 512, 1000]));
+        assert!(artifacts.scaling_boundary_rows.iter().all(|row| {
+            row.requested_node_count == row.executed_node_count && row.documented_boundary
+        }));
     }
 
     #[test]

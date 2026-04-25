@@ -652,6 +652,7 @@ certificates that bind existing replay fields into a theorem boundary.
 | `effective_task_independence_bounded_by_raw_transmissions` | Forwarding-event and effective-rank artifact rows | Upper-bound theorem. |
 | `effective_task_independence_connected_to_audit_fields` | Receiver accepted contribution ids, evidence overlap, duplicate count, lineage/contact-diversity rows | Connects task independence to ledgers, receiver histories, lineage/contact diversity, and duplicate discounting. |
 | `direct_statistic_commitment_requires_task_effective_guard` | Guarded commitment and evidence-count rows | Commitment guard theorem. |
+| `monoid_homomorphism_preserves_decision_quality_under_partial_accumulation` | Task-family interface rows plus quality summaries | Partial accumulation preserves task quality only for certified mergeable-statistic quality maps. |
 | `high_raw_spread_does_not_imply_task_effective_independence` | Raw-spread/effective-rank counterexample rows | Negative witness: raw spread is insufficient. |
 | `exactReconstructionEffectiveIndependence` | k-of-n threshold rows | Exact recovery instance. |
 | `additiveAnomalyEffectiveIndependence` | anomaly score-vector rows | Additive anomaly instance. |
@@ -720,6 +721,7 @@ the raw/useful split when discussing near-critical control.
 | Useful-inference replay rows imply useful-arrival assumptions | `replay_certificate_implies_useful_inference_arrival_bound` | `UsefulInferenceReplayCertificate` | theorem-assumption rows + useful contribution floors |
 | Score replay rows imply margin and guard assumptions | `score_trace_certificate_implies_margin_guard` | `ScoreTraceCertificate` | anomaly-localization margin and evidence rows |
 | Demand-policy replay rows imply active improvement assumptions | `demand_policy_certificate_implies_useful_arrival_improvement` | `DemandPolicyReplayCertificate` | active-versus-passive matched ablation rows |
+| Bounded demand variance deflection is replay-visible | `demand_induced_allocation_variance_deflection_bounded` | `DemandVarianceDeflectionCertificate` | demand-byte budget and variance-deflection rows |
 | Finite active-belief trace folds to audited receiver state | `active_belief_trace_soundness` | `ActiveBeliefFiniteTrace` | replay event fold, no-static-path, and commitment-before-recovery rows |
 | Active demand improves under value-order model | `active_demand_policy_improves_under_value_model` | `ActiveDemandPolicyValueModel` | active-versus-passive value and equal-budget rows |
 | Stable decision can precede reconstruction | `stable_decision_basin_before_reconstruction` | `StableDecisionBasinCertificate` | commitment-before-recovery and rank-below-quorum rows |
@@ -740,6 +742,7 @@ the raw/useful split when discussing near-critical control.
 | Low cost, fast time, and high independence are jointly constrained | `cost_time_independence_triangle_incompatibility` | `CostTimeIndependenceBoundary` | limit-triangle rows |
 | Effective reproduction tracks independent useful fragments | `effective_reproduction_tracks_independent_useful_fragments` | `EffectiveReproductionSummary` | effective-R controller rows |
 | Temporal independence limits distributed error correction | `distributed_error_correction_independence_limit` | `DistributedErrorCorrectionIndependenceLimit` | temporal independence theorem-profile rows |
+| Trace-class temporal contact implies the independence limit | `trace_class_temporal_contact_implies_independence_limit` | `TraceClassIndependenceCertificate` | Path A trace-class theorem-profile rows |
 | Guarded commitment decodes the merged statistic | `guarded_commitment_from_mergeable_statistic_correct` | `AdditiveScoreStatistic` | theorem-profile rows + guarded commitment summaries |
 | Compatible commitments do not require identical histories | `compatible_partial_histories_yield_compatible_commitments` | `PartialHistoryWitness` | receiver compatibility summaries |
 | Demand changes control, not merged-statistic semantics | `demand_guided_statistic_acceptance_matches_plain_acceptance` | `AcceptedStatisticContribution` | host/bridge demand replay rows |
@@ -752,6 +755,7 @@ the raw/useful split when discussing near-critical control.
 | Rust theorem-profile rows are narrow proof metadata | `rust_replay_rows_sound_for_active_belief_theorem_profiles` | `ActiveBeliefTheoremProfileReplayRow` | theorem-assumption CSV metadata |
 | Rust replay validator rows are adequate for trace/profile inputs | `trace_validator_adequacy` | `RustReplayValidatorRow` | theorem-assumption and trace-validation metadata |
 | Bounded stress replay rows imply stress budget assumptions | `bounded_stress_certificate_implies_guarded_commitment_bound` | `BoundedStressReplayCertificate` | robustness duplicate, stale-demand, and withholding rows |
+| Bounded-Sybil stress degrades gracefully under signed identities | `bounded_sybil_graceful_degradation` | `BoundedSybilReplayCertificate` | byzantine-fragment injection and malicious-identity ceiling rows |
 | Second task is mergeable and duplicate-safe | `majority_duplicate_non_inflation`, `majority_positive_innovative_increases_vote_count` | `MajorityThresholdState` | majority-threshold second task rows |
 
 ### Active Belief Non-Claim Note

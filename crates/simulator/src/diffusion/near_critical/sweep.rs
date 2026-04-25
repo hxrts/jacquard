@@ -61,7 +61,7 @@ fn sweep_cells(seed: u64) -> Vec<NearCriticalSweepCell> {
         (NearCriticalSweepRegion::NearCritical, 800, 1000),
         (NearCriticalSweepRegion::Supercritical, 1000, 1000),
     ];
-    let budgets = [1, 2, 4];
+    let budgets = [1, 2, 4, 16, 32, 64];
     let mut cells = Vec::new();
     for (region, low, high) in bands {
         for forwarding_budget in budgets {
