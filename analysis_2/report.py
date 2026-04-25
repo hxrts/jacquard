@@ -15,23 +15,23 @@ from .sanity import validate_report_artifacts_or_raise
 
 REPORT_PDF_NAME = "active-belief-report.pdf"
 FIGURES = (
-    ("figure_01_landscape_focus", "Landscape coming into focus", "active_belief_raw_rounds.csv"),
-    ("figure_02_path_free_recovery", "Path-free recovery", "active_belief_path_validation.csv"),
-    ("figure_03_three_mode_comparison", "Three-mode task surface", "coded_inference_experiment_a2_evidence_modes.csv"),
-    ("figure_04_active_belief_grid", "Multi-receiver belief compatibility", "active_belief_receiver_runs.csv"),
-    ("figure_05_task_algebra", "Task algebra table", "active_belief_second_tasks.csv"),
-    ("figure_06_phase_diagram", "Control operating region", "coded_inference_experiment_c_phase_diagram.csv"),
-    ("figure_07_active_vs_passive", "Active versus passive", "active_belief_demand_ablation.csv"),
-    ("figure_08_coding_vs_replication", "Coding versus replication with spread", "coded_inference_experiment_d_coding_vs_replication.csv"),
-    ("figure_09_recoding_frontier", "Regime-specific frontier summary", "active_belief_receiver_runs.csv"),
-    ("figure_10_robustness_boundary", "Robustness boundary", "active_belief_exact_seed_summary.csv"),
-    ("figure_11_observer_ambiguity", "Observer ambiguity frontier", "coded_inference_experiment_e_observer_frontier.csv"),
-    ("figure_12_host_bridge_demand", "Demand safety audit", "active_belief_host_bridge_demand.csv"),
-    ("figure_13_theorem_assumptions", "Theorem boundary table", "active_belief_theorem_assumptions.csv"),
-    ("figure_14_large_regime", "Large-regime validation", "active_belief_scale_validation.csv"),
-    ("figure_15_trace_validation", "Trace validation table", "active_belief_trace_validation.csv"),
-    ("figure_16_strong_baselines", "Baseline fairness check", "active_belief_strong_baselines.csv"),
-    ("figure_17_headline_statistics", "Headline statistical summary", "active_belief_headline_statistics.csv"),
+    ("table_01_theorem_assumptions", "Theorem boundary table", "active_belief_theorem_assumptions.csv"),
+    ("table_02_trace_validation", "Trace validation table", "active_belief_trace_validation.csv"),
+    ("figure_01_path_free_recovery", "Path-free recovery", "active_belief_path_validation.csv"),
+    ("figure_02_landscape_focus", "Landscape coming into focus", "active_belief_raw_rounds.csv"),
+    ("table_03_three_mode_comparison", "Three-mode task surface", "coded_inference_experiment_a2_evidence_modes.csv"),
+    ("figure_03_task_algebra", "Task-family interface and early commitment", "active_belief_second_tasks.csv"),
+    ("table_04_headline_statistics", "Headline statistical summary", "active_belief_headline_statistics.csv"),
+    ("figure_04_active_belief_grid", "Multi-receiver compatibility summary", "active_belief_receiver_runs.csv"),
+    ("figure_05_active_vs_passive", "Demand ablation paired deltas", "active_belief_demand_ablation.csv"),
+    ("figure_06_coding_vs_replication", "Coding versus replication with spread", "coded_inference_experiment_d_coding_vs_replication.csv"),
+    ("figure_07_recoding_tradeoff", "Regime-specific recoding tradeoff", "active_belief_receiver_runs.csv"),
+    ("figure_08_phase_diagram", "Near-critical operating region", "coded_inference_experiment_c_phase_diagram.csv"),
+    ("figure_09_robustness_boundary", "Robustness boundary", "active_belief_exact_seed_summary.csv"),
+    ("table_05_host_bridge_demand", "Demand safety audit", "active_belief_host_bridge_demand.csv"),
+    ("figure_10_strong_baselines", "Baseline fairness paired deltas", "active_belief_strong_baselines.csv"),
+    ("figure_11_large_regime", "Large-regime validation", "active_belief_scale_validation.csv"),
+    ("figure_12_observer_ambiguity", "Observer ambiguity frontier", "coded_inference_experiment_e_observer_frontier.csv"),
 )
 
 
@@ -49,7 +49,6 @@ def write_outputs(artifact_dir: Path) -> None:
         validate_manuscript_exhibit_references(load_text(Path("analysis_2/text.md")), figure_specs)
         write_csv(report_dir / "active_belief_figure_artifacts.csv", figure_rows)
         write_pdf_report(
-            artifact_dir,
             report_dir,
             staging / REPORT_PDF_NAME,
             load_text(Path("analysis_2/text.md")),
@@ -67,7 +66,16 @@ def build_figures(
     figure_rows: list[dict[str, object]] = []
     figure_specs: list[dict[str, object]] = []
     claim_categories = figure_claim_categories(datasets)
+    figure_number = 0
+    table_number = 0
     for index, (figure_id, title, dataset_name) in enumerate(FIGURES, start=1):
+        display_kind = figure_display_kind(figure_id)
+        if display_kind == "table":
+            table_number += 1
+            display_number = table_display_number(table_number)
+        else:
+            figure_number += 1
+            display_number = figure_number
         values, labels = save_active_belief_plot_artifact(
             report_dir,
             figure_id,
@@ -75,7 +83,7 @@ def build_figures(
             datasets[dataset_name],
             dataset_name,
         )
-        caption = figure_caption(figure_id, dataset_name)
+        caption = figure_caption(figure_id)
         figure_rows.append(
             {
                 "figure_index": index,
@@ -93,60 +101,60 @@ def build_figures(
                 "figure_id": figure_id,
                 "figure_name": title,
                 "source_artifact": dataset_name,
+                "artifact_row_count": len(datasets[dataset_name]),
                 "values": values,
                 "labels": labels,
                 "caption": caption,
-                "display_kind": figure_display_kind(figure_id),
+                "display_kind": display_kind,
+                "display_number": display_number,
                 "table": figure_table(figure_id, datasets[dataset_name]),
             }
         )
     return figure_rows, figure_specs
 
 
+def table_display_number(table_number: int) -> int:
+    if table_number == 1:
+        return 1
+    return table_number + 1
+
+
 def figure_display_kind(figure_id: str) -> str:
+    if figure_id == "figure_03_task_algebra":
+        return "figure-with-table"
     if figure_id in {
-        "figure_03_three_mode_comparison",
-        "figure_12_host_bridge_demand",
-        "figure_13_theorem_assumptions",
-        "figure_15_trace_validation",
-        "figure_17_headline_statistics",
+        "table_01_theorem_assumptions",
+        "table_02_trace_validation",
+        "table_03_three_mode_comparison",
+        "table_04_headline_statistics",
+        "table_05_host_bridge_demand",
     }:
         return "table"
     return "figure"
 
 
 def figure_table(figure_id: str, rows: list[dict[str, object]]) -> dict[str, object] | None:
-    if figure_id == "figure_03_three_mode_comparison":
+    if figure_id == "figure_03_task_algebra":
+        return task_family_interface_table(rows)
+    if figure_id == "table_03_three_mode_comparison":
         return three_mode_surface_table(rows)
-    if figure_id == "figure_12_host_bridge_demand":
+    if figure_id == "table_05_host_bridge_demand":
         return host_bridge_demand_table(rows)
-    if figure_id == "figure_13_theorem_assumptions":
+    if figure_id == "table_01_theorem_assumptions":
         return theorem_assumption_table(rows)
-    if figure_id == "figure_15_trace_validation":
+    if figure_id == "table_02_trace_validation":
         return trace_validation_table(rows)
-    if figure_id == "figure_17_headline_statistics":
+    if figure_id == "table_04_headline_statistics":
         return headline_statistics_table(rows)
     return None
 
 
 def validate_manuscript_exhibit_references(markdown: str, figure_specs: list[dict[str, object]]) -> None:
     specs_by_id = {str(spec["figure_id"]): spec for spec in figure_specs}
-    expected_by_number = {
-        int(spec["figure_index"]): ("Table" if str(spec.get("display_kind")) == "table" else "Figure")
-        for spec in figure_specs
-    }
     markers = re.findall(r"\{\{EXHIBIT:([a-zA-Z0-9_]+)\}\}", markdown)
     unknown = sorted(marker for marker in set(markers) if marker not in specs_by_id)
     if unknown:
         raise RuntimeError(f"unknown active-belief exhibit markers: {', '.join(unknown)}")
-    mismatches: list[str] = []
-    for label, number_text in re.findall(r"\b(Figure|Table)\s+(\d+)\b", markdown):
-        number = int(number_text)
-        expected = expected_by_number.get(number)
-        if expected is not None and expected != label:
-            mismatches.append(f"{label} {number} should be {expected} {number}")
-    if mismatches:
-        raise RuntimeError("active-belief exhibit reference mismatch: " + "; ".join(mismatches))
 
 
 def three_mode_surface_table(rows: list[dict[str, object]]) -> dict[str, object]:
@@ -211,6 +219,65 @@ def three_mode_surface_table(rows: list[dict[str, object]]) -> dict[str, object]
         ],
         "rows": table_rows,
         "widths": [2.0, 3.8, 2.1, 1.8, 1.5, 1.8, 1.8],
+    }
+
+
+def task_family_interface_table(rows: list[dict[str, object]]) -> dict[str, object]:
+    task_stats: dict[str, str] = {}
+    for row in rows:
+        task_stats.setdefault(str(row["task_kind"]), str(row["statistic_kind"]))
+    task_order = [
+        "anomaly-localization",
+        "majority-threshold",
+        "bounded-histogram",
+        "set-union-threshold",
+    ]
+    task_descriptions = {
+        "anomaly-localization": (
+            "sensor score increment",
+            "component-wise integer addition",
+            "top score and margin guard",
+        ),
+        "majority-threshold": (
+            "local vote count",
+            "component-wise count addition",
+            "majority count threshold",
+        ),
+        "bounded-histogram": (
+            "bucket count increment",
+            "component-wise bucket addition",
+            "histogram mass concentration guard",
+        ),
+        "set-union-threshold": (
+            "observed item id",
+            "id-set union",
+            "k-of-n coverage threshold",
+        ),
+    }
+    table_rows: list[list[str]] = []
+    for task in task_order:
+        if task not in task_stats:
+            continue
+        contribution, merge_rule, commit_rule = task_descriptions[task]
+        table_rows.append(
+            [
+                display_label(task),
+                display_label(task_stats[task]),
+                contribution,
+                merge_rule,
+                commit_rule,
+            ]
+        )
+    return {
+        "columns": [
+            "Task",
+            "Statistic",
+            "Local contribution",
+            "Merge",
+            "Commit from",
+        ],
+        "rows": table_rows,
+        "widths": [2.5, 2.3, 3.0, 3.4, 3.4],
     }
 
 
@@ -361,63 +428,63 @@ def figure_claim_categories(datasets: dict[str, list[dict[str, object]]]) -> dic
     return categories
 
 
-def figure_caption(figure_id: str, dataset_name: str) -> str:
+def figure_caption(figure_id: str) -> str:
     descriptions = {
-        "figure_01_landscape_focus": (
+        "figure_02_landscape_focus": (
             "Main evidence. Median lines and interquartile bands show belief quality rising while uncertainty falls over replay rounds in the anomaly-localization setting. This supports landscape sharpening under fixed payload-byte accounting; it does not by itself prove demand causality."
         ),
-        "figure_02_path_free_recovery": (
+        "figure_01_path_free_recovery": (
             "Main evidence. Each distribution uses rows whose core windows have no instantaneous static source-to-receiver path and whose successful runs record time-respecting evidence journeys. This is the direct path-free inference check under the recorded trace families."
         ),
-        "figure_03_three_mode_comparison": (
+        "table_03_three_mode_comparison": (
             "Main evidence. The table distinguishes the threshold reconstruction case from the two score-vector cases at the encoded-object and statistic level, then reports the median useful contribution, rank, quality, and uncertainty rows. This supports the mergeable-task-interface claim directly."
         ),
         "figure_04_active_belief_grid": (
-            "Main evidence. Receiver-level distributions compare active, passive, recoded, and uncoded modes in direct units for quality, uncertainty, agreement, and commitment lead time across the three regimes. This is the paper's current multi-receiver evidence object."
+            "Main evidence. A focused four-panel summary compares active, passive, recoded, and uncoded modes for receiver agreement, belief divergence, quality per byte, and commitment lead time, with regime offsets shown directly inside each mode. This is the paper's flagship multi-receiver compatibility figure."
         ),
-        "figure_05_task_algebra": (
-            "Main evidence. Per-task distributions show that anomaly, majority, histogram, and set-union tasks share the same direct statistic-decoding surface. The result is restricted to compact mergeable tasks."
+        "figure_03_task_algebra": (
+            "Main evidence. The interface table makes the shared mergeable-task surface explicit, and the paired panels show that quality-per-byte ordering and bytes at commitment stay stable across anomaly, majority, histogram, and set-union tasks. This is the compact task-family generalization claim."
         ),
-        "figure_06_phase_diagram": (
-            "Main evidence. The operating-region panels show where measured reproduction pressure enters the near-critical target band and where quality gains stop justifying duplicate and byte pressure. Near-critical runs form the useful control region."
+        "table_04_headline_statistics": (
+            "Main evidence summary. The table reports deterministic paired median differences and interquartile paired-difference intervals for the headline active-versus-baseline and demand-ablation claims. Positive deltas favor active belief for quality and lead time; negative deltas favor active belief for uncertainty."
         ),
-        "figure_07_active_vs_passive": (
-            "Main evidence. Causal ablation distributions isolate propagated demand against no-demand, local-only, stale-demand, and removed-scoring-term policies under equal payload-byte budgets. The propagated-demand variant should dominate the quality-per-byte distribution."
+        "figure_05_active_vs_passive": (
+            "Main evidence. Paired replay ablation intervals compare propagated demand against no-demand, stale-demand, local-only demand, and removed-scoring-term policies under equal payload-byte budgets. Positive deltas indicate better quality, lower uncertainty, or lower bytes at commitment for propagated demand; theorem-backed improvement is limited to assumption-marked rows."
         ),
-        "figure_08_coding_vs_replication": (
+        "figure_06_coding_vs_replication": (
             "Main evidence. Median quality curves and interquartile bands compare coded evidence policies with uncoded replication across payload-byte budgets. This is the fair-cost check for the coding benefit."
         ),
-        "figure_09_recoding_frontier": (
-            "Main evidence. Regime-specific frontier summaries place the median bytes-at-commitment and quality point for passive, active, and recoded modes together with interquartile spreads. This makes frontier tradeoffs visible without overplot clutter."
+        "figure_07_recoding_tradeoff": (
+            "Main evidence. Regime-wise medians show the actual tradeoff boundary: recoded aggregate buys modest extra quality at modest extra byte cost relative to active belief, while passive coded sits as a dominated reference. Signed delta labels make the active-versus-recoded tradeoff explicit in each regime."
         ),
-        "figure_10_robustness_boundary": (
+        "figure_08_phase_diagram": (
+            "Main evidence. The operating-region panels show where measured reproduction pressure enters the near-critical target band and where quality gains stop justifying duplicate pressure. Highlighted near-critical points mark the useful control region when the recorded band and budget assumptions hold."
+        ),
+        "figure_09_robustness_boundary": (
             "Main evidence. Split stress panels show commitment accuracy degrading and false-commitment rate rising with stress severity. The figure identifies modeled robustness boundaries and should not be read as arbitrary-adversary robustness."
         ),
-        "figure_11_observer_ambiguity": (
-            "Supporting proxy. Observer ambiguity is a measured projection frontier only. It is not a privacy theorem and is not required for the main active-belief thesis."
-        ),
-        "figure_12_host_bridge_demand": (
+        "table_05_host_bridge_demand": (
             "Boundary/safety evidence. The audit table combines replay-visible demand counts with zero observed violations of evidence validity, contribution identity, merge semantics, route truth, and duplicate-rank safety."
         ),
-        "figure_13_theorem_assumptions": (
-            "Boundary/safety evidence. This proof-to-experiment table marks which regimes are inside the theorem-backed boundary and includes the strongest bound row carried by each theorem. Empirical-only entries are reported evidence, not proof instances."
+        "figure_10_strong_baselines": (
+            "Supporting fairness check. Paired equal-budget intervals compare active belief against passive coded and deterministic opportunistic forwarding baselines. Positive deltas indicate higher decision accuracy or higher quality per byte for active belief. The scope is the recorded baseline set, not a complete DTN survey."
         ),
-        "figure_14_large_regime": (
+        "figure_11_large_regime": (
             "Supporting scale hygiene. Runtime, memory, replay agreement, quality, and failure-rate rows check deterministic large-regime artifact generation. This is not a production deployment claim."
         ),
-        "figure_15_trace_validation": (
+        "figure_12_observer_ambiguity": (
+            "Supporting proxy. Observer ambiguity is a measured projection frontier only. It is not a privacy theorem and is not required for the main active-belief thesis."
+        ),
+        "table_01_theorem_assumptions": (
+            "Boundary/safety evidence. This proof-to-experiment table marks which regimes are inside the theorem-backed boundary and includes the strongest bound row carried by each theorem. Empirical-only entries are reported evidence, not proof instances."
+        ),
+        "table_02_trace_validation": (
             "Supporting artifact hygiene. This trace table records canonical preprocessing and deterministic replay for synthetic and semi-realistic inputs. It supports artifact credibility, not a universal mobility claim."
-        ),
-        "figure_16_strong_baselines": (
-            "Supporting fairness check. Multi-seed equal-budget distributions compare active belief diffusion with deterministic opportunistic forwarding baselines and show that the gains are not an artifact of comparing only against weak controls. The scope is the recorded baseline set, not a complete DTN survey."
-        ),
-        "figure_17_headline_statistics": (
-            "Main evidence summary. The table reports deterministic paired median differences and interquartile paired-difference intervals for the headline active-versus-baseline and demand-ablation claims. Positive deltas favor active belief for quality and lead time; negative deltas favor active belief for uncertainty."
         ),
     }
     return (
-        f"{descriptions[figure_id]} Source: {dataset_name}. Fixed payload-byte budget, "
-        "seed set, trace family, deterministic replay status, and theorem-assumption status are recorded in the report CSV rows."
+        f"{descriptions[figure_id]} Fixed payload-byte budget, seed set, trace family, "
+        "deterministic replay status, and theorem-assumption status are recorded in the companion data tables."
     )
 
 

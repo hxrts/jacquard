@@ -11,9 +11,12 @@ Active belief diffusion lets agents exchange two compact messages. Coded
 evidence carries audited pieces of what an agent has learned. Demand summaries
 carry what would most reduce uncertainty, but never count as evidence. Across
 replayed path-free traces, receivers sharpen beliefs and reach guarded
-commitments before full information transit. Propagated demand improves quality
-per byte over passive controlled coding and uncoded replication, with earlier
-commitment, lower uncertainty, and better receiver compatibility.
+commitments before full information transit. In the replayed regimes,
+propagated demand improves quality per byte over passive controlled coding and
+uncoded replication, with earlier commitment, lower uncertainty, and better
+receiver compatibility. The theorem table marks which performance rows are
+inside explicit finite-horizon assumptions; the remaining rows are empirical
+replay evidence.
 
 The result applies to compact mergeable inference tasks. Local observations
 become deterministic statistic contributions, and the merged statistic yields a
@@ -73,9 +76,10 @@ The paper makes three contributions:
   mechanism cover threshold reconstruction, additive anomaly localization, and a
   small set of other compact tasks.
 - It presents a proof-scoped and replay-backed evaluation. The evaluation shows
-  path-free collective inference in the supported regime. It also shows that
-  propagated demand improves byte-normalized quality and commitment lead time.
-  Demand remains first-class in communication while staying non-evidential.
+  path-free collective inference in the supported regime. It also reports
+  assumption-labeled rows where propagated demand improves byte-normalized
+  quality and commitment lead time. Demand remains first-class in communication
+  while staying non-evidential.
 
 The scope is explicit. The paper does not claim arbitrary machine
 learning inference over intermittent networks. It claims that for compact
@@ -87,23 +91,23 @@ central aggregator.
 
 The closest literature is not a single field. It is a stack of adjacent systems
 and AI literatures. Federated inference and collaborative DNN inference at the
-edge distribute model execution across devices or infrastructure. Active belief
-diffusion instead distributes recoverable evidence through an intermittent
-contact field.
+edge distribute model execution across devices or infrastructure [5, 9]. Active
+belief diffusion instead distributes recoverable evidence through an
+intermittent contact field.
 
 Coded computation and coded inference use redundancy to tolerate stragglers or
 unavailable workers. Parity-model prediction serving is a representative
-example. Data-availability systems such as ZODA also show that sampled coded
-symbols can serve both checking and reconstruction. Active belief diffusion
-uses the analogous systems principle for temporal-network inference. Evidence
-movement, validity records, and receiver updates should improve reconstruction
-or decision quality, not merely report telemetry.
+example [6, 7]. Data-availability systems such as ZODA also show that sampled
+coded symbols can serve both checking and reconstruction [4]. Active belief
+diffusion uses the analogous systems principle for temporal-network inference.
+Evidence movement, validity records, and receiver updates should improve
+reconstruction or decision quality, not merely report telemetry.
 
 Multi-agent reinforcement learning and active sensing study what agents should
-communicate or observe. Belief propagation and active inference provide useful
-vocabulary for local belief updates. These lines usually assume that a
-communication graph or coordination substrate is available enough to carry the
-messages. Here the contact field is part of the problem.
+communicate or observe [8, 12]. Belief propagation and active inference provide
+useful vocabulary for local belief updates [3, 11]. These lines usually assume
+that a communication graph or coordination substrate is available enough to
+carry the messages. Here the contact field is part of the problem.
 
 The positive distinction is bounded replay-visible inference over mergeable
 sufficient statistics. Coded evidence carries audited statistic contributions.
@@ -112,10 +116,11 @@ non-evidential. This combination is the paper's contribution.
 
 The privacy and traffic-analysis literatures are also relevant. Statistical
 disclosure attacks, Bayesian traffic analysis, and MANET anonymity work show
-that communication metadata can reveal relationships. This paper reports
-observer ambiguity only as a proxy. It does not prove privacy. The Triangle of
-Forgetting boundary is a useful guardrail: duplicate non-inflation and bounded
-retention are not the same as post-revocation forgetting or temporal secrecy.
+that communication metadata can reveal relationships [1, 2, 10]. This paper
+reports observer ambiguity only as a proxy. It does not prove privacy. The
+Triangle of Forgetting boundary is a useful guardrail: duplicate non-inflation
+and bounded retention are not the same as post-revocation forgetting or
+temporal secrecy.
 
 ## 3. Running Example
 
@@ -249,20 +254,28 @@ comparisons fix payload-byte budget. Recoded fragments carry parent
 contribution ids. The receiver counts canonical contribution ids rather than
 copies.
 
-The formal contribution is intentionally scoped. The proof-backed rows apply
-to the synthetic sparse-bridge and clustered duplicate-heavy regimes. The
-semi-realistic mobility trace is empirical support only.
+The formal contribution is intentionally scoped. The Lean results split into
+unconditional safety, algebra, and accounting facts, plus finite-horizon
+performance lemmas whose assumptions are explicit in Table 1. The
+performance lemmas do not derive arrival floors, margin conditions, controller
+band entry, or stress bounds from arbitrary traces. The proof-backed
+performance rows apply to the synthetic sparse-bridge and clustered
+duplicate-heavy regimes. The semi-realistic mobility trace is empirical support
+only.
 
 Theorem 1, receiver arrival. The Lean theorem
 `receiver_arrival_reconstruction_bound` states that a valid finite-horizon
 arrival floor that reaches the required rank supports exact reconstruction in
-the threshold case. In plain terms, distinct valid contributions matter.
-Duplicates do not increase receiver rank.
+the threshold case. This is conditional on the arrival-floor assumption; it is
+not a guarantee that every trace reaches the floor. In plain terms, distinct
+valid contributions matter. Duplicates do not increase receiver rank.
 
 Theorem 2, useful inference arrival. The Lean theorem
 `useful_inference_arrival_bound` states that enough task-relevant contribution
 mass can support a useful decision before full raw recovery. This is the formal
-bridge from reconstruction to inference over a sufficient statistic.
+bridge from reconstruction to inference over a sufficient statistic, again
+under the explicit useful-arrival condition rather than over arbitrary contact
+histories.
 
 Theorem 3, guarded anomaly commitment. The Lean theorems
 `anomaly_margin_lower_tail_bound` and
@@ -281,11 +294,12 @@ Theorem 5, progress accounting. The Lean theorem
 `inference_potential_drift_progress` packages the controller-side accounting
 surface. It records useful progress against duplicate, storage, and
 transmission pressure. This is the proof-side companion to the operating-region
-plot.
+plot when the measured controller row satisfies the stated band and budget
+assumptions.
 
-Table 13 summarizes that boundary.
+Table 1 summarizes that boundary.
 
-{{EXHIBIT:figure_13_theorem_assumptions}}
+{{EXHIBIT:table_01_theorem_assumptions}}
 
 ## 6. Experimental Design
 
@@ -296,7 +310,7 @@ runs require time-respecting evidence journeys. Nodes produce local noisy
 observations. Receivers maintain integer score landscapes. Demand summaries are
 derived from uncertainty, competitor margins, and missing contribution classes.
 
-The protocol table makes the replay surface explicit.
+Table 2. Experimental protocol surface.
 
 | Item | Implemented setting |
 | --- | --- |
@@ -341,17 +355,18 @@ scoring, or reproduction control while preserving byte accounting.
 Trace validation and large-regime replay hygiene are supporting checks rather
 than headline claims. They establish that the evaluation is deterministic,
 canonicalized, and reproducible before the substantive comparisons are read.
-The trace-validation table is included here so the artifact hygiene is visible
+Table 3 records the trace-validation rows so the artifact hygiene is visible
 before the substantive comparisons.
 
-{{EXHIBIT:figure_15_trace_validation}}
+{{EXHIBIT:table_02_trace_validation}}
 
 ## 7. Results
 
 The empirical story has four central claims. First, useful belief formation can
 occur in windows with no static end-to-end path. Second, the mechanism is not
 limited to threshold delivery. It operates on a larger mergeable-task surface.
-Third, propagated demand improves byte-normalized collective inference. Fourth,
+Third, propagated demand improves byte-normalized collective inference in the
+matched replay rows, with theorem status reported separately by regime. Fourth,
 the gains persist under fair-cost comparisons and remain visible under explicit
 stress and baseline checks.
 
@@ -361,123 +376,141 @@ In the path-validation traces, every recorded run has no instantaneous static
 path in the core window and does have a time-respecting evidence journey. Under
 that condition, median path-free success is 885 permille for active belief
 diffusion, 805 for passive controlled coded diffusion, 908 for recoded
-aggregation, and 585 for uncoded replication. The point of Figure 2 is
+aggregation, and 585 for uncoded replication. The point of Figure 1 is
 therefore not merely that delivery eventually happens. The point is that useful
 inference progresses through temporal contact history rather than through a
 hidden stable path.
 
-{{EXHIBIT:figure_02_path_free_recovery}}
+{{EXHIBIT:figure_01_path_free_recovery}}
 
-Figure 1 shows what that progress looks like at the receiver. As innovative
-evidence arrives, quality rises while margin and uncertainty move in the
-expected direction. The relevant phenomenon is the formation of a usable belief
+Figure 2 shows what that progress looks like at the receiver. As innovative
+evidence arrives, quality rises while uncertainty falls in the expected
+direction. The relevant phenomenon is the formation of a usable belief
 landscape before the receiver has the full raw information object.
 
-{{EXHIBIT:figure_01_landscape_focus}}
+{{EXHIBIT:figure_02_landscape_focus}}
 
 ### 7.2 The Mechanism Is Larger Than Threshold Delivery
 
-Table 3 separates the three evidence-origin modes at the task-object level.
+Table 4 separates the three evidence-origin modes at the task-object level.
 The threshold case remains important because it is the cleanest sanity check,
 but it is not the distinctive case. The distinctive claim appears in the
 distributed-evidence and recoded-aggregation modes. There, fragments carry
 statistic contributions rather than opaque bytes for later centralized
 reduction.
 
-{{EXHIBIT:figure_03_three_mode_comparison}}
+{{EXHIBIT:table_03_three_mode_comparison}}
 
-Figure 5 extends the same discipline to a small task family beyond anomaly
-localization. The contribution is not that every learning problem is mergeable.
-It is that several useful compact tasks share the same direct statistic-decoding
-surface and therefore admit the same transport and proof discipline.
+Figure 3 makes the task-family claim explicit. The interface table shows that
+each task admits a compact local contribution, a merge rule over a sufficient
+statistic, and a guarded commit rule that reads directly from that merged
+statistic. The two panels show the corresponding empirical pattern:
+quality-per-byte ordering stays stable across the task family, and bytes at
+commitment remain mode-specific but task-stable. The contribution is not that
+the four tasks require separate mechanisms. It is that one
+mergeable-statistic interface supports the same early-commitment discipline
+across several qualitatively different tasks.
 
-{{EXHIBIT:figure_05_task_algebra}}
+{{EXHIBIT:figure_03_task_algebra}}
 
-### 7.3 Propagated Demand Improves Byte-Normalized Collective Inference
+### 7.3 Propagated Demand Improves Replay-Scoped Collective Inference
 
 Under a fixed 4096-byte budget, active belief diffusion reaches median quality
 per byte 887 permille in the multi-receiver anomaly-localization setting. It
 also reaches receiver agreement 888 permille, collective uncertainty 109
 permille, commitment lead time 3 rounds, and bytes at commitment 1934. The
 corresponding passive controlled coded medians are 807, 862, 161, 1, and 2074.
-Uncoded replication reaches 587, 788, 381, 1, and 2508. Active demand improves
-byte-normalized quality by about 10 percent over passive controlled coding and
-about 51 percent over uncoded replication. It reduces median uncertainty by
-about 32 percent and 71 percent respectively.
+Uncoded replication reaches 587, 788, 381, 1, and 2508. In these replayed rows,
+active demand improves byte-normalized quality by about 10 percent over passive
+controlled coding and about 51 percent over uncoded replication. It reduces
+median uncertainty by about 32 percent and 71 percent respectively.
 
-Table 17 reports the paired deterministic summaries behind these headline
+Table 5 reports the paired deterministic summaries behind these headline
 claims. The unit of pairing is seed, regime, receiver, and task for receiver
 runs. It is seed, regime, and task for demand-ablation rows. The table uses
 paired median differences and interquartile paired-difference intervals rather
 than p-values.
 
-{{EXHIBIT:figure_17_headline_statistics}}
+{{EXHIBIT:table_04_headline_statistics}}
 
-Figure 4 shows these gains as receiver-level distributions in direct units
-across the clustered, mobility, and sparse-bridge regimes rather than as
-normalized deltas from one baseline. That makes the collective-belief claim
-visible at the level of actual receiver outcomes. It also makes the
-commitment-lead-time story concrete. Active belief diffusion typically gives
-about two extra rounds of lead time over passive controlled coding and uncoded
-replication. It also reduces receiver-to-receiver divergence.
+Figure 4 compresses the multi-receiver story into the four outcome surfaces
+that matter most: receiver agreement, belief divergence, quality per byte, and
+commitment lead time. Across clustered, mobility, and sparse-bridge regimes,
+active belief remains in the high-agreement, low-divergence region while also
+retaining the best or near-best quality per byte and about two extra rounds of
+lead time over passive controlled coding and uncoded replication. That is the
+paper's clearest evidence that the mechanism improves compatibility of local
+belief states rather than merely moving more bytes.
 
 {{EXHIBIT:figure_04_active_belief_grid}}
 
-The causal ablation supports the same conclusion. Propagated demand reaches
-median quality per byte 621.5 permille with median uncertainty 328.5,
-innovative arrivals 15, duplicate count 10, and bytes at commitment 2154.
-No-demand drops to 517.5, 432.5, 10, 13, and 2570. Stale demand also degrades
-to 535.5 quality per byte and 414.5 uncertainty. The improvement therefore
-comes from current propagated uncertainty summaries changing allocation toward
-useful evidence. It does not come from any change in evidence semantics.
+The matched ablation supports the same conclusion within the deterministic
+replay package, and the paired-delta view now makes the effect easier to read.
+Propagated demand reaches median quality per byte 625 permille with median
+uncertainty 325, innovative arrivals 16,
+duplicate count 10, and bytes at commitment 2141. No-demand drops to 518, 430,
+10, 13, and 2566. Stale demand drops to 536 quality per byte, 413 uncertainty,
+and 2497 bytes at commitment. Across matched seed, regime, and task groups,
+propagated demand gains 108 quality-per-byte points over no-demand
+interquartile range 98 to 113 and saves 426 bytes at commitment interquartile
+range 393 to 459. The improvement therefore comes from current propagated
+uncertainty summaries changing allocation toward useful evidence. It does not
+come from any change in evidence semantics. The formal theorem covers the
+non-evidential safety and the assumption-scoped improvement surface; the
+replay ablation supplies the measured policy comparison.
 
-{{EXHIBIT:figure_07_active_vs_passive}}
+{{EXHIBIT:figure_05_active_vs_passive}}
 
 ### 7.4 Coding And Recoding Beat Replication Under Fair Cost Accounting
 
 At the 4096-byte comparison point, active coded diffusion reaches median
-quality 926 permille with duplicate count 8. Passive controlled coded reaches
-846 with duplicate count 11. Uncoded replication reaches 626 with duplicate
-count 24. Coded diffusion is therefore better both in decision quality and in
+quality 910 permille with duplicate count 7. Passive controlled coded reaches
+822 with duplicate count 11. Uncoded replication reaches 589 with duplicate
+count 25. Coded diffusion is therefore better both in decision quality and in
 duplicate pressure under the same payload budget.
 
-Figure 8 shows the same result with interquartile spread bands over the budget
-axis, so the coding advantage reads as measured variation rather than as a
-single schematic curve.
+Figure 6 shows the same result with interquartile spread bands over the budget
+axis and direct labels at the 4096-byte comparison point, so the coding
+advantage reads as measured variation rather than as a single schematic curve.
 
-{{EXHIBIT:figure_08_coding_vs_replication}}
+{{EXHIBIT:figure_06_coding_vs_replication}}
 
-Recoding modestly improves the frontier further. In the receiver-run summaries,
+Recoding modestly improves the tradeoff further. In the receiver-run summaries,
 recoded aggregation reaches median quality per byte 910 permille, receiver
 agreement 896 permille, collective uncertainty 109 permille, commitment lead
-time 3 rounds, and bytes at commitment 1988. That slightly dominates passive
-controlled coding. It is also competitive with, or better than, active belief
-diffusion on the quality-byte frontier. It still respects the same
-contribution-ledger discipline. Figure 9 shows this frontier by regime with
-median points and interquartile spreads rather than with an overplotted cloud.
+time 3 rounds, and bytes at commitment 1988. That strictly dominates passive
+controlled coding. Against active belief, the gain is narrower: recoding buys
+about 23 extra quality-per-byte points at about 54 extra bytes at commitment,
+with the same 3-round lead time. It still respects the same
+contribution-ledger discipline. Figure 7 now shows that regime-wise tradeoff
+directly, with passive coded demoted to a dominated reference and with the
+active-versus-recoded deltas annotated in each regime.
 
-{{EXHIBIT:figure_09_recoding_frontier}}
+{{EXHIBIT:figure_07_recoding_tradeoff}}
 
 ### 7.5 Control And Robustness Boundaries Remain Visible
 
-The coded mechanism is only useful if diffusion pressure stays bounded. Figure 6
-makes the operating region explicit. The near-critical runs are the ones that
-enter the target `R_est` band and obtain the best quality gains without paying
-the duplicate and byte costs seen in the supercritical runs. The relevant
-result is not one globally optimal setting. The controller exposes a visible
-operating region rather than hiding cost inside unbounded diffusion.
+The coded mechanism is only useful if diffusion pressure stays bounded. Figure 8
+makes the operating region explicit. The highlighted near-critical runs are the
+ones that enter the target `R_est` band and obtain the best quality gains
+without paying the duplicate costs seen in the supercritical runs. The
+relevant result is not one globally optimal setting. The controller exposes a
+visible operating region rather than hiding cost inside unbounded diffusion.
+The theorem-backed controller statement is conditional on the achieved band and
+hard budget caps; it does not prove arbitrary controller convergence.
 
-{{EXHIBIT:figure_06_phase_diagram}}
+{{EXHIBIT:figure_08_phase_diagram}}
 
-Figure 10 then gives the stress boundary. Median commitment accuracy is 955
+Figure 9 then gives the stress boundary. Median commitment accuracy is 955
 permille at severity 1, 880 at severity 2, and 805 at severity 3. Median
 false-commitment rate rises from 14.5 to 22.5 to 30.5 permille. At severities
 4 and 5, false commitment reaches 38.5 and 46.5 permille. The quality gains
 also flatten. This is a useful robustness boundary. The method remains
-effective through moderate modeled stress. The degradation point is explicit
-rather than hidden.
+effective through moderate modeled stress in the replayed stress surface. The
+degradation point is explicit rather than hidden, and the claim is not
+arbitrary-adversary robustness.
 
-{{EXHIBIT:figure_10_robustness_boundary}}
+{{EXHIBIT:figure_09_robustness_boundary}}
 
 ### 7.6 Demand Is First-Class In Communication But Not Evidential
 
@@ -485,11 +518,11 @@ The safety claim is architectural rather than purely statistical. Demand
 summaries are replay-visible protocol objects that influence forwarding,
 retention, and recoding decisions. They do not validate evidence, create
 contribution identity, change merge semantics, publish route truth, or inflate
-duplicate rank. Table 12 records both facts directly. Active variants carry
+duplicate rank. Table 6 records both facts directly. Active variants carry
 replay-visible demand summaries. All forbidden evidential side effects stay at
 zero.
 
-{{EXHIBIT:figure_12_host_bridge_demand}}
+{{EXHIBIT:table_05_host_bridge_demand}}
 
 This separation matters to the paper's AI framing. The system exchanges bounded
 summaries of both learned information and remaining uncertainty. Only coded
@@ -499,21 +532,19 @@ evidence can change the sufficient statistic.
 
 The strong-baseline comparison is a fairness check, not the conceptual center
 of the paper. Its job is to show that the reported gains are not an artifact of
-comparing only against obviously weak opportunistic policies. In the baseline
-summary, active belief diffusion stays ahead of passive controlled coded
-diffusion, contact-frequency opportunism, epidemic forwarding, spray-and-wait,
-random forwarding, and uncoded replication. The budget accounting is the same.
+comparing only against obviously weak opportunistic policies. The paired-delta
+view makes that easier to read: under the same byte budget, active belief stays
+ahead of passive controlled coded diffusion, contact-frequency opportunism,
+epidemic forwarding, spray-and-wait, random forwarding, and uncoded
+replication.
 
-{{EXHIBIT:figure_16_strong_baselines}}
+{{EXHIBIT:figure_10_strong_baselines}}
 
 Large-regime replay validation and observer ambiguity remain supporting
-material. They are useful for reproducibility and scope. They are not required
-to establish the main path-free inference, active-demand,
-multi-receiver compatibility, or fair-cost coding claims in the paper body.
-
-{{EXHIBIT:figure_14_large_regime}}
-
-{{EXHIBIT:figure_11_observer_ambiguity}}
+material in the supplementary figure package. They are useful for
+reproducibility and scope. They are not required to establish the main
+path-free inference, active-demand, multi-receiver compatibility, or
+fair-cost coding claims in the paper body.
 
 ## 8. Contributions
 
@@ -525,17 +556,19 @@ This paper makes three contributions:
 2. a mergeable-task interface that makes direct statistic decoding the primary
    object. Exact reconstruction is one threshold special case;
 3. a proof-scoped and replay-backed empirical case. Path-free collective
-   inference is possible in the supported regime. Demand improves allocation
-   under equal byte budgets. The mechanism has explicit safety and stress
-   boundaries.
+   inference is possible in the supported regime. Demand improves allocation in
+   matched equal-byte replay rows, with theorem-backed performance claims
+   limited to rows satisfying the stated assumptions. The mechanism has explicit
+   safety and stress boundaries.
 
 ## 9. Limitations
 
 The paper covers compact mergeable sufficient statistics, not arbitrary machine
-learning inference. Some claims are deterministic theorem-backed across the
-whole supported mechanism boundary; the finite-horizon probabilistic claims are
-theorem-backed only in the sparse-bridge and semi-realistic mobility regimes
-and stay empirical-only in the clustered duplicate-heavy regime. Observer
+learning inference. Safety, algebra, and accounting claims are deterministic
+theorems over the supported mechanism boundary. Performance claims that depend
+on arrival, margin, controller-band, or stress assumptions are theorem-backed
+only in the sparse-bridge and clustered duplicate-heavy regimes and stay
+empirical-only in the semi-realistic mobility regime. Observer
 ambiguity is a traffic-analysis proxy, not a formal privacy claim. The
 opportunistic baseline set is strong enough to be informative. It is not a
 complete survey of delay-tolerant networking.
@@ -546,9 +579,24 @@ In temporal networks with no stable path in the decision window and no central
 aggregator, agents can still form useful collective beliefs. They do this by
 exchanging two bounded objects. Coded evidence merges into an auditable
 sufficient statistic. Demand summaries expose what evidence would most reduce
-current uncertainty without becoming evidence themselves. For compact mergeable
-tasks, that is enough to obtain earlier guarded commitment, better quality per
-byte, lower uncertainty, and more compatible receiver-side beliefs from
-different temporal histories. The core result is receiver-side commitment from
-partial audited statistics. It is not route delivery followed by later
-post-processing.
+current uncertainty without becoming evidence themselves. For compact
+mergeable tasks in the reported replay and assumption-backed regimes, that is
+enough to obtain earlier guarded commitment, better quality per byte, lower
+uncertainty, and more compatible receiver-side beliefs from different temporal
+histories. The core result is receiver-side commitment from partial audited
+statistics. It is not route delivery followed by later post-processing.
+
+## References
+
+1. Huseyin Can. "Anonymous Communications in Mobile Ad Hoc Networks." Master's Thesis IMM-Thesis-2006-91, Technical University of Denmark (DTU), 2006. https://www2.imm.dtu.dk/pubdb/edoc/imm4876.pdf
+2. George Danezis. "Statistical Disclosure Attacks: Traffic Confirmation in Open Environments." IFIP TC11 International Conference on Information Security (SEC), 2003. https://www0.cs.ucl.ac.uk/staff/G.Danezis/papers/StatDisclosure.pdf
+3. Stefano Ermon, Carla P. Gomes, Bart Selman. "Collaborative Multiagent Gaussian Inference in a Dynamic Environment Using Belief Propagation." International Conference on Autonomous Agents and Multi-Agent Systems (AAMAS), 2010. https://cs.stanford.edu/~ermon/papers/aamas2010_final.pdf
+4. Alex Evans, Nicolas Mohnblatt, Guillermo Angeris. "ZODA: Zero-Overhead Data Availability." IACR Cryptology ePrint Archive 2025/034, December 2024. https://eprint.iacr.org/2025/034
+5. Boyu Fan, Xiang Su, Sasu Tarkoma, Pan Hui. "Federated Inference: Towards Collaborative and Privacy-Preserving Inference over Edge Devices." Proceedings of the ACM SIGCOMM 2025 Posters and Demos, 2025. https://dl.acm.org/doi/10.1145/3744969.3748418
+6. Divyansh Jhunjhunwala, Neharika Jali, Gauri Joshi, Shiqiang Wang. "Erasure Coded Neural Network Inference via Fisher Averaging." IEEE International Symposium on Information Theory (ISIT), 2024. https://arxiv.org/abs/2409.01420
+7. Jack Kosaian, K. V. Rashmi, Shivaram Venkataraman. "Parity Models: Erasure-Coded Resilience for Prediction Serving Systems." ACM Symposium on Operating Systems Principles (SOSP), 2019. https://www.cs.cmu.edu/~rvinayak/papers/sosp2019parity-models.pdf
+8. Ben McClusky. "Dynamic Graph Communication for Decentralised Multi-Agent Reinforcement Learning." arXiv:2501.00165, 2025. https://arxiv.org/abs/2501.00165
+9. Weiqing Ren, Yuben Qu, Chao Dong, Yuqian Jing, Hao Sun, Qihui Wu, Song Guo. "A Survey on Collaborative DNN Inference for Edge Intelligence." Machine Intelligence Research, vol. 20, pp. 370-395, 2023. https://arxiv.org/abs/2207.07812
+10. Carmela Troncoso, George Danezis. "The Bayesian Traffic Analysis of Mix Networks." ACM Conference on Computer and Communications Security (CCS), 2009. https://carmelatroncoso.com/papers/Troncoso-ccs09.pdf
+11. Thijs W. van de Laar, Bert de Vries. "Simulating Active Inference Processes by Message Passing." Frontiers in Robotics and AI, 2019. https://doi.org/10.3389/frobt.2019.00020
+12. Changxi Zhu, Mehdi Dastani, Shihan Wang. "A Survey of Multi-Agent Deep Reinforcement Learning with Communication." Autonomous Agents and Multi-Agent Systems, vol. 38, no. 1, 2024. https://link.springer.com/article/10.1007/s10458-023-09633-6

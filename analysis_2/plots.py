@@ -56,38 +56,38 @@ def render_figure(
 ) -> alt.TopLevelMixin:
     if not rows:
         return _placeholder_chart(width, height, "No active-belief rows available")
-    if figure_id == "figure_01_landscape_focus":
+    if figure_id == "figure_02_landscape_focus":
         return landscape_distribution(title, rows, width, height)
-    if figure_id == "figure_02_path_free_recovery":
+    if figure_id == "figure_01_path_free_recovery":
         return path_free_distribution(title, rows, width, height)
-    if figure_id == "figure_03_three_mode_comparison":
+    if figure_id == "table_03_three_mode_comparison":
         return evidence_mode_small_multiples(title, rows, width, height)
     if figure_id == "figure_04_active_belief_grid":
         return receiver_metric_grid(title, rows, width, height)
-    if figure_id == "figure_05_task_algebra":
+    if figure_id == "figure_03_task_algebra":
         return task_baseline_distribution(title, rows, width, height)
-    if figure_id == "figure_06_phase_diagram":
+    if figure_id == "figure_08_phase_diagram":
         return phase_small_multiples(title, rows, width, height)
-    if figure_id == "figure_07_active_vs_passive":
-        return demand_ablation_boxplot(title, rows, width, height)
-    if figure_id == "figure_08_coding_vs_replication":
+    if figure_id == "figure_05_active_vs_passive":
+        return demand_ablation_paired_deltas(title, rows, width, height)
+    if figure_id == "figure_06_coding_vs_replication":
         return coding_cost_curve(title, rows, width, height)
-    if figure_id == "figure_09_recoding_frontier":
-        return recoding_frontier_scatter(title, rows, width, height)
-    if figure_id == "figure_10_robustness_boundary":
+    if figure_id == "figure_07_recoding_tradeoff":
+        return recoding_tradeoff_summary(title, rows, width, height)
+    if figure_id == "figure_09_robustness_boundary":
         return robustness_small_multiples(title, rows, width, height)
-    if figure_id == "figure_11_observer_ambiguity":
+    if figure_id == "figure_12_observer_ambiguity":
         return observer_proxy_boxplots(title, rows, width, height)
-    if figure_id == "figure_12_host_bridge_demand":
+    if figure_id == "table_05_host_bridge_demand":
         return demand_safety_matrix(title, rows, width, height)
-    if figure_id == "figure_13_theorem_assumptions":
+    if figure_id == "table_01_theorem_assumptions":
         return theorem_assumption_matrix(title, rows, width, height)
-    if figure_id == "figure_14_large_regime":
+    if figure_id == "figure_11_large_regime":
         return scale_validation_panels(title, rows, width, height)
-    if figure_id == "figure_15_trace_validation":
+    if figure_id == "table_02_trace_validation":
         return trace_validation_matrix(title, rows, width, height)
-    if figure_id == "figure_16_strong_baselines":
-        return baseline_boxplot(title, rows, width, height)
+    if figure_id == "figure_10_strong_baselines":
+        return baseline_paired_deltas(title, rows, width, height)
     return _placeholder_chart(width, height, f"No renderer for {figure_id}")
 
 
@@ -95,7 +95,6 @@ def landscape_distribution(title: str, rows: list[dict[str, object]], width: int
     grouped: dict[tuple[str, int, str], list[int]] = defaultdict(list)
     metrics = {
         "quality": "merged_statistic_quality_permille",
-        "margin": "top_hypothesis_margin",
         "uncertainty": "uncertainty_permille",
     }
     for row in rows:
@@ -117,7 +116,8 @@ def landscape_distribution(title: str, rows: list[dict[str, object]], width: int
         }
         for (mode, round_index, metric), scores in grouped.items()
     ]
-    base = alt.Chart(alt.InlineData(values=values)).encode(
+    data = alt.InlineData(values=values)
+    base = alt.Chart(data).encode(
         x=alt.X("round:Q", title="Round", axis=alt.Axis(tickMinStep=1)),
         color=alt.Color("mode:N", legend=alt.Legend(title="Mode")),
         tooltip=["mode:N", "metric:N", "round:Q", "low:Q", "median:Q", "high:Q"],
@@ -127,7 +127,17 @@ def landscape_distribution(title: str, rows: list[dict[str, object]], width: int
         y2="low:Q",
     )
     line = base.mark_line(point=True, strokeWidth=2.3).encode(y="median:Q")
-    chart = alt.layer(band, line).properties(width=width // 4, height=height).facet(
+    end_labels = (
+        base.transform_filter(alt.datum.round == 6)
+        .mark_text(dx=10, dy=-4, font=PLOT_FONT, fontSize=9, color="#334155")
+        .encode(
+            x=alt.X("round:Q", title="Round", axis=alt.Axis(tickMinStep=1)),
+            y=alt.Y("median:Q", title="Permille"),
+            text="mode:N",
+            color=alt.Color("mode:N", legend=None),
+        )
+    )
+    chart = alt.layer(band, line, end_labels).properties(width=width // 3, height=height).facet(
         column=alt.Column("metric:N", title=None),
     )
     chart = chart.properties(title=title)
@@ -145,17 +155,30 @@ def path_free_distribution(title: str, rows: list[dict[str, object]], width: int
         }
         for row in rows
     ]
-    chart = (
-        alt.Chart(alt.InlineData(values=values))
-        .mark_boxplot(size=52)
-        .encode(
-            x=alt.X("mode:N", title=None, sort=mode_order, axis=alt.Axis(labelAngle=-20)),
-            y=alt.Y("success:Q", title="Path-free success (permille)", scale=alt.Scale(domain=[0, 1000])),
-            color=alt.Color("mode:N", legend=None),
-            tooltip=["mode:N", "success:Q", "static path absent:N", "journey:N"],
-        )
-        .properties(width=width, height=height, title=title)
+    data = alt.InlineData(values=values)
+    base = alt.Chart(data).encode(
+        x=alt.X("mode:N", title=None, sort=mode_order, axis=alt.Axis(labelAngle=-20)),
+        y=alt.Y("success:Q", title="Path-free success (permille)", scale=alt.Scale(domain=[0, 1000])),
+        color=alt.Color("mode:N", legend=None),
+        tooltip=["mode:N", "success:Q", "static path absent:N", "journey:N"],
     )
+    box = base.mark_boxplot(size=52)
+    medians = []
+    grouped: dict[str, list[int]] = defaultdict(list)
+    for row in values:
+        grouped[str(row["mode"])].append(int(row["success"]))
+    for mode, scores in grouped.items():
+        medians.append({"mode": mode, "median": quantile(scores, 0.50), "label": str(quantile(scores, 0.50))})
+    labels = (
+        alt.Chart(alt.InlineData(values=medians))
+        .mark_text(dy=-10, font=PLOT_FONT, fontSize=10, color="#334155")
+        .encode(
+            x=alt.X("mode:N", sort=mode_order),
+            y=alt.Y("median:Q"),
+            text="label:N",
+        )
+    )
+    chart = alt.layer(box, labels).properties(width=width, height=height, title=title)
     return _configure_chart(chart)
 
 
@@ -212,17 +235,18 @@ def evidence_mode_small_multiples(
 
 def receiver_metric_grid(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
     metric_fields = [
-        ("quality per byte", "quality_per_byte_permille"),
         ("receiver agreement", "receiver_agreement_permille"),
-        ("collective uncertainty", "collective_uncertainty_permille"),
+        ("belief divergence", "belief_divergence_permille"),
+        ("quality per byte", "quality_per_byte_permille"),
         ("commitment lead time", "commitment_lead_time_rounds"),
     ]
     mode_order = [
         "active belief",
         "passive coded",
-        "recoded aggregate",
         "uncoded",
+        "recoded aggregate",
     ]
+    regime_order = ["clustered", "mobility", "sparse bridge"]
     values = []
     for row in rows:
         mode = str(row["mode"])
@@ -243,45 +267,138 @@ def receiver_metric_grid(title: str, rows: list[dict[str, object]], width: int, 
                     "value": int_value(row, field),
                 }
             )
-    chart = (
-        alt.Chart(alt.InlineData(values=values))
-        .mark_boxplot(size=22)
-        .encode(
-            x=alt.X("mode:N", title=None, sort=mode_order, axis=alt.Axis(labelAngle=-20, labelLimit=100)),
-            y=alt.Y("value:Q", title=None),
-            color=alt.Color("mode:N", legend=None),
-            row=alt.Row("regime:N", title=None, sort=["clustered", "mobility", "sparse bridge"]),
-            column=alt.Column("metric:N", title=None),
-            tooltip=["regime:N", "mode:N", "metric:N", "value:Q"],
+    lead_values = []
+    lead_grouped: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for value in values:
+        if value["metric"] == "commitment lead time":
+            lead_grouped[(str(value["mode"]), str(value["regime"]))].append(int(value["value"]))
+    for (mode, regime), scores in lead_grouped.items():
+        lead_values.append(
+            {
+                "mode": mode,
+                "regime": regime,
+                "median": quantile(scores, 0.50),
+                "label": str(quantile(scores, 0.50)),
+            }
         )
-        .properties(width=width // 5, height=max(90, height // 3), title=title)
-        .resolve_scale(y="independent")
+    data = alt.InlineData(values=values)
+    metric_specs = [
+        ("receiver agreement", "Receiver agreement", [740, 950]),
+        ("belief divergence", "Belief divergence (permille)", [50, 280]),
+        ("quality per byte", "Quality per byte (permille)", [450, 1025]),
+        ("commitment lead time", "Commitment lead time (rounds)", [0.5, 4.5]),
+    ]
+    regime_scale = alt.Scale(
+        domain=regime_order,
+        range=["#4c78a8", "#f58518", "#54a24b"],
     )
+    panels = []
+    for metric_key, axis_title, domain in metric_specs:
+        if metric_key == "commitment lead time":
+            lead_data = alt.InlineData(values=lead_values)
+            points = (
+                alt.Chart(lead_data)
+                .mark_point(filled=True, size=95, stroke="white", strokeWidth=0.8)
+                .encode(
+                    x=alt.X("mode:N", title=None, sort=mode_order, axis=alt.Axis(labelAngle=-18, labelLimit=110)),
+                    y=alt.Y("median:Q", title=axis_title, scale=alt.Scale(domain=domain), axis=alt.Axis(values=[1, 2, 3, 4])),
+                    color=alt.Color("regime:N", sort=regime_order, scale=regime_scale, legend=alt.Legend(title="Regime")),
+                    shape=alt.Shape("regime:N", sort=regime_order, legend=None),
+                    xOffset=alt.XOffset("regime:N", sort=regime_order),
+                    tooltip=["regime:N", "mode:N", alt.Tooltip("median:Q", title="Median lead time")],
+                )
+            )
+            labels = (
+                alt.Chart(lead_data)
+                .mark_text(dy=-10, font=PLOT_FONT, fontSize=9, color="#334155")
+                .encode(
+                    x=alt.X("mode:N", sort=mode_order),
+                    y=alt.Y("median:Q", scale=alt.Scale(domain=domain)),
+                    xOffset=alt.XOffset("regime:N", sort=regime_order),
+                    text="label:N",
+                    color=alt.Color("regime:N", sort=regime_order, scale=regime_scale, legend=None),
+                )
+            )
+            panel = (points + labels).properties(width=width // 2 - 30, height=max(150, height // 2), title=axis_title)
+        else:
+            panel = (
+                alt.Chart(data)
+                .transform_filter(alt.datum.metric == metric_key)
+                .mark_boxplot(size=18)
+                .encode(
+                    x=alt.X("mode:N", title=None, sort=mode_order, axis=alt.Axis(labelAngle=-18, labelLimit=110)),
+                    y=alt.Y("value:Q", title=axis_title, scale=alt.Scale(domain=domain)),
+                    color=alt.Color("regime:N", sort=regime_order, scale=regime_scale, legend=alt.Legend(title="Regime")),
+                    xOffset=alt.XOffset("regime:N", sort=regime_order),
+                    tooltip=["regime:N", "mode:N", "metric:N", "value:Q"],
+                )
+                .properties(width=width // 2 - 30, height=max(150, height // 2), title=axis_title)
+            )
+        panels.append(panel)
+    chart = alt.vconcat(
+        alt.hconcat(panels[0], panels[1], spacing=18),
+        alt.hconcat(panels[2], panels[3], spacing=18),
+        spacing=22,
+    ).properties(title=title)
     return _configure_chart(chart)
 
 
 def task_baseline_distribution(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
     mode_order = ["active belief", "passive coded", "recoded aggregate", "uncoded"]
-    values = [
-        {
-            "task": display_label(str(row["task_kind"])),
-            "mode": display_label(str(row["mode"])),
-            "accuracy": int_value(row, "decision_accuracy_permille"),
-        }
-        for row in rows
+    task_order = [
+        "anomaly localization",
+        "majority threshold",
+        "bounded histogram",
+        "set union threshold",
     ]
-    chart = (
-        alt.Chart(alt.InlineData(values=values))
-        .mark_boxplot(size=38)
-        .encode(
-            x=alt.X("task:N", title=None, axis=alt.Axis(labelAngle=-15)),
-            y=alt.Y("accuracy:Q", title="Decision accuracy (permille)", scale=alt.Scale(domain=[0, 1000])),
-            color=alt.Color("mode:N", sort=mode_order, legend=alt.Legend(title="Mode")),
-            xOffset=alt.XOffset("mode:N", sort=mode_order),
-            tooltip=["task:N", "mode:N", "accuracy:Q"],
+    quality_values = []
+    bytes_values = []
+    for row in rows:
+        task = display_label(str(row["task_kind"]))
+        mode = display_label(str(row["mode"]))
+        quality_values.append(
+            {
+                "task": task,
+                "mode": mode,
+                "value": int_value(row, "quality_per_byte_permille"),
+            }
         )
-        .properties(width=width, height=height, title=title)
+        bytes_values.append(
+            {
+                "task": task,
+                "mode": mode,
+                "value": int_value(row, "bytes_at_commitment"),
+            }
+        )
+    quality_chart = (
+        alt.Chart(alt.InlineData(values=quality_values))
+        .mark_boxplot(size=18)
+        .encode(
+            x=alt.X("mode:N", title=None, sort=mode_order, axis=alt.Axis(labelAngle=-15)),
+            y=alt.Y("value:Q", title="Quality per byte"),
+            color=alt.Color("task:N", sort=task_order, legend=alt.Legend(title="Task")),
+            xOffset=alt.XOffset("task:N", sort=task_order),
+            tooltip=["mode:N", "task:N", alt.Tooltip("value:Q", title="quality per byte")],
+        )
+        .properties(width=width // 2, height=height, title="quality per byte")
     )
+    bytes_chart = (
+        alt.Chart(alt.InlineData(values=bytes_values))
+        .mark_boxplot(size=18)
+        .encode(
+            x=alt.X("mode:N", title=None, sort=mode_order, axis=alt.Axis(labelAngle=-15)),
+            y=alt.Y(
+                "value:Q",
+                title="Bytes at commitment",
+                scale=alt.Scale(domain=[1900, 4050]),
+            ),
+            color=alt.Color("task:N", sort=task_order, legend=alt.Legend(title="Task")),
+            xOffset=alt.XOffset("task:N", sort=task_order),
+            tooltip=["mode:N", "task:N", alt.Tooltip("value:Q", title="bytes at commitment")],
+        )
+        .properties(width=width // 2, height=height, title="bytes at commitment")
+    )
+    chart = alt.hconcat(quality_chart, bytes_chart).properties(title=title)
     return _configure_chart(chart)
 
 
@@ -306,6 +423,7 @@ def phase_small_multiples(title: str, rows: list[dict[str, object]], width: int,
                 "band": band,
                 "budget": f"budget {budget}",
                 "label": label,
+                "selected": band == "near critical",
                 "r_est": quantile(metrics["r_est_permille"], 0.50),
                 "quality": quantile(metrics["quality_permille"], 0.50),
                 "duplicate": quantile(metrics["duplicate_rate_permille"], 0.50),
@@ -329,8 +447,13 @@ def phase_small_multiples(title: str, rows: list[dict[str, object]], width: int,
     data = alt.InlineData(values=values)
     target_band = (
         alt.Chart(alt.InlineData(values=[{"x1": 900, "x2": 1100, "y1": 450, "y2": 900}]))
-        .mark_rect(color="#bbf7d0", opacity=0.22)
-        .encode(x="x1:Q", x2="x2:Q", y="y1:Q", y2="y2:Q")
+        .mark_rect(color="#bbf7d0", opacity=0.14)
+        .encode(
+            x=alt.X("x1:Q", scale=alt.Scale(domain=[700, 1450])),
+            x2="x2:Q",
+            y=alt.Y("y1:Q", scale=alt.Scale(domain=[450, 900])),
+            y2="y2:Q",
+        )
     )
     re_panel = alt.Chart(data).encode(
         x=alt.X("r_est:Q", title="Median R_est", scale=alt.Scale(domain=[700, 1450])),
@@ -339,6 +462,10 @@ def phase_small_multiples(title: str, rows: list[dict[str, object]], width: int,
     )
     re_points = re_panel.mark_point(filled=True, size=120)
     re_labels = re_panel.mark_text(dx=10, dy=-8, font=PLOT_FONT, fontSize=9, color="#334155").encode(text="label:N")
+    selected_re = (
+        re_panel.transform_filter(alt.datum.selected)
+        .mark_point(filled=False, size=220, stroke="#0f172a", strokeWidth=2)
+    )
     duplicate_panel = alt.Chart(data).encode(
         x=alt.X("duplicate:Q", title="Median duplicate rate (permille)", scale=alt.Scale(domain=[70, 520])),
         y=alt.Y("quality:Q", title="Median quality (permille)", scale=alt.Scale(domain=[450, 900])),
@@ -346,43 +473,121 @@ def phase_small_multiples(title: str, rows: list[dict[str, object]], width: int,
     )
     duplicate_points = duplicate_panel.mark_point(filled=True, size=120)
     duplicate_labels = duplicate_panel.mark_text(dx=10, dy=-8, font=PLOT_FONT, fontSize=9, color="#334155").encode(text="label:N")
-    byte_panel = alt.Chart(data).encode(
-        x=alt.X("bytes:Q", title="Median bytes", scale=alt.Scale(domain=[2200, 4150])),
-        y=alt.Y("quality:Q", title="Median quality (permille)", scale=alt.Scale(domain=[450, 900])),
-        **point_encoding,
+    selected_duplicate = (
+        duplicate_panel.transform_filter(alt.datum.selected)
+        .mark_point(filled=False, size=220, stroke="#0f172a", strokeWidth=2)
     )
-    byte_points = byte_panel.mark_point(filled=True, size=120)
-    byte_labels = byte_panel.mark_text(dx=10, dy=-8, font=PLOT_FONT, fontSize=9, color="#334155").encode(text="label:N")
     chart = alt.hconcat(
-        (target_band + re_points + re_labels).properties(width=width // 4, height=height, title="Target-band entry"),
-        (duplicate_points + duplicate_labels).properties(width=width // 4, height=height, title="Duplicate pressure"),
-        (byte_points + byte_labels).properties(width=width // 4, height=height, title="Byte cost"),
+        (target_band + re_points + selected_re + re_labels).properties(width=width // 3, height=height, title="Target-band entry"),
+        (duplicate_points + selected_duplicate + duplicate_labels).properties(width=width // 3, height=height, title="Duplicate pressure"),
     ).properties(title=title)
     return _configure_chart(chart)
 
 
-def demand_ablation_boxplot(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
-    values = [
-        {
-            "policy": display_label(str(row["demand_policy"])),
-            "quality": int_value(row, "quality_per_byte_permille"),
-            "lag": int_value(row, "demand_response_lag_rounds"),
-            "satisfaction": int_value(row, "demand_satisfaction_permille"),
-        }
-        for row in rows
+def demand_ablation_paired_deltas(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
+    comparison_order = [
+        "no demand",
+        "stale",
+        "local only",
+        "no landscape",
+        "no bridge",
+        "no dup risk",
+        "no repro ctrl",
     ]
-    box = (
-        alt.Chart(alt.InlineData(values=values))
-        .mark_boxplot(size=38)
-        .encode(
-            x=alt.X("policy:N", title=None, axis=alt.Axis(labelAngle=-25, labelLimit=90)),
-            y=alt.Y("quality:Q", title="Quality per byte (permille)", scale=alt.Scale(domain=[0, 1000])),
-            color=alt.Color("policy:N", legend=None),
-            tooltip=["policy:N", "quality:Q", "satisfaction:Q", "lag:Q"],
+    comparison_map = [
+        ("no-demand", "no demand"),
+        ("stale-demand", "stale"),
+        ("local-only-demand", "local only"),
+        ("no-landscape-value", "no landscape"),
+        ("no-bridge-value", "no bridge"),
+        ("no-duplicate-risk", "no dup risk"),
+        ("no-reproduction-control", "no repro ctrl"),
+    ]
+    grouped: dict[tuple[str, int, str], dict[str, dict[str, object]]] = defaultdict(dict)
+    for row in rows:
+        key = (
+            str(row["scenario_id"]),
+            int_value(row, "seed"),
+            str(row["task_kind"]),
         )
-        .properties(width=width - 150, height=height, title=title)
-    )
-    return _configure_chart(box)
+        grouped[key][str(row["demand_policy"])] = row
+    metric_specs = [
+        ("quality", "Quality gain", "quality_per_byte_permille", 1, "permille points"),
+        ("uncertainty", "Uncertainty reduction", "collective_uncertainty_permille", -1, "permille points"),
+        ("bytes", "Byte reduction at commitment", "bytes_at_commitment", -1, "bytes"),
+    ]
+    values: list[dict[str, object]] = []
+    domains: dict[str, tuple[int, int]] = {}
+    for metric_key, metric_label_text, field, direction, unit in metric_specs:
+        metric_values: list[int] = []
+        for baseline_policy, comparison_label in comparison_map:
+            deltas: list[int] = []
+            for entry in grouped.values():
+                propagated = entry.get("propagated-demand")
+                baseline = entry.get(baseline_policy)
+                if propagated is None or baseline is None:
+                    continue
+                propagated_value = int_value(propagated, field)
+                baseline_value = int_value(baseline, field)
+                delta = (propagated_value - baseline_value) * direction
+                deltas.append(delta)
+            if not deltas:
+                continue
+            low = quantile(deltas, 0.25)
+            median_value = quantile(deltas, 0.50)
+            high = quantile(deltas, 0.75)
+            metric_values.extend([low, median_value, high])
+            values.append(
+                {
+                    "metric_key": metric_key,
+                    "metric": metric_label_text,
+                    "comparison": comparison_label,
+                    "low": low,
+                    "median": median_value,
+                    "high": high,
+                    "median_label": str(median_value),
+                    "unit": unit,
+                }
+            )
+        if metric_values:
+            span_low = min(metric_values)
+            span_high = max(metric_values)
+            padding = max(6, (span_high - span_low) // 8)
+            domains[metric_key] = (min(0, span_low - padding), span_high + padding)
+    chart_data = alt.InlineData(values=values)
+    panels = []
+    for metric_key, metric_label_text, _field, _direction, unit in metric_specs:
+        domain = domains.get(metric_key, (0, 100))
+        base = alt.Chart(chart_data).transform_filter(alt.datum.metric_key == metric_key).encode(
+            y=alt.Y("comparison:N", sort=comparison_order, title=None),
+            tooltip=[
+                alt.Tooltip("comparison:N", title="Ablation"),
+                alt.Tooltip("low:Q", title="p25"),
+                alt.Tooltip("median:Q", title="median"),
+                alt.Tooltip("high:Q", title="p75"),
+                alt.Tooltip("unit:N", title="unit"),
+            ],
+        )
+        zero_rule = alt.Chart(alt.InlineData(values=[{"zero": 0}])).mark_rule(
+            color="#94a3b8",
+            strokeDash=[4, 4],
+        ).encode(x="zero:Q")
+        spread = base.mark_rule(strokeWidth=6, color="#94a3b8").encode(
+            x=alt.X("low:Q", title=f"{metric_label_text} ({unit})", scale=alt.Scale(domain=list(domain))),
+            x2="high:Q",
+        )
+        points = base.mark_point(filled=True, size=95, color="#0f766e").encode(x="median:Q")
+        labels = base.mark_text(
+            align="left",
+            baseline="middle",
+            dx=8,
+            font=PLOT_FONT,
+            fontSize=10,
+            color="#334155",
+        ).encode(x="median:Q", text="median_label:N")
+        panels.append((zero_rule + spread + points + labels).properties(width=width // 3 - 30, height=height, title=metric_label_text))
+    chart = alt.hconcat(*panels, spacing=18).properties(title=title)
+    return _configure_chart(chart)
 
 
 def coding_cost_curve(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
@@ -402,20 +607,35 @@ def coding_cost_curve(title: str, rows: list[dict[str, object]], width: int, hei
         for (mode, budget), scores in grouped.items()
     ]
     base = alt.Chart(alt.InlineData(values=values)).encode(
-        x=alt.X("budget:Q", title="Payload-byte budget"),
+        x=alt.X(
+            "budget:Q",
+            title="Payload-byte budget",
+            scale=alt.Scale(domain=[800, 6400]),
+        ),
         color=alt.Color("mode:N", legend=alt.Legend(title="Mode")),
         tooltip=["mode:N", "budget:Q", "low:Q", "median:Q", "high:Q"],
     )
     band = base.mark_area(opacity=0.14).encode(
-        y=alt.Y("high:Q", title="Quality (permille)", scale=alt.Scale(domain=[350, 1000])),
+        y=alt.Y("high:Q", title="Quality (permille)", scale=alt.Scale(domain=[350, 1025])),
         y2="low:Q",
     )
     line = base.mark_line(point=True, strokeWidth=2.4).encode(y="median:Q")
-    chart = alt.layer(band, line).properties(width=width, height=height, title=title)
+    highlight_values = [value for value in values if int(value["budget"]) == 4096]
+    labels = (
+        alt.Chart(alt.InlineData(values=highlight_values))
+        .mark_text(dx=10, dy=-8, font=PLOT_FONT, fontSize=9, color="#334155")
+        .encode(
+            x=alt.X("budget:Q", title="Payload-byte budget", scale=alt.Scale(domain=[800, 6400])),
+            y=alt.Y("median:Q", title="Quality (permille)", scale=alt.Scale(domain=[350, 1025])),
+            text=alt.Text("median:Q", format=".0f"),
+            color=alt.Color("mode:N", legend=None),
+        )
+    )
+    chart = alt.layer(band, line, labels).properties(width=width, height=height, title=title)
     return _configure_chart(chart)
 
 
-def recoding_frontier_scatter(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
+def recoding_tradeoff_summary(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
     grouped: dict[tuple[str, str], dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     for row in rows:
         mode = str(row["mode"])
@@ -424,68 +644,109 @@ def recoding_frontier_scatter(title: str, rows: list[dict[str, object]], width: 
         regime = display_label(str(row["scenario_id"]))
         grouped[(regime, display_label(mode))]["bytes"].append(int_value(row, "bytes_at_commitment"))
         grouped[(regime, display_label(mode))]["quality"].append(int_value(row, "quality_per_byte_permille"))
+        grouped[(regime, display_label(mode))]["agreement"].append(int_value(row, "receiver_agreement_permille"))
+        grouped[(regime, display_label(mode))]["lead"].append(int_value(row, "commitment_lead_time_rounds"))
     values = []
     for (regime, mode), metrics in grouped.items():
+        short_mode = {
+            "active belief": "active",
+            "recoded aggregate": "recoded",
+            "passive coded": "passive",
+        }[mode]
         values.append(
             {
                 "regime": regime,
                 "mode": mode,
-                "bytes_low": quantile(metrics["bytes"], 0.25),
+                "short_mode": short_mode,
                 "bytes_median": quantile(metrics["bytes"], 0.50),
-                "bytes_high": quantile(metrics["bytes"], 0.75),
-                "quality_low": quantile(metrics["quality"], 0.25),
                 "quality_median": quantile(metrics["quality"], 0.50),
-                "quality_high": quantile(metrics["quality"], 0.75),
+                "agreement_median": quantile(metrics["agreement"], 0.50),
+                "lead_median": quantile(metrics["lead"], 0.50),
+                "reference_kind": "dominated reference" if mode == "passive coded" else "tradeoff point",
             }
         )
     data = alt.InlineData(values=values)
-    horizontal = (
-        alt.Chart(data)
-        .mark_rule(strokeWidth=2.2)
-        .encode(
-            x=alt.X("bytes_low:Q", title="Bytes at commitment", scale=alt.Scale(domain=[1900, 2120])),
-            x2="bytes_high:Q",
-            y=alt.Y("quality_median:Q", title="Quality per byte (permille)", scale=alt.Scale(domain=[720, 980])),
-            color=alt.Color("mode:N", legend=alt.Legend(title="Mode")),
-            tooltip=["regime:N", "mode:N", "bytes_median:Q", "quality_median:Q"],
-        )
+    tradeoff_values = [value for value in values if value["mode"] in {"active belief", "recoded aggregate"}]
+    tradeoff_data = alt.InlineData(values=tradeoff_values)
+    regime_order = ["clustered", "mobility", "sparse bridge"]
+    mode_color = alt.Scale(
+        domain=["active belief", "recoded aggregate", "passive coded"],
+        range=["#4c78a8", "#e45756", "#94a3b8"],
     )
-    vertical = (
-        alt.Chart(data)
-        .mark_rule(strokeWidth=2.2)
-        .encode(
-            x=alt.X("bytes_median:Q", scale=alt.Scale(domain=[1900, 2120])),
-            y=alt.Y("quality_low:Q", scale=alt.Scale(domain=[720, 980])),
-            y2="quality_high:Q",
-            color=alt.Color("mode:N", legend=None),
-            tooltip=["regime:N", "mode:N", "bytes_median:Q", "quality_median:Q"],
-        )
+    mode_shape = alt.Scale(
+        domain=["active belief", "recoded aggregate", "passive coded"],
+        range=["circle", "triangle-up", "square"],
     )
-    points = (
-        alt.Chart(data)
-        .mark_point(filled=True, size=125)
-        .encode(
-            x=alt.X("bytes_median:Q", scale=alt.Scale(domain=[1900, 2120])),
-            y=alt.Y("quality_median:Q", scale=alt.Scale(domain=[720, 980])),
-            color=alt.Color("mode:N", legend=None),
-            shape=alt.Shape("mode:N", legend=None),
-            tooltip=["regime:N", "mode:N", "bytes_median:Q", "quality_median:Q"],
+
+    def panel(metric_field: str, axis_title: str, domain: list[int]) -> alt.TopLevelMixin:
+        base = alt.Chart(data).encode(
+            y=alt.Y("regime:N", sort=regime_order, title=None),
+            color=alt.Color("mode:N", legend=alt.Legend(title="Mode"), scale=mode_color),
+            shape=alt.Shape("mode:N", legend=None, scale=mode_shape),
+            tooltip=[
+                alt.Tooltip("regime:N", title="Regime"),
+                alt.Tooltip("mode:N", title="Mode"),
+                alt.Tooltip(f"{metric_field}:Q", title=axis_title),
+                alt.Tooltip("agreement_median:Q", title="Receiver agreement"),
+                alt.Tooltip("lead_median:Q", title="Lead time"),
+                alt.Tooltip("reference_kind:N", title="Status"),
+            ],
         )
-    )
-    labels = (
-        alt.Chart(data)
-        .mark_text(dx=9, dy=-7, font=PLOT_FONT, fontSize=9, color="#334155")
-        .encode(
-            x=alt.X("bytes_median:Q", scale=alt.Scale(domain=[1900, 2120])),
-            y=alt.Y("quality_median:Q", scale=alt.Scale(domain=[720, 980])),
-            text="mode:N",
+        connector = (
+            alt.Chart(tradeoff_data)
+            .mark_line(strokeWidth=2.2)
+            .encode(
+                x=alt.X(f"{metric_field}:Q", title=axis_title, scale=alt.Scale(domain=domain)),
+                y=alt.Y("regime:N", sort=regime_order, title=None),
+                detail="regime:N",
+                order=alt.Order("mode:N", sort="ascending"),
+                color=alt.value("#64748b"),
+            )
         )
-    )
-    chart = alt.layer(horizontal, vertical, points, labels).properties(
-        width=width // 4,
-        height=height,
-        title=title,
-    ).facet(column=alt.Column("regime:N", title=None, sort=["clustered", "mobility", "sparse bridge"]))
+        passive_points = (
+            base.transform_filter(alt.datum.mode == "passive coded")
+            .mark_point(filled=False, size=120, strokeWidth=2.2, opacity=0.95)
+            .encode(x=alt.X(f"{metric_field}:Q", title=axis_title, scale=alt.Scale(domain=domain)))
+        )
+        tradeoff_points = (
+            base.transform_filter(alt.datum.mode != "passive coded")
+            .mark_point(filled=True, size=130)
+            .encode(x=alt.X(f"{metric_field}:Q", title=axis_title, scale=alt.Scale(domain=domain)))
+        )
+        labels = (
+            alt.Chart(data)
+            .mark_text(dx=10, dy=-7, font=PLOT_FONT, fontSize=9, color="#334155")
+            .encode(
+                x=alt.X(f"{metric_field}:Q", title=axis_title, scale=alt.Scale(domain=domain)),
+                y=alt.Y("regime:N", sort=regime_order, title=None),
+                text="short_mode:N",
+            )
+        )
+        deltas = []
+        for regime in regime_order:
+            active_entry = next((value for value in values if value["regime"] == regime and value["mode"] == "active belief"), None)
+            recoded_entry = next((value for value in values if value["regime"] == regime and value["mode"] == "recoded aggregate"), None)
+            if active_entry is None or recoded_entry is None:
+                continue
+            delta = int(recoded_entry[metric_field] - active_entry[metric_field])
+            midpoint = int((recoded_entry[metric_field] + active_entry[metric_field]) / 2)
+            deltas.append({"regime": regime, "midpoint": midpoint, "label": f"{delta:+d}"})
+        delta_labels = (
+            alt.Chart(alt.InlineData(values=deltas))
+            .mark_text(font=PLOT_FONT, fontSize=9, dy=-14, color="#475569")
+            .encode(
+                x=alt.X("midpoint:Q", title=axis_title, scale=alt.Scale(domain=domain)),
+                y=alt.Y("regime:N", sort=regime_order, title=None),
+                text="label:N",
+            )
+        )
+        return (connector + passive_points + tradeoff_points + labels + delta_labels).properties(width=width // 2 - 24, height=height)
+
+    chart = alt.hconcat(
+        panel("bytes_median", "Bytes at commitment", [1880, 2140]),
+        panel("quality_median", "Quality per byte (permille)", [730, 990]),
+        spacing=18,
+    ).properties(title=title)
     return _configure_chart(chart)
 
 
@@ -499,6 +760,7 @@ def robustness_small_multiples(title: str, rows: list[dict[str, object]], width:
             {
                 "regime": regime,
                 "severity": severity,
+                "severity_label": str(severity),
                 "value": int_value(row, "commitment_accuracy_permille"),
             }
         )
@@ -506,6 +768,7 @@ def robustness_small_multiples(title: str, rows: list[dict[str, object]], width:
             {
                 "regime": regime,
                 "severity": severity,
+                "severity_label": str(severity),
                 "value": int_value(row, "false_commitment_rate_permille"),
             }
         )
@@ -513,25 +776,63 @@ def robustness_small_multiples(title: str, rows: list[dict[str, object]], width:
         alt.Chart(alt.InlineData(values=accuracy_values))
         .mark_boxplot(size=34)
         .encode(
-            x=alt.X("regime:N", title=None, axis=alt.Axis(labelAngle=-20, labelLimit=120)),
+            x=alt.X(
+                "severity_label:N",
+                title="Stress severity",
+                sort=["1", "2", "3", "4", "5"],
+                scale=alt.Scale(paddingOuter=0.18),
+                axis=alt.Axis(labelAngle=0),
+            ),
             y=alt.Y("value:Q", title="Commitment accuracy (permille)", scale=alt.Scale(domain=[650, 1000])),
             color=alt.value(ENGINE_COLORS["pathway"]),
-            tooltip=["regime:N", "severity:Q", "value:Q"],
+            tooltip=["severity:Q", "regime:N", "value:Q"],
         )
         .properties(width=width // 3, height=height, title="Commitment accuracy")
+    )
+    accuracy_medians = [
+        {"severity_label": str(severity), "median": quantile([value["value"] for value in accuracy_values if value["severity"] == severity], 0.50)}
+        for severity in [1, 2, 3, 4, 5]
+    ]
+    accuracy_labels = (
+        alt.Chart(alt.InlineData(values=accuracy_medians))
+        .mark_text(dy=-10, font=PLOT_FONT, fontSize=9, color="#334155")
+        .encode(
+            x=alt.X("severity_label:N", sort=["1", "2", "3", "4", "5"]),
+            y=alt.Y("median:Q", scale=alt.Scale(domain=[650, 1000])),
+            text=alt.Text("median:Q", format=".0f"),
+        )
     )
     false_commitment = (
         alt.Chart(alt.InlineData(values=false_values))
         .mark_boxplot(size=34)
         .encode(
-            x=alt.X("regime:N", title=None, axis=alt.Axis(labelAngle=-20, labelLimit=120)),
+            x=alt.X(
+                "severity_label:N",
+                title="Stress severity",
+                sort=["1", "2", "3", "4", "5"],
+                scale=alt.Scale(paddingOuter=0.18),
+                axis=alt.Axis(labelAngle=0),
+            ),
             y=alt.Y("value:Q", title="False commitment (permille)", scale=alt.Scale(domain=[0, 60])),
             color=alt.value(ENGINE_COLORS["scatter"]),
-            tooltip=["regime:N", "severity:Q", "value:Q"],
+            tooltip=["severity:Q", "regime:N", "value:Q"],
         )
         .properties(width=width // 3, height=height, title="False commitment")
     )
-    chart = alt.hconcat(accuracy, false_commitment).properties(title=title)
+    false_medians = [
+        {"severity_label": str(severity), "median": quantile([value["value"] for value in false_values if value["severity"] == severity], 0.50)}
+        for severity in [1, 2, 3, 4, 5]
+    ]
+    false_labels = (
+        alt.Chart(alt.InlineData(values=false_medians))
+        .mark_text(dy=-10, font=PLOT_FONT, fontSize=9, color="#334155")
+        .encode(
+            x=alt.X("severity_label:N", sort=["1", "2", "3", "4", "5"]),
+            y=alt.Y("median:Q", scale=alt.Scale(domain=[0, 60])),
+            text=alt.Text("median:Q", format=".1f"),
+        )
+    )
+    chart = alt.hconcat(accuracy + accuracy_labels, false_commitment + false_labels).properties(title=title)
     return _configure_chart(chart)
 
 
@@ -599,9 +900,8 @@ def scale_validation_panels(title: str, rows: list[dict[str, object]], width: in
     return _configure_chart(chart)
 
 
-def baseline_boxplot(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
-    baseline_order = [
-        "active belief",
+def baseline_paired_deltas(title: str, rows: list[dict[str, object]], width: int, height: int) -> alt.TopLevelMixin:
+    comparison_order = [
         "passive coded",
         "contact freq",
         "epidemic",
@@ -609,25 +909,93 @@ def baseline_boxplot(title: str, rows: list[dict[str, object]], width: int, heig
         "random",
         "uncoded",
     ]
-    values = [
-        {
-            "baseline": display_label(str(row["baseline_policy"])),
-            "accuracy": int_value(row, "decision_accuracy_permille"),
-            "quality": int_value(row, "quality_per_byte_permille"),
-        }
-        for row in rows
+    comparison_map = [
+        ("passive-controlled-coded", "passive coded"),
+        ("prophet-contact-frequency", "contact freq"),
+        ("epidemic-forwarding", "epidemic"),
+        ("spray-and-wait", "spray-wait"),
+        ("random-forwarding", "random"),
+        ("uncoded-replication", "uncoded"),
     ]
-    chart = (
-        alt.Chart(alt.InlineData(values=values))
-        .mark_boxplot(size=42)
-        .encode(
-            x=alt.X("baseline:N", title=None, sort=baseline_order, axis=alt.Axis(labelAngle=-20, labelLimit=80)),
-            y=alt.Y("accuracy:Q", title="Decision accuracy (permille)", scale=alt.Scale(domain=[0, 1000])),
-            color=alt.Color("baseline:N", legend=None),
-            tooltip=["baseline:N", "accuracy:Q", "quality:Q"],
+    grouped: dict[tuple[str, int], dict[str, dict[str, object]]] = defaultdict(dict)
+    for row in rows:
+        key = (
+            str(row["scenario_id"]),
+            int_value(row, "seed"),
         )
-        .properties(width=width - 140, height=height, title=title)
-    )
+        grouped[key][str(row["baseline_policy"])] = row
+    metric_specs = [
+        ("accuracy", "Accuracy gain", "decision_accuracy_permille", "permille points"),
+        ("quality", "Quality-per-byte gain", "quality_per_byte_permille", "permille points"),
+    ]
+    values: list[dict[str, object]] = []
+    domains: dict[str, tuple[int, int]] = {}
+    for metric_key, metric_label_text, field, unit in metric_specs:
+        metric_values: list[int] = []
+        for baseline_policy, comparison_label in comparison_map:
+            deltas: list[int] = []
+            for entry in grouped.values():
+                active = entry.get("full-active-belief")
+                baseline = entry.get(baseline_policy)
+                if active is None or baseline is None:
+                    continue
+                deltas.append(int_value(active, field) - int_value(baseline, field))
+            if not deltas:
+                continue
+            low = quantile(deltas, 0.25)
+            median_value = quantile(deltas, 0.50)
+            high = quantile(deltas, 0.75)
+            metric_values.extend([low, median_value, high])
+            values.append(
+                {
+                    "metric_key": metric_key,
+                    "metric": metric_label_text,
+                    "comparison": comparison_label,
+                    "low": low,
+                    "median": median_value,
+                    "high": high,
+                    "median_label": str(median_value),
+                    "unit": unit,
+                }
+            )
+        if metric_values:
+            span_low = min(metric_values)
+            span_high = max(metric_values)
+            padding = max(6, (span_high - span_low) // 8)
+            domains[metric_key] = (min(0, span_low - padding), span_high + padding)
+    chart_data = alt.InlineData(values=values)
+    panels = []
+    for metric_key, metric_label_text, _field, unit in metric_specs:
+        domain = domains.get(metric_key, (0, 100))
+        base = alt.Chart(chart_data).transform_filter(alt.datum.metric_key == metric_key).encode(
+            y=alt.Y("comparison:N", sort=comparison_order, title=None),
+            tooltip=[
+                alt.Tooltip("comparison:N", title="Baseline"),
+                alt.Tooltip("low:Q", title="p25"),
+                alt.Tooltip("median:Q", title="median"),
+                alt.Tooltip("high:Q", title="p75"),
+                alt.Tooltip("unit:N", title="unit"),
+            ],
+        )
+        zero_rule = alt.Chart(alt.InlineData(values=[{"zero": 0}])).mark_rule(
+            color="#94a3b8",
+            strokeDash=[4, 4],
+        ).encode(x="zero:Q")
+        spread = base.mark_rule(strokeWidth=6, color="#94a3b8").encode(
+            x=alt.X("low:Q", title=f"{metric_label_text} ({unit})", scale=alt.Scale(domain=list(domain))),
+            x2="high:Q",
+        )
+        points = base.mark_point(filled=True, size=95, color="#0f766e").encode(x="median:Q")
+        labels = base.mark_text(
+            align="left",
+            baseline="middle",
+            dx=8,
+            font=PLOT_FONT,
+            fontSize=10,
+            color="#334155",
+        ).encode(x="median:Q", text="median_label:N")
+        panels.append((zero_rule + spread + points + labels).properties(width=width // 2 - 30, height=height, title=metric_label_text))
+    chart = alt.hconcat(*panels, spacing=18).properties(title=title)
     return _configure_chart(chart)
 
 
