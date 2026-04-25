@@ -642,22 +642,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jacquard-field"
-version = "0.8.0"
-dependencies = [
- "cfg-if",
- "jacquard-core",
- "jacquard-host-support",
- "jacquard-mem-link-profile",
- "jacquard-mem-node-profile",
- "jacquard-traits",
- "postcard",
- "serde",
- "serde_json",
- "telltale-search",
-]
-
-[[package]]
 name = "jacquard-host-support"
 version = "0.8.0"
 dependencies = [
@@ -752,7 +736,6 @@ dependencies = [
  "jacquard-batman-classic",
  "jacquard-cast-support",
  "jacquard-core",
- "jacquard-field",
  "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
@@ -773,7 +756,6 @@ version = "0.8.0"
 dependencies = [
  "jacquard-batman-bellman",
  "jacquard-core",
- "jacquard-field",
  "jacquard-mem-link-profile",
  "jacquard-pathway",
  "jacquard-testkit",
@@ -805,7 +787,6 @@ dependencies = [
  "jacquard-batman-classic",
  "jacquard-cast-support",
  "jacquard-core",
- "jacquard-field",
  "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
@@ -831,7 +812,6 @@ dependencies = [
  "jacquard-batman-bellman",
  "jacquard-batman-classic",
  "jacquard-core",
- "jacquard-field",
  "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",

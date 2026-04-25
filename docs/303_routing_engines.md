@@ -116,7 +116,7 @@ Jacquard does not require every routing engine to expose a full hop-by-hop path.
 - `NextHopOnly` - engine only claims best-next-hop visibility toward the destination
 - `Opaque` - engine does not expose useful route shape beyond viability
 
-This matters for proactive engines. Pathway is `ExplicitPath`. Field and Mercator are `CorridorEnvelope`. The batman engines (bellman and classic), babel, and olsrv2 are `NextHopOnly`. Scatter is `Opaque`: it can claim bounded deferred-delivery viability without claiming a stable next hop or explicit path shape.
+This matters for proactive engines. Pathway is `ExplicitPath`. Mercator is `CorridorEnvelope`. The batman engines (bellman and classic), babel, and olsrv2 are `NextHopOnly`. Scatter is `Opaque`: it can claim bounded deferred-delivery viability without claiming a stable next hop or explicit path shape.
 
 ## In-Tree Engines
 

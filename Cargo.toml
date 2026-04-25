@@ -8,7 +8,6 @@ members = [
   "crates/batman-classic",
   "crates/cast-support",
   "crates/core",
-  "crates/field",
   "crates/macros",
   "crates/mem-link-profile",
   "crates/mem-node-profile",

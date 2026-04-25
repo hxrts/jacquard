@@ -10,13 +10,12 @@ use jacquard_babel::{BabelEngine, DecayWindow as BabelDecayWindow};
 use jacquard_batman_bellman::{BatmanBellmanEngine, DecayWindow};
 use jacquard_batman_classic::{BatmanClassicEngine, DecayWindow as ClassicDecayWindow};
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, HealthScore,
+    Configuration, ConnectivityPosture, DiversityFloor, DurationMs, HealthScore,
     IdentityAssuranceClass, LinkEndpoint, NodeId, Observation, OperatingMode, RatioPermille,
     RouteError, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
     RouteReplacementPolicy, RoutingEngineFallbackPolicy, RoutingPolicyInputs,
     SelectedRoutingParameters, Tick,
 };
-use jacquard_field::{FieldEngine, FieldForwardSummaryObservation, FieldSearchConfig};
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
 };
@@ -43,19 +42,17 @@ pub enum EngineKind {
     BatmanClassic,
     OlsrV2,
     Babel,
-    Field,
     Scatter,
     Mercator,
 }
 
 impl EngineKind {
-    const CANONICAL_REGISTRATION_ORDER: [Self; 8] = [
+    const CANONICAL_REGISTRATION_ORDER: [Self; 7] = [
         Self::Pathway,
         Self::BatmanBellman,
         Self::BatmanClassic,
         Self::OlsrV2,
         Self::Babel,
-        Self::Field,
         Self::Scatter,
         Self::Mercator,
     ];
@@ -67,7 +64,6 @@ impl EngineKind {
             Self::BatmanClassic => "batman-classic",
             Self::OlsrV2 => "olsrv2",
             Self::Babel => "babel",
-            Self::Field => "field",
             Self::Scatter => "scatter",
             Self::Mercator => "mercator",
         }
@@ -84,14 +80,6 @@ pub enum ReferenceClientBuildError {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FieldBootstrapSummary {
-    pub destination: DestinationId,
-    pub from_neighbor: NodeId,
-    pub forward_observation: FieldForwardSummaryObservation,
-    pub reverse_feedback: Option<(u16, Tick)>,
-}
-
 #[derive(Clone)]
 pub struct ClientBuilder {
     local_node_id: NodeId,
@@ -104,9 +92,7 @@ pub struct ClientBuilder {
     batman_classic_decay_window: Option<ClassicDecayWindow>,
     olsrv2_decay_window: Option<OlsrV2DecayWindow>,
     pathway_search_config: Option<PathwaySearchConfig>,
-    field_search_config: Option<FieldSearchConfig>,
     scatter_config: Option<ScatterEngineConfig>,
-    field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
     babel_decay_window: Option<BabelDecayWindow>,
     queue_config: BridgeQueueConfig,
     engines: BTreeSet<EngineKind>,
@@ -132,9 +118,7 @@ impl ClientBuilder {
             olsrv2_decay_window: None,
             babel_decay_window: None,
             pathway_search_config: None,
-            field_search_config: None,
             scatter_config: None,
-            field_bootstrap_summaries: Vec::new(),
             queue_config: DEFAULT_BRIDGE_QUEUE_CONFIG,
             engines,
         }
@@ -207,22 +191,6 @@ impl ClientBuilder {
     }
 
     #[must_use]
-    pub fn field(
-        local_node_id: NodeId,
-        topology: Observation<Configuration>,
-        network: SharedInMemoryNetwork,
-        now: Tick,
-    ) -> Self {
-        Self::with_engine_set(
-            local_node_id,
-            topology,
-            network,
-            now,
-            singleton_engine(EngineKind::Field),
-        )
-    }
-
-    #[must_use]
     pub fn scatter(
         local_node_id: NodeId,
         topology: Observation<Configuration>,
@@ -281,26 +249,6 @@ impl ClientBuilder {
     }
 
     #[must_use]
-    pub fn pathway_and_field(
-        local_node_id: NodeId,
-        topology: Observation<Configuration>,
-        network: SharedInMemoryNetwork,
-        now: Tick,
-    ) -> Self {
-        Self::pathway(local_node_id, topology, network, now).with_field()
-    }
-
-    #[must_use]
-    pub fn field_and_batman_bellman(
-        local_node_id: NodeId,
-        topology: Observation<Configuration>,
-        network: SharedInMemoryNetwork,
-        now: Tick,
-    ) -> Self {
-        Self::field(local_node_id, topology, network, now).with_batman_bellman()
-    }
-
-    #[must_use]
     pub fn all_engines(
         local_node_id: NodeId,
         topology: Observation<Configuration>,
@@ -308,7 +256,6 @@ impl ClientBuilder {
         now: Tick,
     ) -> Self {
         Self::pathway(local_node_id, topology, network, now)
-            .with_field()
             .with_batman_bellman()
             .with_batman_classic()
             .with_babel()
@@ -337,20 +284,8 @@ impl ClientBuilder {
     }
 
     #[must_use]
-    pub fn with_field_search_config(mut self, search_config: FieldSearchConfig) -> Self {
-        self.field_search_config = Some(search_config);
-        self
-    }
-
-    #[must_use]
     pub fn with_scatter_config(mut self, scatter_config: ScatterEngineConfig) -> Self {
         self.scatter_config = Some(scatter_config);
-        self
-    }
-
-    #[must_use]
-    pub fn with_field_bootstrap_summary(mut self, bootstrap: FieldBootstrapSummary) -> Self {
-        self.field_bootstrap_summaries.push(bootstrap);
         self
     }
 
@@ -445,12 +380,6 @@ impl ClientBuilder {
     #[must_use]
     pub fn with_olsrv2(mut self) -> Self {
         self.engines.insert(EngineKind::OlsrV2);
-        self
-    }
-
-    #[must_use]
-    pub fn with_field(mut self) -> Self {
-        self.engines.insert(EngineKind::Field);
         self
     }
 
@@ -658,45 +587,6 @@ impl ClientBuilder {
                             source,
                         })?;
                 }
-                EngineKind::Field => {
-                    let field_engine = FieldEngine::new(
-                        self.local_node_id,
-                        transport.sender(),
-                        InMemoryRuntimeEffects {
-                            now: self.now,
-                            ..Default::default()
-                        },
-                    );
-                    let mut field_engine =
-                        if let Some(search_config) = self.field_search_config.clone() {
-                            field_engine.with_search_config(search_config)
-                        } else {
-                            field_engine
-                        };
-                    for bootstrap in &self.field_bootstrap_summaries {
-                        field_engine.record_forward_summary(
-                            &bootstrap.destination,
-                            bootstrap.from_neighbor,
-                            bootstrap.forward_observation,
-                        );
-                        if let Some((delivery_feedback, observed_at_tick)) =
-                            bootstrap.reverse_feedback
-                        {
-                            field_engine.record_reverse_feedback(
-                                &bootstrap.destination,
-                                bootstrap.from_neighbor,
-                                delivery_feedback,
-                                observed_at_tick,
-                            );
-                        }
-                    }
-                    router
-                        .register_engine(Box::new(field_engine))
-                        .map_err(|source| ReferenceClientBuildError::EngineRegistration {
-                            engine: engine.label(),
-                            source,
-                        })?;
-                }
                 EngineKind::Mercator => {
                     router
                         .register_engine(Box::new(MercatorEngine::new(self.local_node_id)))
@@ -831,8 +721,7 @@ fn default_profile_for_engine_set(engines: &BTreeSet<EngineKind>) -> SelectedRou
         || engines.contains(&EngineKind::BatmanClassic)
         || engines.contains(&EngineKind::Babel)
         || engines.contains(&EngineKind::OlsrV2);
-    let mixed_or_corridor =
-        engines.contains(&EngineKind::Pathway) || engines.contains(&EngineKind::Field);
+    let mixed_or_corridor = engines.contains(&EngineKind::Pathway);
     if next_hop_only && !mixed_or_corridor {
         batman_default_profile()
     } else {
@@ -851,7 +740,6 @@ mod tests {
         Configuration, Environment, FactSourceClass, Observation, OriginAuthenticationClass,
         RatioPermille, RouteEpoch, RoutingEvidenceClass, Tick,
     };
-    use jacquard_field::FIELD_ENGINE_ID;
     use jacquard_mercator::MERCATOR_ENGINE_ID;
     use jacquard_olsrv2::OLSRV2_ENGINE_ID;
     use jacquard_pathway::PATHWAY_ENGINE_ID;
@@ -906,10 +794,6 @@ mod tests {
             ])),
             default_profile()
         );
-        assert_eq!(
-            default_profile_for_engine_set(&BTreeSet::from([EngineKind::Field])),
-            default_profile()
-        );
     }
 
     #[test]
@@ -929,7 +813,6 @@ mod tests {
         assert!(registered.contains(&BATMAN_CLASSIC_ENGINE_ID));
         assert!(registered.contains(&BABEL_ENGINE_ID));
         assert!(registered.contains(&OLSRV2_ENGINE_ID));
-        assert!(registered.contains(&FIELD_ENGINE_ID));
         assert!(registered.contains(&SCATTER_ENGINE_ID));
         assert!(registered.contains(&MERCATOR_ENGINE_ID));
     }

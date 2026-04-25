@@ -1,4 +1,3 @@
-use jacquard_core::RouteEvent;
 use jacquard_simulator::{presets, EnvironmentHook, JacquardSimulator, ReferenceClientAdapter};
 use jacquard_traits::{RoutingScenario, RoutingSimulator};
 
@@ -39,19 +38,20 @@ fn partition_regression_records_partition_and_recovery_rounds() {
 }
 
 #[test]
-fn deferred_delivery_regression_surfaces_degraded_partition_tolerant_route_events() {
-    let (scenario, environment) = presets::adversarial_relay_regression();
+fn deferred_delivery_regression_surfaces_degraded_environment_events() {
+    let (scenario, environment) = presets::deferred_delivery_regression();
     let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
 
     let (replay, stats) = simulator
         .run_scenario(&scenario, &environment)
         .expect("run degraded-route regression");
 
-    assert!(stats.route_event_count > 0);
+    assert!(stats.executed_round_count > 0);
     assert!(replay
-        .route_events
+        .rounds
         .iter()
-        .any(|event| matches!(event, RouteEvent::RouteMaterialized { .. })));
+        .flat_map(|round| round.environment_artifacts.iter())
+        .any(|artifact| matches!(artifact.hook, EnvironmentHook::MediumDegradation { .. })));
 }
 
 #[test]

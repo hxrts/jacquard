@@ -39,7 +39,7 @@ let client = ClientBuilder::pathway(
 .expect("build pathway client");
 ```
 
-The single-engine constructors are `pathway`, `batman_bellman`, `batman_classic`, `babel`, `olsrv2`, `field`, `scatter`, and `mercator`. The multi-engine constructor `all_engines` registers every in-tree engine on one client. Per-engine parameter overrides flow through `with_batman_bellman_decay_window`, `with_babel_decay_window`, `with_pathway_search_config`, `with_field_search_config`, and similar builders.
+The single-engine constructors are `pathway`, `batman_bellman`, `batman_classic`, `babel`, `olsrv2`, `scatter`, and `mercator`. The multi-engine constructor `all_engines` registers every in-tree engine on one client. Per-engine parameter overrides flow through `with_batman_bellman_decay_window`, `with_babel_decay_window`, `with_pathway_search_config`, and similar builders.
 
 The built `ReferenceClient` bundles a router, the configured engines, and the host bridge. Bind it once with `.bind()`, then advance synchronous rounds. Every round drains ingress, runs engine and router logic, and flushes the outbound queue through the bridge-owned transport driver.
 

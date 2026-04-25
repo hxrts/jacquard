@@ -21,7 +21,7 @@ use jacquard_pathway::PathwaySearchConfig;
 use crate::{
     environment::{EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel},
     harness::default_objective,
-    scenario::{BoundObjective, FieldBootstrapSummary, HostSpec, JacquardScenario},
+    scenario::{BoundObjective, HostSpec, JacquardScenario},
     topology,
 };
 
@@ -39,8 +39,8 @@ mod tuning;
 use common::*;
 
 pub use basics::{
-    all_engines_line, all_engines_ring, babel_line, batman_classic_line, batman_line,
-    field_bootstrap_multihop, field_line, mixed_line, olsrv2_line, pathway_line,
+    all_engines_line, all_engines_ring, babel_line, batman_classic_line, batman_line, mixed_line,
+    olsrv2_line, partition_tolerant_pathway_line, pathway_line, pathway_multihop,
 };
 pub use composition::{
     composition_cascade_partition_eliminates_route, composition_concurrent_objectives,

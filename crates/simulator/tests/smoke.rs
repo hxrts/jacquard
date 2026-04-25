@@ -122,13 +122,13 @@ fn batman_classic_scenario_runs_through_deterministic_round_lane() {
 }
 
 #[test]
-fn field_scenario_runs() {
-    let (scenario, environment) = presets::field_line();
+fn partition_tolerant_pathway_scenario_runs() {
+    let (scenario, environment) = presets::partition_tolerant_pathway_line();
     let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
 
     let (replay, stats) = simulator
         .run_scenario(&scenario, &environment)
-        .expect("run field scenario");
+        .expect("run partition-tolerant pathway scenario");
 
     assert!(stats.executed_round_count > 0);
     let reduced = ReducedReplayView::from_replay(&replay);
@@ -138,7 +138,7 @@ fn field_scenario_runs() {
             jacquard_core::DestinationId::Node(jacquard_core::NodeId([2; 32])),
         )
         .evaluate(&reduced)
-        .expect("field replay assertions");
+        .expect("partition-tolerant pathway replay assertions");
 }
 
 #[test]

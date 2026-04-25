@@ -5,7 +5,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use jacquard_core::{
     DestinationId, NodeId, ReachabilityState, RouteLifecycleEvent, RoutingEngineId,
 };
-use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_traits::RoutingScenario;
 use serde::{Deserialize, Serialize};
 
@@ -648,7 +647,7 @@ impl ReducedReplayView {
                 round.active_routes.iter().filter(move |route| {
                     route.owner_node_id == owner_node_id
                         && &route.destination == destination
-                        && route.engine_id == FIELD_ENGINE_ID
+                        && route.engine_id == crate::LEGACY_FIELD_ENGINE_ID
                 })
             })
             .collect()

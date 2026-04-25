@@ -29,7 +29,7 @@ Reference-client fixtures are the single place where a service descriptor picks 
 
 ## Composition
 
-`ClientBuilder` is the wiring entry point. It attaches one bridge-owned `InMemoryTransport` driver to a `SharedInMemoryNetwork`, constructs queue-backed sender capabilities for each enabled engine, registers the engine set on a fresh `MultiEngineRouter`, and returns a `ReferenceClient` host bridge. The builder supports any combination of `pathway`, `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `field`, `scatter`, and `mercator` engines. Multiple clients built against the same network share one deterministic carrier while advancing routing state through explicit bridge rounds.
+`ClientBuilder` is the wiring entry point. It attaches one bridge-owned `InMemoryTransport` driver to a `SharedInMemoryNetwork`, constructs queue-backed sender capabilities for each enabled engine, registers the engine set on a fresh `MultiEngineRouter`, and returns a `ReferenceClient` host bridge. The builder supports any combination of `pathway`, `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `scatter`, and `mercator` engines. The migrated research engine now lives in the sibling DualTide repository. Multiple clients built against the same network share one deterministic carrier while advancing routing state through explicit bridge rounds.
 
 ```mermaid
 graph LR
@@ -38,7 +38,7 @@ graph LR
   Network((SharedInMemoryNetwork))
   Ref[jacquard-reference-client<br/>fixtures + ClientBuilder + HostBridge]
   Router[MultiEngineRouter]
-  Engines[PathwayEngine / BatmanBellmanEngine /<br/>BatmanClassicEngine / BabelEngine /<br/>OlsrV2Engine / FieldEngine]
+  Engines[PathwayEngine / BatmanBellmanEngine /<br/>BatmanClassicEngine / BabelEngine /<br/>OlsrV2Engine / ScatterEngine / MercatorEngine]
 
   NodeProfile --> Ref
   LinkProfile --> Ref

@@ -12,7 +12,6 @@ use jacquard_babel::BABEL_ENGINE_ID;
 use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
 use jacquard_batman_classic::BATMAN_CLASSIC_ENGINE_ID;
 use jacquard_core::{RoutingEngineId, SimulationSeed};
-use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_mercator::MERCATOR_ENGINE_ID;
 use jacquard_olsrv2::OLSRV2_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
@@ -566,10 +565,15 @@ fn engine_ids_for_lane(lane: &EngineLane) -> &'static [&'static str] {
             "mercator",
             "pathway",
         ],
-        EngineLane::AllEngines
-        | EngineLane::Field
-        | EngineLane::PathwayAndField
-        | EngineLane::FieldAndBatmanBellman => &["field"],
+        EngineLane::AllEngines => &[
+            "pathway",
+            "batman-bellman",
+            "batman-classic",
+            "babel",
+            "olsrv2",
+            "scatter",
+            "mercator",
+        ],
     }
 }
 
@@ -588,7 +592,7 @@ fn engine_id_label(engine_id: &RoutingEngineId) -> String {
         "mercator"
     } else if *engine_id == PATHWAY_ENGINE_ID {
         "pathway"
-    } else if *engine_id == FIELD_ENGINE_ID {
+    } else if *engine_id == crate::LEGACY_FIELD_ENGINE_ID {
         "field"
     } else {
         return format!("{:?}", engine_id.contract_id);

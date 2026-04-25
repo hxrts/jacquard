@@ -6,7 +6,6 @@ use jacquard_core::{
     ConnectivityPosture, DestinationId, DurationMs, HoldFallbackPolicy, NodeId, PriorityPoints,
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RoutingObjective, Tick,
 };
-use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
@@ -45,8 +44,8 @@ use replay_support::{
     activate_ready_objectives, capture_host_snapshots, collect_route_events, failure_summaries_for,
     host_artifact, maintain_active_routes, reactivate_missing_objectives,
     refresh_host_round_routes, restore_checkpointed_hosts, stimulate_scatter_routes,
-    stitch_replay_from_checkpoint, summarize_active_routes, summarize_field_replay,
-    summarize_mercator_replay, TopologyAdvance,
+    stitch_replay_from_checkpoint, summarize_active_routes, summarize_mercator_replay,
+    TopologyAdvance,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -318,14 +317,13 @@ where
                 }
                 if !matches!(capture_level, SimulationCaptureLevel::SummaryOnly) {
                     let active_routes = summarize_active_routes(host.local_node_id, bound.router());
-                    let field_replay = summarize_field_replay(bound.router());
                     let mercator_replay = summarize_mercator_replay(bound.router());
                     host_rounds.push(host_artifact(
                         host.local_node_id,
                         at_tick,
                         &progress,
                         active_routes,
-                        field_replay,
+                        None,
                         mercator_replay,
                     ));
                 }

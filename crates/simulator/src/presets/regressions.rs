@@ -9,9 +9,9 @@ use super::*;
 // pairing topology and environment hooks for regression readability.
 pub fn churn_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
-        topology::node(1).field().build(),
-        topology::node(2).field().build(),
-        topology::node(3).field().build(),
+        topology::node(1).pathway().build(),
+        topology::node(2).pathway().build(),
+        topology::node(3).pathway().build(),
     );
     let scenario = JacquardScenario::new(
         "churn-regression",
@@ -19,11 +19,11 @@ pub fn churn_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::field(NODE_A),
-            HostSpec::field(NODE_B),
-            HostSpec::field(NODE_C),
+            HostSpec::pathway(NODE_A).with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
         8,
     )
     .with_checkpoint_interval(2);
@@ -74,9 +74,9 @@ pub fn churn_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
 #[must_use]
 pub fn partition_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
-        topology::node(1).field().build(),
-        topology::node(2).field().build(),
-        topology::node(3).field().build(),
+        topology::node(1).pathway().build(),
+        topology::node(2).pathway().build(),
+        topology::node(3).pathway().build(),
     );
     let scenario = JacquardScenario::new(
         "partition-regression",
@@ -84,9 +84,9 @@ pub fn partition_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology.clone(),
         vec![
-            HostSpec::field(NODE_A),
-            HostSpec::field(NODE_B),
-            HostSpec::field(NODE_C),
+            HostSpec::pathway(NODE_A).with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C),
         ],
         vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
         8,
@@ -116,9 +116,9 @@ pub fn partition_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
 #[must_use]
 pub fn deferred_delivery_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
-        topology::node(1).field().build(),
-        topology::node(2).field().build(),
-        topology::node(3).field().build(),
+        topology::node(1).pathway().build(),
+        topology::node(2).pathway().build(),
+        topology::node(3).pathway().build(),
     );
     let scenario = JacquardScenario::new(
         "deferred-delivery-regression",
@@ -126,9 +126,9 @@ pub fn deferred_delivery_regression() -> (JacquardScenario, ScriptedEnvironmentM
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology.clone(),
         vec![
-            HostSpec::field(NODE_A),
-            HostSpec::field(NODE_B),
-            HostSpec::field(NODE_C),
+            HostSpec::pathway(NODE_A),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C),
         ],
         vec![BoundObjective::new(NODE_A, connected_objective(NODE_B)).with_activation_round(1)],
         8,
@@ -160,9 +160,9 @@ pub fn deferred_delivery_regression() -> (JacquardScenario, ScriptedEnvironmentM
 #[must_use]
 pub fn adversarial_relay_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
-        topology::node(1).field().build(),
-        topology::node(2).field().build(),
-        topology::node(3).field().build(),
+        topology::node(1).pathway().build(),
+        topology::node(2).pathway().build(),
+        topology::node(3).pathway().build(),
     );
     let scenario = JacquardScenario::new(
         "adversarial-relay-regression",
@@ -170,11 +170,11 @@ pub fn adversarial_relay_regression() -> (JacquardScenario, ScriptedEnvironmentM
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology.clone(),
         vec![
-            HostSpec::field(NODE_A),
-            HostSpec::field(NODE_B),
-            HostSpec::field(NODE_C),
+            HostSpec::pathway(NODE_A).with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
         7,
     )
     .with_checkpoint_interval(2);
@@ -211,32 +211,15 @@ pub fn adversarial_relay_regression() -> (JacquardScenario, ScriptedEnvironmentM
 // long-block-exception: this preset is a single scenario fixture definition
 // pairing topology and environment hooks for regression readability.
 pub fn dense_saturation_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let topology = Observation {
-        value: Configuration {
-            epoch: RouteEpoch(1),
-            nodes: BTreeMap::from([
-                (NODE_A, topology::node(1).field().build()),
-                (NODE_B, topology::node(2).field().build()),
-                (NODE_C, topology::node(3).field().build()),
-                (NODE_D, topology::node(4).field().build()),
-            ]),
-            links: BTreeMap::from([
-                ((NODE_A, NODE_B), topology::link(2).build()),
-                ((NODE_A, NODE_C), topology::link(3).build()),
-                ((NODE_B, NODE_C), topology::link(3).build()),
-                ((NODE_B, NODE_D), topology::link(4).build()),
-                ((NODE_C, NODE_D), topology::link(4).build()),
-            ]),
-            environment: Environment {
-                reachable_neighbor_count: 4,
-                churn_permille: RatioPermille(120),
-                contention_permille: RatioPermille(280),
-            },
-        },
-        source_class: FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
-        origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(2),
+    let mut topology = line_topology(
+        topology::node(1).pathway().build(),
+        topology::node(2).pathway().build(),
+        topology::node(3).pathway().build(),
+    );
+    topology.value.environment = Environment {
+        reachable_neighbor_count: 3,
+        churn_permille: RatioPermille(120),
+        contention_permille: RatioPermille(280),
     };
     let scenario = JacquardScenario::new(
         "dense-saturation-regression",
@@ -244,15 +227,11 @@ pub fn dense_saturation_regression() -> (JacquardScenario, ScriptedEnvironmentMo
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::field(NODE_A),
-            HostSpec::field(NODE_B),
-            HostSpec::field(NODE_C),
-            HostSpec::field(NODE_D),
+            HostSpec::pathway(NODE_A).with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C),
         ],
-        vec![
-            BoundObjective::new(NODE_A, default_objective(NODE_B)),
-            BoundObjective::new(NODE_C, default_objective(NODE_D)),
-        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
         8,
     )
     .with_checkpoint_interval(2);

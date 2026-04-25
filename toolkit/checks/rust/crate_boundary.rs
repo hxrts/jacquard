@@ -82,7 +82,6 @@ const FORBIDDEN_DEPENDENCIES: &[(&str, &[&str])] = &[
     ("jacquard-batman-bellman", &["jacquard-cast-support"]),
     ("jacquard-batman-classic", &["jacquard-cast-support"]),
     ("jacquard-olsrv2", &["jacquard-cast-support"]),
-    ("jacquard-field", &["jacquard-cast-support"]),
     ("jacquard-scatter", &["jacquard-cast-support"]),
     ("jacquard-mercator", &["jacquard-cast-support"]),
 ];

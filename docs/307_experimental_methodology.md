@@ -22,7 +22,7 @@ The dependent variables are run outcomes. The report surfaces activation success
 
 ## Why Engines Are Tuned First
 
-Every in-tree engine exposes parameters that strongly affect its behavior. Examples include the BATMAN decay window, the Pathway search budget, the Babel decay window, and the Field regime policy knobs.
+Every in-tree engine exposes parameters that strongly affect its behavior. Examples include the BATMAN decay window, the Pathway search budget, the Babel decay window, Scatter profile thresholds, and Mercator corridor scoring.
 
 Running a comparative experiment before locking those parameters would conflate per-engine tuning choices with per-engine capability. A comparison that pits one engine against another at arbitrary parameter settings measures both the relative engine choice and the tuning gap between them.
 

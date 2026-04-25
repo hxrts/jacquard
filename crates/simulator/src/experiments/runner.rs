@@ -328,9 +328,8 @@ mod tests {
     use crate::{
         tuning_babel_equivalence_smoke_suite, tuning_babel_model_smoke_suite,
         tuning_batman_bellman_model_smoke_suite, tuning_batman_classic_model_smoke_suite,
-        tuning_field_model_smoke_suite, tuning_local_stage_suite_with_seeds_and_config,
-        tuning_olsrv2_model_smoke_suite, tuning_pathway_model_smoke_suite,
-        tuning_scatter_model_smoke_suite, ReferenceClientAdapter,
+        tuning_local_stage_suite_with_seeds_and_config, tuning_olsrv2_model_smoke_suite,
+        tuning_pathway_model_smoke_suite, tuning_scatter_model_smoke_suite, ReferenceClientAdapter,
     };
 
     static TEMP_DIR_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -385,30 +384,6 @@ mod tests {
             .runs
             .iter()
             .all(|run| run.equivalence_passed == Some(true)));
-
-        remove_temp_output_dir(&output_dir);
-    }
-
-    #[test]
-    fn field_model_smoke_suite_writes_model_artifacts() {
-        let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-        let output_dir = temp_output_dir("field-model-smoke");
-        let artifacts = run_suite(
-            &mut simulator,
-            &tuning_field_model_smoke_suite(),
-            &output_dir,
-        )
-        .expect("field model smoke suite should run");
-
-        assert_eq!(artifacts.manifest.model_artifact_count, 1);
-        assert_eq!(
-            artifacts
-                .runs
-                .iter()
-                .map(|run| run.execution_lane.as_str())
-                .collect::<Vec<_>>(),
-            vec!["model"]
-        );
 
         remove_temp_output_dir(&output_dir);
     }

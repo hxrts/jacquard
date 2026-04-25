@@ -273,7 +273,6 @@ ci-dry-run:
     add_step "Surface Classification"     "{{policy_cmd}} check surface-classification"
     add_step "Rust Style Guide"           "{{policy_cmd}} check rust-style-guide"
     add_step "Long File"                  "{{policy_cmd}} check long-file"
-    add_step "Field Code Map"             "{{policy_cmd}} check field-code-map"
     add_step "Checkpoint Namespacing"     "{{policy_cmd}} check checkpoint-namespacing"
     add_step "Engine Service Boundary"    "{{policy_cmd}} check engine-service-boundary"
     add_step "Invariant Specs"            "{{policy_cmd}} check invariant-specs"
@@ -351,9 +350,6 @@ rust-style-guide:
 
 dry-code:
     {{policy_cmd}} check dry-code
-
-field-code-map:
-    {{policy_cmd}} check field-code-map
 
 # validate routing-invariant checks against seeded fixtures
 routing-invariants-validate:

@@ -8,7 +8,7 @@ use super::{
     JacquardSimulationStats, MercatorReplaySummary, NodeId, PriorityPoints, ReferenceClient,
     ReferenceRouter, RoutePartitionClass, RouteProtectionClass, RouteRepairClass, Router,
     RoutingControlPlane, RoutingDataPlane, RoutingObjective, SimulationError,
-    SimulationFailureSummary, Tick, FIELD_ENGINE_ID, PATHWAY_ENGINE_ID,
+    SimulationFailureSummary, Tick, PATHWAY_ENGINE_ID,
 };
 use jacquard_babel::{
     selected_neighbor_from_backend_route_id as selected_babel_neighbor, BABEL_ENGINE_ID,
@@ -22,10 +22,6 @@ use jacquard_batman_classic::{
     BATMAN_CLASSIC_ENGINE_ID,
 };
 use jacquard_core::{RouteError, RouteSelectionError};
-use jacquard_field::{
-    selected_neighbor_from_backend_route_id as selected_field_neighbor,
-    FieldRouterAnalysisSnapshot, FIELD_ENGINE_ID as FIELD_ROUTER_ENGINE_ID,
-};
 use jacquard_mercator::{
     selected_neighbor_from_backend_route_id as selected_mercator_neighbor,
     MercatorRouterAnalysisSnapshot, MERCATOR_ENGINE_ID,
@@ -68,44 +64,6 @@ pub(super) fn host_artifact(
         field_replay,
         mercator_replay,
     }
-}
-
-// long-block-exception: this replay projection maps many Field runtime surfaces
-// into one report summary, and keeping it in one pass preserves traceability.
-pub(super) fn summarize_field_replay(router: &ReferenceRouter) -> Option<FieldReplaySummary> {
-    let snapshot = router
-        .engine_analysis_snapshot(&FIELD_ENGINE_ID)?
-        .downcast::<FieldRouterAnalysisSnapshot>()
-        .ok()
-        .map(|boxed| *boxed)?;
-    Some(FieldReplaySummary {
-        selected_result_present: snapshot.selected_result_present,
-        search_reconfiguration_present: snapshot.search_reconfiguration_present,
-        execution_policy: snapshot.execution_policy,
-        bootstrap_active: snapshot.bootstrap_active,
-        continuity_band: snapshot.continuity_band,
-        last_continuity_transition: snapshot.last_continuity_transition,
-        last_promotion_decision: snapshot.last_promotion_decision,
-        last_promotion_blocker: snapshot.last_promotion_blocker,
-        bootstrap_activation_count: snapshot.bootstrap_activation_count,
-        bootstrap_hold_count: snapshot.bootstrap_hold_count,
-        bootstrap_narrow_count: snapshot.bootstrap_narrow_count,
-        bootstrap_upgrade_count: snapshot.bootstrap_upgrade_count,
-        bootstrap_withdraw_count: snapshot.bootstrap_withdraw_count,
-        degraded_steady_entry_count: snapshot.degraded_steady_entry_count,
-        degraded_steady_recovery_count: snapshot.degraded_steady_recovery_count,
-        degraded_to_bootstrap_count: snapshot.degraded_to_bootstrap_count,
-        degraded_steady_round_count: snapshot.degraded_steady_round_count,
-        service_retention_carry_forward_count: snapshot.service_retention_carry_forward_count,
-        asymmetric_shift_success_count: snapshot.asymmetric_shift_success_count,
-        protocol_reconfiguration_count: snapshot.protocol_reconfiguration_count,
-        route_bound_reconfiguration_count: snapshot.route_bound_reconfiguration_count,
-        continuation_shift_count: snapshot.continuation_shift_count,
-        continuity_narrow_count: snapshot.continuity_narrow_count,
-        checkpoint_capture_count: snapshot.checkpoint_capture_count,
-        checkpoint_restore_count: snapshot.checkpoint_restore_count,
-        reconfiguration_causes: snapshot.reconfiguration_causes,
-    })
 }
 
 pub(super) fn summarize_mercator_replay(router: &ReferenceRouter) -> Option<MercatorReplaySummary> {
@@ -192,10 +150,6 @@ pub(super) fn summarize_active_routes(
     owner_node_id: NodeId,
     router: &ReferenceRouter,
 ) -> Vec<ActiveRouteSummary> {
-    let field_snapshot = router
-        .engine_analysis_snapshot(&FIELD_ENGINE_ID)
-        .and_then(|snapshot| snapshot.downcast::<FieldRouterAnalysisSnapshot>().ok())
-        .map(|boxed| *boxed);
     let scatter_snapshot = router
         .engine_analysis_snapshot(&SCATTER_ENGINE_ID)
         .and_then(|snapshot| snapshot.downcast::<ScatterRouterAnalysisSnapshot>().ok())
@@ -206,12 +160,6 @@ pub(super) fn summarize_active_routes(
         .map(|route| {
             let route_id = route.identity.stamp.route_id;
             let next_hop_node_id = next_hop_node_id_for_route(&route);
-            let recovery_entry = field_snapshot.as_ref().and_then(|snapshot| {
-                snapshot
-                    .route_summaries
-                    .iter()
-                    .find(|entry| entry.route_id == route_id)
-            });
             let scatter_entry = scatter_snapshot.as_ref().and_then(|snapshot| {
                 snapshot
                     .route_summaries
@@ -235,15 +183,11 @@ pub(super) fn summarize_active_routes(
                 reachability_state: route.runtime.health.reachability_state,
                 stability_score: route.runtime.health.stability_score,
                 commitment_resolution,
-                field_continuity_band: recovery_entry
-                    .and_then(|entry| entry.continuity_band.clone()),
-                field_last_outcome: recovery_entry.and_then(|entry| entry.last_outcome.clone()),
-                field_last_promotion_decision: recovery_entry
-                    .and_then(|entry| entry.last_promotion_decision.clone()),
-                field_last_promotion_blocker: recovery_entry
-                    .and_then(|entry| entry.last_promotion_blocker.clone()),
-                field_continuation_shift_count: recovery_entry
-                    .map(|entry| entry.continuation_shift_count),
+                field_continuity_band: None,
+                field_last_outcome: None,
+                field_last_promotion_decision: None,
+                field_last_promotion_blocker: None,
+                field_continuation_shift_count: None,
                 scatter_current_regime: scatter_snapshot
                     .as_ref()
                     .map(|snapshot| format!("{:?}", snapshot.current_regime)),
@@ -274,7 +218,6 @@ fn next_hop_node_id_for_route(route: &jacquard_core::MaterializedRoute) -> Optio
         BABEL_ENGINE_ID => selected_babel_neighbor(backend_route_id),
         OLSRV2_ENGINE_ID => selected_olsr_neighbor(backend_route_id),
         PATHWAY_ENGINE_ID => first_hop_node_id_from_backend_route_id(backend_route_id),
-        FIELD_ROUTER_ENGINE_ID => selected_field_neighbor(backend_route_id),
         MERCATOR_ENGINE_ID => selected_mercator_neighbor(backend_route_id),
         _ => None,
     }
@@ -290,7 +233,7 @@ pub(super) fn refresh_host_round_routes(
         };
         let bound = host.bind();
         artifact.active_routes = summarize_active_routes(artifact.local_node_id, bound.router());
-        artifact.field_replay = summarize_field_replay(bound.router());
+        artifact.field_replay = None;
         artifact.mercator_replay = summarize_mercator_replay(bound.router());
     }
 }

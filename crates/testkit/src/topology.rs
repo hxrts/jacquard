@@ -13,8 +13,6 @@ use jacquard_core::{
     ByteCount, ControllerId, Link, Node, NodeId, RatioPermille, RoutingEngineId, Tick,
     TransportKind,
 };
-#[cfg(feature = "topology-full")]
-use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_host_support::opaque_endpoint;
 use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
@@ -120,24 +118,6 @@ impl TopologyNodePreset {
 
     #[cfg(feature = "topology-full")]
     #[must_use]
-    pub fn field(self) -> Self {
-        self.for_engine(&FIELD_ENGINE_ID)
-    }
-
-    #[cfg(feature = "topology-full")]
-    #[must_use]
-    pub fn pathway_and_field(self) -> Self {
-        self.for_engines(&[PATHWAY_ENGINE_ID, FIELD_ENGINE_ID])
-    }
-
-    #[cfg(feature = "topology-full")]
-    #[must_use]
-    pub fn field_and_batman_bellman(self) -> Self {
-        self.for_engines(&[FIELD_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
-    }
-
-    #[cfg(feature = "topology-full")]
-    #[must_use]
     pub fn scatter(self) -> Self {
         self.for_engine(&SCATTER_ENGINE_ID)
     }
@@ -147,7 +127,6 @@ impl TopologyNodePreset {
     pub fn all_engines(self) -> Self {
         self.for_engines(&[
             PATHWAY_ENGINE_ID,
-            FIELD_ENGINE_ID,
             BATMAN_BELLMAN_ENGINE_ID,
             BATMAN_CLASSIC_ENGINE_ID,
             BABEL_ENGINE_ID,

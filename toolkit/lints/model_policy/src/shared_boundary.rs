@@ -2,7 +2,7 @@
 //!
 //! Detects public structs, enums, and type aliases in `jacquard-core` and
 //! `jacquard-traits` whose names begin with engine-specific prefixes: `Pathway`,
-//! `Mesh`, `Onion`, or `Field`. These prefixes identify vocabulary that belongs
+//! `Mesh`, or `Onion`. These prefixes identify vocabulary that belongs
 //! to a particular routing engine and must not appear in the shared schema or
 //! contract crates.
 //!
@@ -12,7 +12,7 @@
 //!
 //! Accepts: shared-crate types with engine-neutral names.
 //! Rejects: public types in `core/` or `traits/` whose names start with
-//! `Pathway`, `Mesh`, `Onion`, or `Field`.
+//! `Pathway`, `Mesh`, or `Onion`.
 
 use rustc_hir::{Item, ItemKind};
 use rustc_errors::DiagDecorator;
@@ -26,8 +26,8 @@ rustc_session::declare_lint! {
     ///
     /// ### Why is this bad?
     ///
-    /// Shared crates define engine-neutral schema and contracts. Mesh-, onion-,
-    /// and field-specific runtime vocabulary belongs in engine crates.
+    /// Shared crates define engine-neutral schema and contracts. Mesh- and
+    /// onion-specific runtime vocabulary belongs in engine crates.
     pub SHARED_PRIVATE_BOUNDARY,
     Warn,
     "shared crates should not define engine-specific public vocabulary",
@@ -62,8 +62,7 @@ impl<'tcx> LateLintPass<'tcx> for SharedPrivateBoundary {
         let name = name.as_str();
         if !(name.starts_with("Pathway")
             || name.starts_with("Mesh")
-            || name.starts_with("Onion")
-            || name.starts_with("Field"))
+            || name.starts_with("Onion"))
         {
             return;
         }

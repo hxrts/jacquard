@@ -7,8 +7,6 @@ use jacquard_core::{
     Configuration, NodeId, Observation, OperatingMode, RoutingObjective, RoutingPolicyInputs,
     SelectedRoutingParameters, SimulationSeed,
 };
-use jacquard_core::{DestinationId, Tick};
-use jacquard_field::{FieldForwardSummaryObservation, FieldSearchConfig};
 use jacquard_olsrv2::DecayWindow as OlsrV2DecayWindow;
 use jacquard_pathway::PathwaySearchConfig;
 use jacquard_scatter::ScatterEngineConfig;
@@ -21,7 +19,6 @@ pub enum EngineLane {
     BatmanClassic,
     Babel,
     OlsrV2,
-    Field,
     Scatter,
     Mercator,
     PathwayAndBatmanBellman,
@@ -29,8 +26,6 @@ pub enum EngineLane {
     PathwayAndOlsrV2,
     BabelAndBatmanBellman,
     OlsrV2AndBatmanBellman,
-    PathwayAndField,
-    FieldAndBatmanBellman,
     AllEngines,
     RouteVisibleEngines,
 }
@@ -51,39 +46,7 @@ pub struct HostOverrides {
     pub babel_decay_window: Option<BabelDecayWindow>,
     pub olsrv2_decay_window: Option<OlsrV2DecayWindow>,
     pub pathway_search_config: Option<PathwaySearchConfig>,
-    pub field_search_config: Option<FieldSearchConfig>,
     pub scatter_config: Option<ScatterEngineConfig>,
-    pub field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FieldBootstrapSummary {
-    pub destination: DestinationId,
-    pub from_neighbor: NodeId,
-    pub forward_observation: FieldForwardSummaryObservation,
-    pub reverse_feedback: Option<(u16, Tick)>,
-}
-
-impl FieldBootstrapSummary {
-    #[must_use]
-    pub fn new(
-        destination: DestinationId,
-        from_neighbor: NodeId,
-        forward_observation: FieldForwardSummaryObservation,
-    ) -> Self {
-        Self {
-            destination,
-            from_neighbor,
-            forward_observation,
-            reverse_feedback: None,
-        }
-    }
-
-    #[must_use]
-    pub fn with_reverse_feedback(mut self, delivery_feedback: u16, observed_at_tick: Tick) -> Self {
-        self.reverse_feedback = Some((delivery_feedback, observed_at_tick));
-        self
-    }
 }
 
 impl HostSpec {
@@ -128,15 +91,6 @@ impl HostSpec {
         Self {
             local_node_id,
             lane: EngineLane::OlsrV2,
-            overrides: HostOverrides::default(),
-        }
-    }
-
-    #[must_use]
-    pub fn field(local_node_id: NodeId) -> Self {
-        Self {
-            local_node_id,
-            lane: EngineLane::Field,
             overrides: HostOverrides::default(),
         }
     }
@@ -200,24 +154,6 @@ impl HostSpec {
         Self {
             local_node_id,
             lane: EngineLane::OlsrV2AndBatmanBellman,
-            overrides: HostOverrides::default(),
-        }
-    }
-
-    #[must_use]
-    pub fn pathway_and_field(local_node_id: NodeId) -> Self {
-        Self {
-            local_node_id,
-            lane: EngineLane::PathwayAndField,
-            overrides: HostOverrides::default(),
-        }
-    }
-
-    #[must_use]
-    pub fn field_and_batman_bellman(local_node_id: NodeId) -> Self {
-        Self {
-            local_node_id,
-            lane: EngineLane::FieldAndBatmanBellman,
             overrides: HostOverrides::default(),
         }
     }
@@ -292,25 +228,8 @@ impl HostSpec {
     }
 
     #[must_use]
-    pub fn with_field_search_config(mut self, field_search_config: FieldSearchConfig) -> Self {
-        self.overrides.field_search_config = Some(field_search_config);
-        self
-    }
-
-    #[must_use]
     pub fn with_scatter_config(mut self, scatter_config: ScatterEngineConfig) -> Self {
         self.overrides.scatter_config = Some(scatter_config);
-        self
-    }
-
-    #[must_use]
-    pub fn with_field_bootstrap_summary(
-        mut self,
-        field_bootstrap_summary: FieldBootstrapSummary,
-    ) -> Self {
-        self.overrides
-            .field_bootstrap_summaries
-            .push(field_bootstrap_summary);
         self
     }
 }

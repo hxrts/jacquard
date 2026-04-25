@@ -18,7 +18,6 @@ jacquard-babel = { path = "../babel", version = "0.8.0" }
 jacquard-batman-bellman = { path = "../batman-bellman", version = "0.8.0" }
 jacquard-batman-classic = { path = "../batman-classic", version = "0.8.0" }
 jacquard-core = { path = "../core", version = "0.8.0" }
-jacquard-field = { path = "../field", version = "0.8.0" }
 jacquard-mem-link-profile = { path = "../mem-link-profile", version = "0.8.0" }
 jacquard-mem-node-profile = { path = "../mem-node-profile", version = "0.8.0" }
 jacquard-mercator = { path = "../mercator", version = "0.8.0" }

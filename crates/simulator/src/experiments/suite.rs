@@ -27,7 +27,6 @@ use jacquard_core::{
     RatioPermille, RouteDegradation, RouteLifecycleEvent, RouteMaintenanceOutcome,
     RouteMaintenanceResult, RoutingTickChange, TransportKind,
 };
-use jacquard_field::FieldPlannerSeed;
 use jacquard_olsrv2::OlsrPlannerSeed;
 use jacquard_pathway::PathwayPlannerSeed;
 use jacquard_scatter::{ScatterEngineConfig, ScatterPlannerSeed};
@@ -208,14 +207,6 @@ pub fn babel_equivalence_smoke_suite() -> ExperimentSuite {
     ExperimentSuite {
         suite_id: "babel-equivalence-smoke".to_string(),
         runs: build_babel_pilot_equivalence_runs("babel-equivalence-smoke", SimulationSeed(93)),
-    }
-}
-
-#[must_use]
-pub fn field_model_smoke_suite() -> ExperimentSuite {
-    ExperimentSuite {
-        suite_id: "field-model-smoke".to_string(),
-        runs: build_field_pilot_model_runs("field-model-smoke", SimulationSeed(95)),
     }
 }
 
@@ -492,169 +483,6 @@ fn build_pathway_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experim
     expand_runs(suite_id, "pathway", seeds, &parameter_sets, &families)
 }
 
-// long-block-exception: the Field family catalog is kept in one function
-// so historical corridor-specific tuning artifacts remain auditable in one place.
-#[allow(dead_code)]
-fn build_field_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
-    let coarse = vec![
-        ExperimentParameterSet::field_tuned(4, FieldSearchHeuristicMode::Zero, 1, 140, 180),
-        ExperimentParameterSet::field_tuned(
-            6,
-            FieldSearchHeuristicMode::HopLowerBound,
-            2,
-            130,
-            130,
-        ),
-        ExperimentParameterSet::field_tuned(6, FieldSearchHeuristicMode::HopLowerBound, 3, 170, 90),
-    ];
-    let fine = vec![
-        ExperimentParameterSet::field_tuned(4, FieldSearchHeuristicMode::Zero, 3, 80, 70),
-        ExperimentParameterSet::field_tuned(
-            8,
-            FieldSearchHeuristicMode::HopLowerBound,
-            1,
-            120,
-            190,
-        ),
-    ];
-    let parameter_sets = if smoke {
-        vec![coarse[0].clone(), coarse[1].clone()]
-    } else {
-        coarse.into_iter().chain(fine).collect()
-    };
-
-    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
-        (
-            "field-partial-observability-bridge",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "mild".to_string(),
-                churn: "partial-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 44,
-            },
-            build_field_partial_observability_bridge,
-        ),
-        (
-            "field-reconfiguration-recovery",
-            RegimeDescriptor {
-                density: "medium-ring".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "relink-and-replace".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 48,
-            },
-            build_field_reconfiguration_recovery,
-        ),
-        (
-            "field-asymmetric-envelope-shift",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "severe".to_string(),
-                churn: "partial-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 54,
-            },
-            build_field_asymmetric_envelope_shift,
-        ),
-        (
-            "field-uncertain-service-fanout",
-            RegimeDescriptor {
-                density: "high-fanout".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "static".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "service".to_string(),
-                stress_score: 46,
-            },
-            build_field_uncertain_service_fanout,
-        ),
-        (
-            "field-service-overlap-reselection",
-            RegimeDescriptor {
-                density: "high-fanout".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "mild".to_string(),
-                churn: "branch-reselection".to_string(),
-                node_pressure: "moderate".to_string(),
-                objective_regime: "service".to_string(),
-                stress_score: 54,
-            },
-            build_field_service_overlap_reselection,
-        ),
-        (
-            "field-service-freshness-inversion",
-            RegimeDescriptor {
-                density: "high-fanout".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "mild".to_string(),
-                churn: "freshness-inversion".to_string(),
-                node_pressure: "moderate".to_string(),
-                objective_regime: "service".to_string(),
-                stress_score: 58,
-            },
-            build_field_service_freshness_inversion,
-        ),
-        (
-            "field-service-publication-pressure",
-            RegimeDescriptor {
-                density: "high-fanout".to_string(),
-                loss: "moderate".to_string(),
-                interference: "high".to_string(),
-                asymmetry: "mild".to_string(),
-                churn: "overpublish-pressure".to_string(),
-                node_pressure: "moderate".to_string(),
-                objective_regime: "service".to_string(),
-                stress_score: 60,
-            },
-            build_field_service_publication_pressure,
-        ),
-        (
-            "field-bridge-anti-entropy-continuity",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "moderate".to_string(),
-                churn: "intermittent-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 52,
-            },
-            build_field_bridge_anti_entropy_continuity,
-        ),
-        (
-            "field-bootstrap-upgrade-window",
-            RegimeDescriptor {
-                density: "medium-ring".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "moderate".to_string(),
-                churn: "alternating-repair".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 50,
-            },
-            build_field_bootstrap_upgrade_window,
-        ),
-    ];
-
-    expand_runs(suite_id, "field", seeds, &parameter_sets, &families)
-}
-
 fn scatter_parameter_sets(scale: ComparativeSuiteScale) -> Vec<ExperimentParameterSet> {
     match scale {
         ComparativeSuiteScale::Smoke => vec![
@@ -690,29 +518,25 @@ fn head_to_head_configs() -> Vec<ExperimentParameterSet> {
             ComparisonEngineSet::BatmanBellman,
             Some((1, 1)),
             None,
-            None,
         ),
         ExperimentParameterSet::head_to_head(
             ComparisonEngineSet::BatmanClassic,
             Some((4, 2)),
             None,
-            None,
         ),
-        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Babel, Some((4, 2)), None, None),
-        ExperimentParameterSet::head_to_head(ComparisonEngineSet::OlsrV2, Some((4, 2)), None, None),
-        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Scatter, None, None, None),
-        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None),
+        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Babel, Some((4, 2)), None),
+        ExperimentParameterSet::head_to_head(ComparisonEngineSet::OlsrV2, Some((4, 2)), None),
+        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Scatter, None, None),
+        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None),
         ExperimentParameterSet::head_to_head(
             ComparisonEngineSet::Pathway,
             None,
             Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
-            None,
         ),
         ExperimentParameterSet::head_to_head(
             ComparisonEngineSet::PathwayAndBatmanBellman,
             Some((6, 3)),
             Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
-            None,
         ),
     ]
 }
@@ -1137,51 +961,6 @@ fn build_babel_pilot_equivalence_runs(
     ]
 }
 
-fn build_field_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<ExperimentRunSpec> {
-    let (scenario, environment, objective, profile, topology) =
-        pilot_field_line_scenario("field-model-line", seed);
-    vec![ExperimentRunSpec {
-        run_id: format!("{suite_id}-planner-{}", seed.0),
-        suite_id: suite_id.to_string(),
-        family_id: "field-planner-decision".to_string(),
-        engine_family: "field".to_string(),
-        execution_lane: SimulationExecutionLane::Model,
-        seed,
-        regime: regime((
-            "medium-line",
-            "low",
-            "low",
-            "none",
-            "static",
-            "none",
-            "repairable-connected",
-            12,
-        )),
-        parameters: ExperimentParameterSet::field(4, FieldSearchHeuristicMode::Zero),
-        world: ExperimentRunWorld::Prepared {
-            scenario: Box::new(scenario),
-            environment,
-        },
-        model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Field(
-            FieldPlannerDecisionCase {
-                fixture_id: "field-planner-line".to_string(),
-                owner_node_id: NODE_A,
-                destination: NODE_C,
-                expected_next_hop: NODE_B,
-                expected_visible_round: None,
-                objective,
-                profile,
-                topology: topology.clone(),
-                seed: FieldPlannerSeed {
-                    local_node_id: NODE_A,
-                    selected_neighbor: NODE_B,
-                    observed_at_tick: topology.observed_at_tick,
-                },
-            },
-        ))),
-    }]
-}
-
 fn build_pathway_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<ExperimentRunSpec> {
     let (scenario, environment, objective, profile, topology) =
         pilot_pathway_line_scenario("pathway-model-line", seed);
@@ -1442,44 +1221,6 @@ fn pilot_babel_line_scenario(
     } else {
         scenario
     };
-    (
-        scenario,
-        ScriptedEnvironmentModel::default(),
-        objective,
-        best_effort_connected_profile(),
-        topology,
-    )
-}
-
-fn pilot_field_line_scenario(
-    name: &str,
-    seed: SimulationSeed,
-) -> (
-    JacquardScenario,
-    ScriptedEnvironmentModel,
-    RoutingObjective,
-    SelectedRoutingParameters,
-    Observation<Configuration>,
-) {
-    let topology = bidirectional_line_topology(
-        topology::node(1).field().build(),
-        topology::node(2).field().build(),
-        topology::node(3).field().build(),
-    );
-    let objective = connected_objective(NODE_C);
-    let scenario = JacquardScenario::new(
-        name,
-        seed,
-        OperatingMode::DenseInteractive,
-        topology.clone(),
-        vec![
-            HostSpec::field(NODE_A),
-            HostSpec::field(NODE_B),
-            HostSpec::field(NODE_C),
-        ],
-        vec![BoundObjective::new(NODE_A, objective.clone()).with_activation_round(2)],
-        7,
-    );
     (
         scenario,
         ScriptedEnvironmentModel::default(),
@@ -1836,13 +1577,13 @@ mod tests {
     }
 
     #[test]
-    fn local_route_visible_matrix_excludes_field_comparison_rows() {
+    fn local_route_visible_matrix_excludes_retired_research_engine_rows() {
         let suite = local_suite();
         assert!(
             suite.runs.iter().all(|run| run.engine_family != "field"
                 && run.parameters.comparison_engine_set_label() != Some("field")
                 && !run.parameters.config_id.starts_with("head-to-head-field")),
-            "future route-visible matrices should not emit active Field routing comparison rows"
+            "future route-visible matrices should not emit retired research-engine comparison rows"
         );
 
         let grouped_head_to_head =
@@ -1853,7 +1594,7 @@ mod tests {
                 .comparison_engine_set_label()
                 != Some("field")
                 && !run.parameters.config_id.starts_with("head-to-head-field")),
-            "staged head-to-head route-visible runs should exclude Field"
+            "staged head-to-head route-visible runs should exclude retired research-engine rows"
         );
     }
 

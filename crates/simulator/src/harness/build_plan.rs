@@ -2,9 +2,7 @@
 
 use jacquard_core::{Configuration, Observation, Tick};
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
-use jacquard_reference_client::{
-    BridgeQueueConfig, ClientBuilder, FieldBootstrapSummary as ClientFieldBootstrapSummary,
-};
+use jacquard_reference_client::{BridgeQueueConfig, ClientBuilder};
 
 use crate::scenario::{EngineLane, HostOverrides, HostSpec, JacquardScenario};
 
@@ -27,9 +25,7 @@ struct HostBuildOverrides {
     babel_decay_window: Option<jacquard_babel::DecayWindow>,
     olsrv2_decay_window: Option<jacquard_olsrv2::DecayWindow>,
     pathway_search_config: Option<jacquard_pathway::PathwaySearchConfig>,
-    field_search_config: Option<jacquard_field::FieldSearchConfig>,
     scatter_config: Option<jacquard_scatter::ScatterEngineConfig>,
-    field_bootstrap_summaries: Vec<ClientFieldBootstrapSummary>,
 }
 
 impl From<&HostOverrides> for HostBuildOverrides {
@@ -42,18 +38,7 @@ impl From<&HostOverrides> for HostBuildOverrides {
             babel_decay_window: overrides.babel_decay_window,
             olsrv2_decay_window: overrides.olsrv2_decay_window,
             pathway_search_config: overrides.pathway_search_config.clone(),
-            field_search_config: overrides.field_search_config.clone(),
             scatter_config: overrides.scatter_config,
-            field_bootstrap_summaries: overrides
-                .field_bootstrap_summaries
-                .iter()
-                .map(|bootstrap| ClientFieldBootstrapSummary {
-                    destination: bootstrap.destination.clone(),
-                    from_neighbor: bootstrap.from_neighbor,
-                    forward_observation: bootstrap.forward_observation,
-                    reverse_feedback: bootstrap.reverse_feedback,
-                })
-                .collect(),
         }
     }
 }
@@ -111,14 +96,8 @@ impl HostBuildPlan {
         if let Some(search_config) = self.overrides.pathway_search_config {
             builder = builder.with_pathway_search_config(search_config);
         }
-        if let Some(search_config) = self.overrides.field_search_config {
-            builder = builder.with_field_search_config(search_config);
-        }
         if let Some(scatter_config) = self.overrides.scatter_config {
             builder = builder.with_scatter_config(scatter_config);
-        }
-        for bootstrap in self.overrides.field_bootstrap_summaries {
-            builder = builder.with_field_bootstrap_summary(bootstrap);
         }
         builder
     }
@@ -142,9 +121,6 @@ fn base_builder(
         EngineLane::Pathway => {
             ClientBuilder::pathway(local_node_id, topology, network, observed_at_tick)
         }
-        EngineLane::Field => {
-            ClientBuilder::field(local_node_id, topology, network, observed_at_tick)
-        }
         EngineLane::Scatter => {
             ClientBuilder::scatter(local_node_id, topology, network, observed_at_tick)
         }
@@ -152,15 +128,6 @@ fn base_builder(
             ClientBuilder::mercator(local_node_id, topology, network, observed_at_tick)
         }
         EngineLane::PathwayAndBatmanBellman => ClientBuilder::pathway_and_batman_bellman(
-            local_node_id,
-            topology,
-            network,
-            observed_at_tick,
-        ),
-        EngineLane::PathwayAndField => {
-            ClientBuilder::pathway_and_field(local_node_id, topology, network, observed_at_tick)
-        }
-        EngineLane::FieldAndBatmanBellman => ClientBuilder::field_and_batman_bellman(
             local_node_id,
             topology,
             network,

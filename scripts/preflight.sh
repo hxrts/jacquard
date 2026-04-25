@@ -193,7 +193,6 @@ checks=(
   "Trait Purity"
   "Crate Boundary"
   "No usize in Models"
-  "Field Code Map"
   "Docs Build"
 )
 

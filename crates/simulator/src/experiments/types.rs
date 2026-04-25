@@ -14,7 +14,6 @@ use jacquard_babel::{
 use jacquard_batman_bellman::BatmanBellmanPlannerSeed;
 use jacquard_batman_classic::BatmanClassicPlannerSeed;
 use jacquard_core::{ByteCount, RoutingTickChange};
-use jacquard_field::FieldPlannerSeed;
 use jacquard_olsrv2::OlsrPlannerSeed;
 use jacquard_pathway::PathwayPlannerSeed;
 use jacquard_scatter::{
@@ -28,7 +27,7 @@ pub(super) const NODE_C: NodeId = NodeId([3; 32]);
 pub(super) const NODE_D: NodeId = NodeId([4; 32]);
 pub(super) const NODE_E: NodeId = NodeId([5; 32]);
 pub(super) const NODE_F: NodeId = NodeId([6; 32]);
-pub(super) type FieldBootstrapSeed = (NodeId, u16, u8, u8, Option<u16>);
+pub(super) type RouteBootstrapSeed = (NodeId, u16, u8, u8, Option<u16>);
 pub const ROUTE_VISIBLE_ARTIFACT_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Error)]
@@ -105,8 +104,6 @@ pub enum ComparisonEngineSet {
     OlsrV2,
     #[serde(rename = "pathway")]
     Pathway,
-    #[serde(rename = "field")]
-    Field,
     #[serde(rename = "scatter")]
     Scatter,
     #[serde(rename = "mercator")]
@@ -125,7 +122,6 @@ impl ComparisonEngineSet {
             Self::Babel => "babel",
             Self::OlsrV2 => "olsrv2",
             Self::Pathway => "pathway",
-            Self::Field => "field",
             Self::Scatter => "scatter",
             Self::Mercator => "mercator",
             Self::PathwayAndBatmanBellman => "pathway-batman-bellman",
@@ -209,62 +205,6 @@ fn optional_pathway_search_fields(
     })
 }
 
-fn optional_field_search_fields(
-    field_search: Option<(usize, FieldSearchHeuristicMode)>,
-) -> FieldSearchFields {
-    let (field_query_budget, field_heuristic_mode) =
-        field_search.map_or((None, None), |(budget, heuristic)| {
-            (
-                Some(budget),
-                Some(field_heuristic_mode_label(heuristic).to_string()),
-            )
-        });
-    let (
-        field_service_publication_neighbor_limit,
-        field_service_freshness_weight,
-        field_service_narrowing_bias,
-        field_node_bootstrap_support_floor,
-        field_node_bootstrap_top_mass_floor,
-        field_node_bootstrap_entropy_ceiling,
-        field_node_discovery_enabled,
-    ) = if field_search.is_some() {
-        (
-            Some(1),
-            Some(120),
-            Some(190),
-            Some(180),
-            Some(180),
-            Some(970),
-            Some(true),
-        )
-    } else {
-        (None, None, None, None, None, None, None)
-    };
-    FieldSearchFields {
-        field_query_budget,
-        field_heuristic_mode,
-        field_service_publication_neighbor_limit,
-        field_service_freshness_weight,
-        field_service_narrowing_bias,
-        field_node_bootstrap_support_floor,
-        field_node_bootstrap_top_mass_floor,
-        field_node_bootstrap_entropy_ceiling,
-        field_node_discovery_enabled,
-    }
-}
-
-struct FieldSearchFields {
-    field_query_budget: Option<usize>,
-    field_heuristic_mode: Option<String>,
-    field_service_publication_neighbor_limit: Option<usize>,
-    field_service_freshness_weight: Option<u16>,
-    field_service_narrowing_bias: Option<u16>,
-    field_node_bootstrap_support_floor: Option<u16>,
-    field_node_bootstrap_top_mass_floor: Option<u16>,
-    field_node_bootstrap_entropy_ceiling: Option<u16>,
-    field_node_discovery_enabled: Option<bool>,
-}
-
 impl ExperimentParameterSet {
     // long-block-exception: the suffix mapping is a compact canonical encoding
     // table for all maintained head-to-head engine configurations.
@@ -272,7 +212,6 @@ impl ExperimentParameterSet {
         comparison_engine_set: ComparisonEngineSet,
         batman_bellman_decay_window: Option<(u32, u32)>,
         pathway_search: Option<(usize, PathwaySearchHeuristicMode)>,
-        field_search: Option<(usize, FieldSearchHeuristicMode)>,
     ) -> String {
         match comparison_engine_set {
             ComparisonEngineSet::BatmanBellman => {
@@ -304,15 +243,6 @@ impl ExperimentParameterSet {
                     heuristic_mode_label(heuristic_mode)
                 )
             }
-            ComparisonEngineSet::Field => {
-                let (budget, heuristic_mode) =
-                    field_search.unwrap_or((4, FieldSearchHeuristicMode::HopLowerBound));
-                format!(
-                    "field-{}-{}",
-                    budget,
-                    field_heuristic_mode_label(heuristic_mode)
-                )
-            }
             ComparisonEngineSet::PathwayAndBatmanBellman => {
                 let (stale_after_ticks, next_refresh_within_ticks) =
                     batman_bellman_decay_window.unwrap_or((1, 1));
@@ -329,37 +259,6 @@ impl ExperimentParameterSet {
             ComparisonEngineSet::Scatter
             | ComparisonEngineSet::Mercator
             | ComparisonEngineSet::AllEngines => comparison_engine_set.label().to_string(),
-        }
-    }
-
-    #[must_use]
-    pub fn head_to_head_field_low_churn() -> Self {
-        Self {
-            engine_family: "head-to-head".to_string(),
-            config_id: "head-to-head-field-6-zero-p1-f140-n180".to_string(),
-            comparison_engine_set: Some(ComparisonEngineSet::Field),
-            batman_bellman_stale_after_ticks: None,
-            batman_bellman_next_refresh_within_ticks: None,
-            pathway_query_budget: None,
-            pathway_heuristic_mode: None,
-            scatter_profile_id: None,
-            field_query_budget: Some(6),
-            field_heuristic_mode: Some(
-                field_heuristic_mode_label(FieldSearchHeuristicMode::Zero).to_string(),
-            ),
-            field_service_publication_neighbor_limit: Some(1),
-            field_service_freshness_weight: Some(140),
-            field_service_narrowing_bias: Some(180),
-            field_node_bootstrap_support_floor: Some(180),
-            field_node_bootstrap_top_mass_floor: Some(180),
-            field_node_bootstrap_entropy_ceiling: Some(970),
-            field_node_discovery_enabled: Some(true),
-            batman_classic_stale_after_ticks: None,
-            batman_classic_next_refresh_within_ticks: None,
-            babel_stale_after_ticks: None,
-            babel_next_refresh_within_ticks: None,
-            olsrv2_stale_after_ticks: None,
-            olsrv2_next_refresh_within_ticks: None,
         }
     }
 
@@ -432,56 +331,6 @@ impl ExperimentParameterSet {
     }
 
     #[must_use]
-    pub fn field(
-        per_objective_query_budget: usize,
-        heuristic_mode: FieldSearchHeuristicMode,
-    ) -> Self {
-        Self::field_tuned(per_objective_query_budget, heuristic_mode, 3, 100, 100)
-    }
-
-    #[must_use]
-    pub fn field_tuned(
-        per_objective_query_budget: usize,
-        heuristic_mode: FieldSearchHeuristicMode,
-        service_publication_neighbor_limit: usize,
-        service_freshness_weight: u16,
-        service_narrowing_bias: u16,
-    ) -> Self {
-        Self {
-            engine_family: "field".to_string(),
-            config_id: format!(
-                "field-{}-{}-p{}-f{}-n{}",
-                per_objective_query_budget,
-                field_heuristic_mode_label(heuristic_mode),
-                service_publication_neighbor_limit,
-                service_freshness_weight,
-                service_narrowing_bias,
-            ),
-            comparison_engine_set: None,
-            batman_bellman_stale_after_ticks: None,
-            batman_bellman_next_refresh_within_ticks: None,
-            pathway_query_budget: None,
-            pathway_heuristic_mode: None,
-            scatter_profile_id: None,
-            field_query_budget: Some(per_objective_query_budget),
-            field_heuristic_mode: Some(field_heuristic_mode_label(heuristic_mode).to_string()),
-            field_service_publication_neighbor_limit: Some(service_publication_neighbor_limit),
-            field_service_freshness_weight: Some(service_freshness_weight),
-            field_service_narrowing_bias: Some(service_narrowing_bias),
-            field_node_bootstrap_support_floor: None,
-            field_node_bootstrap_top_mass_floor: None,
-            field_node_bootstrap_entropy_ceiling: None,
-            field_node_discovery_enabled: None,
-            batman_classic_stale_after_ticks: None,
-            batman_classic_next_refresh_within_ticks: None,
-            babel_stale_after_ticks: None,
-            babel_next_refresh_within_ticks: None,
-            olsrv2_stale_after_ticks: None,
-            olsrv2_next_refresh_within_ticks: None,
-        }
-    }
-
-    #[must_use]
     pub fn comparison(
         stale_after_ticks: u32,
         next_refresh_within_ticks: u32,
@@ -509,13 +358,11 @@ impl ExperimentParameterSet {
             pathway_query_budget: Some(per_objective_query_budget),
             pathway_heuristic_mode: Some(heuristic_mode_label(heuristic_mode).to_string()),
             scatter_profile_id: None,
-            field_query_budget: Some(per_objective_query_budget),
-            field_heuristic_mode: Some(
-                field_heuristic_mode_label(FieldSearchHeuristicMode::HopLowerBound).to_string(),
-            ),
-            field_service_publication_neighbor_limit: Some(3),
-            field_service_freshness_weight: Some(100),
-            field_service_narrowing_bias: Some(100),
+            field_query_budget: None,
+            field_heuristic_mode: None,
+            field_service_publication_neighbor_limit: None,
+            field_service_freshness_weight: None,
+            field_service_narrowing_bias: None,
             field_node_bootstrap_support_floor: None,
             field_node_bootstrap_top_mass_floor: None,
             field_node_bootstrap_entropy_ceiling: None,
@@ -529,29 +376,16 @@ impl ExperimentParameterSet {
         comparison_engine_set: ComparisonEngineSet,
         batman_bellman_decay_window: Option<(u32, u32)>,
         pathway_search: Option<(usize, PathwaySearchHeuristicMode)>,
-        field_search: Option<(usize, FieldSearchHeuristicMode)>,
     ) -> Self {
         let config_suffix = Self::head_to_head_config_suffix(
             comparison_engine_set,
             batman_bellman_decay_window,
             pathway_search,
-            field_search,
         );
         let (stale_after_ticks, next_refresh_within_ticks) =
             optional_decay_fields(batman_bellman_decay_window);
         let (pathway_query_budget, pathway_heuristic_mode) =
             optional_pathway_search_fields(pathway_search);
-        let FieldSearchFields {
-            field_query_budget,
-            field_heuristic_mode,
-            field_service_publication_neighbor_limit,
-            field_service_freshness_weight,
-            field_service_narrowing_bias,
-            field_node_bootstrap_support_floor,
-            field_node_bootstrap_top_mass_floor,
-            field_node_bootstrap_entropy_ceiling,
-            field_node_discovery_enabled,
-        } = optional_field_search_fields(field_search);
         Self {
             engine_family: "head-to-head".to_string(),
             config_id: format!("head-to-head-{}", config_suffix),
@@ -592,15 +426,15 @@ impl ExperimentParameterSet {
             pathway_query_budget,
             pathway_heuristic_mode,
             scatter_profile_id: None,
-            field_query_budget,
-            field_heuristic_mode,
-            field_service_publication_neighbor_limit,
-            field_service_freshness_weight,
-            field_service_narrowing_bias,
-            field_node_bootstrap_support_floor,
-            field_node_bootstrap_top_mass_floor,
-            field_node_bootstrap_entropy_ceiling,
-            field_node_discovery_enabled,
+            field_query_budget: None,
+            field_heuristic_mode: None,
+            field_service_publication_neighbor_limit: None,
+            field_service_freshness_weight: None,
+            field_service_narrowing_bias: None,
+            field_node_bootstrap_support_floor: None,
+            field_node_bootstrap_top_mass_floor: None,
+            field_node_bootstrap_entropy_ceiling: None,
+            field_node_discovery_enabled: None,
         }
     }
 
@@ -634,39 +468,6 @@ impl ExperimentParameterSet {
                 .with_heuristic_mode(heuristic_mode)
                 .disable_replay_capture(),
         )
-    }
-
-    #[must_use]
-    pub fn field_search_config(&self) -> Option<FieldSearchConfig> {
-        let budget = self.field_query_budget?;
-        let heuristic_mode = field_heuristic_mode_from_str(
-            self.field_heuristic_mode
-                .as_deref()
-                .unwrap_or("hop-lower-bound"),
-        );
-        let config = FieldSearchConfig::default()
-            .with_per_objective_query_budget(budget)
-            .with_heuristic_mode(heuristic_mode)
-            .disable_replay_capture()
-            .with_service_publication_neighbor_limit(
-                self.field_service_publication_neighbor_limit.unwrap_or(3),
-            )
-            .with_service_freshness_weight(self.field_service_freshness_weight.unwrap_or(100))
-            .with_service_narrowing_bias(self.field_service_narrowing_bias.unwrap_or(100))
-            .with_node_bootstrap_support_floor(
-                self.field_node_bootstrap_support_floor.unwrap_or(220),
-            )
-            .with_node_bootstrap_top_mass_floor(
-                self.field_node_bootstrap_top_mass_floor.unwrap_or(260),
-            )
-            .with_node_bootstrap_entropy_ceiling(
-                self.field_node_bootstrap_entropy_ceiling.unwrap_or(950),
-            );
-        Some(if self.field_node_discovery_enabled.unwrap_or(false) {
-            config.enable_node_discovery()
-        } else {
-            config.disable_node_discovery()
-        })
     }
 
     #[must_use]
@@ -944,7 +745,6 @@ pub(crate) enum PlannerModelCase {
     BatmanBellman(BatmanBellmanPlannerDecisionCase),
     BatmanClassic(BatmanClassicPlannerDecisionCase),
     Babel(BabelPlannerDecisionCase),
-    Field(FieldPlannerDecisionCase),
     Olsr(OlsrPlannerDecisionCase),
     Pathway(PathwayPlannerDecisionCase),
     Scatter(ScatterPlannerDecisionCase),
@@ -995,7 +795,6 @@ pub(crate) type BatmanBellmanPlannerDecisionCase =
 pub(crate) type BatmanClassicPlannerDecisionCase =
     ExpectedNextHopPlannerDecisionCase<BatmanClassicPlannerSeed>;
 pub(crate) type BabelPlannerDecisionCase = ExpectedNextHopPlannerDecisionCase<BabelPlannerSeed>;
-pub(crate) type FieldPlannerDecisionCase = ExpectedNextHopPlannerDecisionCase<FieldPlannerSeed>;
 pub(crate) type PathwayPlannerDecisionCase = ExpectedNextHopPlannerDecisionCase<PathwayPlannerSeed>;
 pub(crate) type OlsrPlannerDecisionCase = ExpectedNextHopPlannerDecisionCase<OlsrPlannerSeed>;
 
@@ -1419,7 +1218,6 @@ mod tests {
             ComparisonEngineSet::BatmanClassic,
             Some((5, 2)),
             None,
-            None,
         );
         assert_eq!(classic.batman_classic_stale_after_ticks, Some(5));
         assert_eq!(classic.batman_classic_next_refresh_within_ticks, Some(2));
@@ -1427,24 +1225,16 @@ mod tests {
         assert_eq!(classic.babel_stale_after_ticks, None);
         assert_eq!(classic.olsrv2_stale_after_ticks, None);
 
-        let babel = ExperimentParameterSet::head_to_head(
-            ComparisonEngineSet::Babel,
-            Some((6, 3)),
-            None,
-            None,
-        );
+        let babel =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Babel, Some((6, 3)), None);
         assert_eq!(babel.babel_stale_after_ticks, Some(6));
         assert_eq!(babel.babel_next_refresh_within_ticks, Some(3));
         assert_eq!(babel.batman_bellman_stale_after_ticks, None);
         assert_eq!(babel.batman_classic_stale_after_ticks, None);
         assert_eq!(babel.olsrv2_stale_after_ticks, None);
 
-        let olsrv2 = ExperimentParameterSet::head_to_head(
-            ComparisonEngineSet::OlsrV2,
-            Some((7, 4)),
-            None,
-            None,
-        );
+        let olsrv2 =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::OlsrV2, Some((7, 4)), None);
         assert_eq!(olsrv2.olsrv2_stale_after_ticks, Some(7));
         assert_eq!(olsrv2.olsrv2_next_refresh_within_ticks, Some(4));
         assert_eq!(olsrv2.batman_bellman_stale_after_ticks, None);
@@ -1458,7 +1248,6 @@ mod tests {
             ComparisonEngineSet::PathwayAndBatmanBellman,
             Some((6, 3)),
             Some((8, PathwaySearchHeuristicMode::HopLowerBound)),
-            None,
         );
 
         assert_eq!(hybrid.batman_bellman_stale_after_ticks, Some(6));

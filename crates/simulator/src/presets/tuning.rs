@@ -247,9 +247,9 @@ fn babel_decay_hosts(decay_window: jacquard_babel::DecayWindow) -> Vec<HostSpec>
 #[must_use]
 pub fn profile_driven_engine_selection() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)> {
     let topology = bidirectional_line_topology(
-        topology::node(1).field_and_batman_bellman().build(),
-        topology::node(2).field_and_batman_bellman().build(),
-        topology::node(3).field_and_batman_bellman().build(),
+        topology::node(1).pathway_and_batman_bellman().build(),
+        topology::node(2).pathway_and_batman_bellman().build(),
+        topology::node(3).pathway_and_batman_bellman().build(),
     );
     let connected = JacquardScenario::new(
         "profile-driven-engine-selection-connected",
@@ -257,10 +257,10 @@ pub fn profile_driven_engine_selection() -> Vec<(JacquardScenario, ScriptedEnvir
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::field_and_batman_bellman(NODE_A)
+            HostSpec::pathway_and_batman_bellman(NODE_A)
                 .with_profile(best_effort_connected_profile()),
-            HostSpec::field_and_batman_bellman(NODE_B),
-            HostSpec::field_and_batman_bellman(NODE_C),
+            HostSpec::pathway_and_batman_bellman(NODE_B),
+            HostSpec::pathway_and_batman_bellman(NODE_C),
         ],
         vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
         5,
@@ -271,11 +271,12 @@ pub fn profile_driven_engine_selection() -> Vec<(JacquardScenario, ScriptedEnvir
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology,
         vec![
-            HostSpec::field_and_batman_bellman(NODE_A),
-            HostSpec::field_and_batman_bellman(NODE_B),
-            HostSpec::field_and_batman_bellman(NODE_C),
+            HostSpec::pathway_and_batman_bellman(NODE_A)
+                .with_profile(best_effort_connected_profile()),
+            HostSpec::pathway_and_batman_bellman(NODE_B),
+            HostSpec::pathway_and_batman_bellman(NODE_C),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
         5,
     );
     vec![

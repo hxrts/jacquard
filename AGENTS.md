@@ -17,7 +17,7 @@ just test           # cargo test --workspace
 just lint           # cargo clippy --workspace --all-targets -- -D warnings
 just fmt            # toolkit-owned nightly rustfmt policy
 just fmt-check      # toolkit-owned nightly rustfmt policy with --check
-just lean-style     # toolkit-owned Lean source-style policy over verification/Field
+just lean-style     # toolkit-owned Lean source-style policy over verification/
 just lean-check     # lean-style, lean setup, then lake build
 just no-std-check   # check portable no_std crates on host and thumbv7em-none-eabihf
 just wasm-check     # build jacquard-pathway and jacquard-reference-client for wasm32-unknown-unknown
@@ -72,7 +72,7 @@ Transport ownership is split deliberately:
 
 `macros` owns syntax-local code generation and annotation-site validation. The flake-input `toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `toolkit/lints/` and `toolkit/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
-`jacquard-field` owns field-private posterior state, mean-field compression, regime/posture control state, and continuation scoring. Like pathway and the batman engines, field-private choreography may supply only observational evidence into the deterministic local controller. Canonical route publication remains router-owned.
+DualTide is the canonical home for the migrated research engine, paper, and theorem boundary. Jacquard keeps only legacy report compatibility fields needed to read historical `analysis/` and `analysis_2/` artifacts.
 
 `jacquard-batman-bellman` is the enhanced BATMAN engine using local Bellman-Ford over a gossip-merged topology graph with TQ enrichment and a bootstrap shortcut. `jacquard-batman-classic` is the spec-faithful BATMAN IV engine with OGM-carried TQ, TTL-bounded propagation, and echo-only bidirectionality. `jacquard-babel` implements RFC 8966 with bidirectional ETX link cost, additive metric, and a feasibility distance table for loop-free route selection.
 
@@ -130,7 +130,6 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-batman-classic`: spec-faithful OGM-carried TQ, echo-only bidirectionality, receive-window occupancy, and router integration.
 - `jacquard-babel`: ETX link cost, additive metric, feasibility distance table, seqno ordering, and router integration.
 - `jacquard-olsrv2`: HELLO-driven neighbor learning, deterministic MPR election, TC flooding, SPF derivation, and router integration.
-- `jacquard-field`: observer, attractor, search, regime/posture control, and runtime maintenance.
 - `jacquard-scatter`: retained-message expiry, replication budgets, opportunistic forwarding, and bounded custody handoff.
 - `jacquard-mercator`: corridor evidence accumulation and planner skeleton (engine under active development).
 - `jacquard-macros`: proc-macro compile checks and trybuild UI regression tests for annotation contracts.

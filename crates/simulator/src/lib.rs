@@ -38,6 +38,9 @@ mod scenario;
 mod topology;
 mod util;
 
+pub(crate) const LEGACY_FIELD_ENGINE_ID: jacquard_core::RoutingEngineId =
+    jacquard_core::RoutingEngineId::from_contract_bytes(*b"jacquard.field..");
+
 pub mod presets;
 
 pub mod builtin_suites {
@@ -49,7 +52,6 @@ pub mod builtin_suites {
         babel_model_smoke_suite as tuning_babel_model_smoke_suite,
         batman_bellman_model_smoke_suite as tuning_batman_bellman_model_smoke_suite,
         batman_classic_model_smoke_suite as tuning_batman_classic_model_smoke_suite,
-        field_model_smoke_suite as tuning_field_model_smoke_suite,
         local_stage_suite as tuning_local_stage_suite,
         local_stage_suite_with_seeds as tuning_local_stage_suite_with_seeds,
         local_stage_suite_with_seeds_and_config as tuning_local_stage_suite_with_seeds_and_config,
@@ -87,7 +89,6 @@ pub use experiments::{
     babel_model_smoke_suite as tuning_babel_model_smoke_suite,
     batman_bellman_model_smoke_suite as tuning_batman_bellman_model_smoke_suite,
     batman_classic_model_smoke_suite as tuning_batman_classic_model_smoke_suite,
-    field_model_smoke_suite as tuning_field_model_smoke_suite,
     local_stage_suite as tuning_local_stage_suite,
     local_stage_suite_with_seeds as tuning_local_stage_suite_with_seeds,
     local_stage_suite_with_seeds_and_config as tuning_local_stage_suite_with_seeds_and_config,
@@ -124,4 +125,4 @@ pub use replay::{
     JacquardRoundArtifact, JacquardSimulationStats, SimulationFailureSummary,
     TelltaleNativeArtifactRef,
 };
-pub use scenario::{BoundObjective, EngineLane, FieldBootstrapSummary, HostSpec, JacquardScenario};
+pub use scenario::{BoundObjective, EngineLane, HostSpec, JacquardScenario};

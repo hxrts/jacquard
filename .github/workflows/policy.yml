@@ -100,8 +100,6 @@ jobs:
         run: cargo xtask check surface-classification
       - name: Rust Style Guide
         run: cargo xtask check rust-style-guide
-      - name: Field Code Map
-        run: cargo xtask check field-code-map
       - name: Checkpoint Namespacing
         run: cargo xtask check checkpoint-namespacing
       - name: Engine Service Boundary

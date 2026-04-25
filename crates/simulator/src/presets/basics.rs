@@ -358,23 +358,23 @@ pub fn batman_classic_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
 }
 
 #[must_use]
-pub fn field_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
+pub fn partition_tolerant_pathway_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
-        topology::node(1).field().build(),
-        topology::node(2).field().build(),
-        topology::node(3).field().build(),
+        topology::node(1).pathway().build(),
+        topology::node(2).pathway().build(),
+        topology::node(3).pathway().build(),
     );
     let scenario = JacquardScenario::new(
-        "field-line",
+        "partition-tolerant-pathway-line",
         jacquard_core::SimulationSeed(17),
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology.clone(),
         vec![
-            HostSpec::field(NODE_A),
-            HostSpec::field(NODE_B),
-            HostSpec::field(NODE_C),
+            HostSpec::pathway(NODE_A).with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
         6,
     )
     .with_checkpoint_interval(2);
@@ -401,29 +401,23 @@ pub fn field_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
 }
 
 #[must_use]
-pub fn field_bootstrap_multihop() -> (JacquardScenario, ScriptedEnvironmentModel) {
+pub fn pathway_multihop() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = bidirectional_line_topology(
-        topology::node(1).field().build(),
-        topology::node(2).field().build(),
-        topology::node(3).field().build(),
+        topology::node(1).pathway().build(),
+        topology::node(2).pathway().build(),
+        topology::node(3).pathway().build(),
     );
-    let bootstrap = FieldBootstrapSummary::new(
-        DestinationId::Node(NODE_C),
-        NODE_B,
-        jacquard_field::FieldForwardSummaryObservation::new(RouteEpoch(1), Tick(1), 900, 1, 2),
-    )
-    .with_reverse_feedback(860, Tick(1));
     let scenario = JacquardScenario::new(
-        "field-bootstrap-multihop",
+        "pathway-multihop",
         jacquard_core::SimulationSeed(71),
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology,
         vec![
-            HostSpec::field(NODE_A).with_field_bootstrap_summary(bootstrap),
-            HostSpec::field(NODE_B),
-            HostSpec::field(NODE_C),
+            HostSpec::pathway(NODE_A).with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_C)).with_activation_round(3)],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(3)],
         10,
     );
     (scenario, ScriptedEnvironmentModel::default())
@@ -505,8 +499,8 @@ pub fn all_engines_ring() -> (JacquardScenario, ScriptedEnvironmentModel) {
 pub fn mixed_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = bidirectional_line_topology(
         topology::node(1).batman_bellman().build(),
-        topology::node(2).field_and_batman_bellman().build(),
-        topology::node(3).field().build(),
+        topology::node(2).pathway_and_batman_bellman().build(),
+        topology::node(3).pathway().build(),
     );
     let scenario = JacquardScenario::new(
         "mixed-line",
@@ -515,12 +509,13 @@ pub fn mixed_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
         topology.clone(),
         vec![
             HostSpec::batman_bellman(NODE_A),
-            HostSpec::field_and_batman_bellman(NODE_B),
-            HostSpec::field(NODE_C),
+            HostSpec::pathway_and_batman_bellman(NODE_B)
+                .with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_C),
         ],
         vec![
             BoundObjective::new(NODE_A, connected_objective(NODE_B)),
-            BoundObjective::new(NODE_B, default_objective(NODE_C)),
+            BoundObjective::new(NODE_B, connected_objective(NODE_C)),
         ],
         4,
     )

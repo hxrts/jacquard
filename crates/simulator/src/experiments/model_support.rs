@@ -17,10 +17,6 @@ use jacquard_core::{
     RouteCandidate, RouteError, RouteSelectionError, RoutingEngineId, RoutingObjective,
     RoutingTickChange, SelectedRoutingParameters,
 };
-use jacquard_field::{
-    selected_neighbor_from_backend_route_id as selected_field_neighbor, FieldPlannerModel,
-    FIELD_ENGINE_ID,
-};
 use jacquard_olsrv2::{
     selected_neighbor_from_backend_route_id as selected_olsr_neighbor, OlsrPlannerModel,
     OLSRV2_ENGINE_ID,
@@ -132,14 +128,6 @@ fn execute_planner_model_case(
                 BABEL_ENGINE_ID,
                 &expected_next_hop_case_view(case),
                 selected_babel_neighbor,
-            )
-        }
-        PlannerModelCase::Field(case) => {
-            execute_expected_next_hop_planner_case::<FieldPlannerModel, _>(
-                spec,
-                FIELD_ENGINE_ID,
-                &expected_next_hop_case_view(case),
-                selected_field_neighbor,
             )
         }
         PlannerModelCase::Olsr(case) => {

@@ -194,7 +194,7 @@ pub(super) fn build_comparison_connected_high_loss(
         jacquard_core::OperatingMode::DenseInteractive,
         topology,
         host_specs_with_primary(
-            seed_standalone_field_bootstrap(
+            seed_standalone_route_bootstrap(
                 comparison_host_spec(NODE_A, comparison_engine_set)
                     .with_profile(repairable_connected_profile()),
                 comparison_engine_set,
@@ -239,7 +239,7 @@ pub(super) fn build_comparison_bridge_transition(
         jacquard_core::OperatingMode::DenseInteractive,
         topology,
         host_specs_with_primary(
-            seed_standalone_field_bootstrap(
+            seed_standalone_route_bootstrap(
                 comparison_host_spec(NODE_A, comparison_engine_set)
                     .with_profile(repairable_connected_profile()),
                 comparison_engine_set,
@@ -630,7 +630,7 @@ pub(super) fn build_scatter_conservative_constrained_threshold(
 fn comparison_concurrent_mixed_hosts(
     comparison_engine_set: Option<ComparisonEngineSet>,
     service_destination: &DestinationId,
-    service_bootstrap: &[FieldBootstrapSeed],
+    service_bootstrap: &[RouteBootstrapSeed],
 ) -> Vec<HostSpec> {
     if comparison_engine_set.is_none() {
         return vec![
@@ -645,7 +645,7 @@ fn comparison_concurrent_mixed_hosts(
     vec![
         comparison_host_spec(NODE_A, comparison_engine_set)
             .with_profile(best_effort_connected_profile()),
-        seed_standalone_field_bootstrap(
+        seed_standalone_route_bootstrap(
             comparison_host_spec(NODE_B, comparison_engine_set)
                 .with_profile(best_effort_connected_profile()),
             comparison_engine_set,
@@ -906,10 +906,10 @@ fn medium_bridge_repair_alternate(topology: &Observation<Configuration>) -> Conf
 fn medium_bridge_repair_hosts(
     comparison_engine_set: Option<ComparisonEngineSet>,
     destination: &DestinationId,
-    bootstrap: &[FieldBootstrapSeed],
+    bootstrap: &[RouteBootstrapSeed],
 ) -> Vec<HostSpec> {
     host_specs_with_primary(
-        seed_standalone_field_bootstrap(
+        seed_standalone_route_bootstrap(
             comparison_host_spec(NODE_A, comparison_engine_set)
                 .with_profile(repairable_connected_profile()),
             comparison_engine_set,
@@ -1043,7 +1043,7 @@ fn large_population_round_limit(family: &str, size_band: LargePopulationSizeBand
 fn large_population_bootstrap(
     family: &str,
     size_band: LargePopulationSizeBand,
-) -> Vec<FieldBootstrapSeed> {
+) -> Vec<RouteBootstrapSeed> {
     match (family, size_band) {
         ("core-periphery", LargePopulationSizeBand::Moderate) => {
             vec![(node_id(2), 920, 4, 5, Some(860))]
@@ -1067,11 +1067,11 @@ fn large_population_hosts(
     size_band: LargePopulationSizeBand,
     comparison_engine_set: Option<ComparisonEngineSet>,
     destination: &DestinationId,
-    bootstrap: &[FieldBootstrapSeed],
+    bootstrap: &[RouteBootstrapSeed],
 ) -> Vec<HostSpec> {
     let bytes = size_band.node_bytes();
     let node_ids = node_ids(bytes);
-    let primary = seed_standalone_field_bootstrap(
+    let primary = seed_standalone_route_bootstrap(
         comparison_host_spec(node_ids[0], comparison_engine_set)
             .with_profile(repairable_connected_profile()),
         comparison_engine_set,
@@ -1633,11 +1633,11 @@ fn comparison_hosts_for_bytes(
     bytes: &[u8],
     comparison_engine_set: Option<ComparisonEngineSet>,
     destination: &DestinationId,
-    bootstrap: &[FieldBootstrapSeed],
+    bootstrap: &[RouteBootstrapSeed],
     primary_profile: SelectedRoutingParameters,
 ) -> Vec<HostSpec> {
     let node_ids = node_ids(bytes);
-    let primary = seed_standalone_field_bootstrap(
+    let primary = seed_standalone_route_bootstrap(
         comparison_host_spec(node_ids[0], comparison_engine_set).with_profile(primary_profile),
         comparison_engine_set,
         destination,
@@ -1651,7 +1651,7 @@ fn comparison_hosts_for_bytes(
 fn multi_flow_comparison_hosts_for_bytes(
     bytes: &[u8],
     comparison_engine_set: Option<ComparisonEngineSet>,
-    owner_bootstraps: &[(NodeId, DestinationId, Vec<FieldBootstrapSeed>)],
+    owner_bootstraps: &[(NodeId, DestinationId, Vec<RouteBootstrapSeed>)],
     owner_profile: &SelectedRoutingParameters,
 ) -> Vec<HostSpec> {
     bytes
@@ -1667,7 +1667,7 @@ fn multi_flow_comparison_hosts_for_bytes(
             };
             let host = comparison_host_spec(local_node_id, comparison_engine_set)
                 .with_profile(owner_profile.clone());
-            seed_standalone_field_bootstrap(host, comparison_engine_set, destination, bootstrap)
+            seed_standalone_route_bootstrap(host, comparison_engine_set, destination, bootstrap)
         })
         .collect()
 }
@@ -2454,7 +2454,7 @@ pub(super) fn build_comparison_multi_flow_detour_choice(
 fn stale_hosts(
     comparison_engine_set: Option<ComparisonEngineSet>,
     destination: &DestinationId,
-    bootstrap: &[FieldBootstrapSeed],
+    bootstrap: &[RouteBootstrapSeed],
 ) -> Vec<HostSpec> {
     comparison_hosts_for_bytes(
         &[1, 2, 3, 4, 5, 6],
@@ -2851,7 +2851,7 @@ mod tests {
     };
 
     fn sample_parameters() -> ExperimentParameterSet {
-        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Babel, Some((4, 2)), None, None)
+        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Babel, Some((4, 2)), None)
     }
 
     type ComparisonBuilder =
@@ -3476,7 +3476,7 @@ mod tests {
                     || observation.engine_id == BABEL_ENGINE_ID
                     || observation.engine_id == OLSRV2_ENGINE_ID
                     || observation.engine_id == PATHWAY_ENGINE_ID
-                    || observation.engine_id == FIELD_ENGINE_ID
+                    || observation.engine_id == crate::LEGACY_FIELD_ENGINE_ID
                     || observation.engine_id == SCATTER_ENGINE_ID
             }),
             "mixed comparison emitted an unexpected engine id",
@@ -3872,7 +3872,8 @@ mod tests {
 
     #[test]
     fn stale_recovery_window_summary_matches_hand_checked_replay_metrics() {
-        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Pathway, None, None);
         let (scenario, environment) =
             build_comparison_stale_recovery_window(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);
@@ -4033,7 +4034,7 @@ mod tests {
     #[test]
     fn head_to_head_scatter_connected_low_loss_activates_route() {
         let parameters =
-            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Scatter, None, None, None);
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Scatter, None, None);
         let (scenario, environment) =
             build_comparison_connected_low_loss(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);
@@ -4050,7 +4051,7 @@ mod tests {
     #[test]
     fn mercator_connected_smoke_connected_low_loss_activates_route() {
         let parameters =
-            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None);
         let (scenario, environment) =
             build_comparison_connected_low_loss(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);
@@ -4067,7 +4068,7 @@ mod tests {
     #[test]
     fn mercator_connected_smoke_bridge_transition_activates_route() {
         let parameters =
-            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None);
         let (scenario, environment) =
             build_comparison_bridge_transition(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);
@@ -4084,7 +4085,7 @@ mod tests {
     #[test]
     fn head_to_head_mercator_concurrent_mixed_activates_service_objective() {
         let parameters =
-            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None);
         let (scenario, environment) =
             build_comparison_concurrent_mixed(&parameters, SimulationSeed(41));
         let direct_engine = MercatorEngine::new(NODE_B);
@@ -4117,9 +4118,9 @@ mod tests {
     #[test]
     fn mercator_connected_smoke_matches_pathway_on_fixed_connected_fixture() {
         let mercator =
-            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None);
         let pathway =
-            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Pathway, None, None, None);
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Pathway, None, None);
         let mercator_reduced = {
             let (scenario, environment) =
                 build_comparison_connected_low_loss(&mercator, SimulationSeed(41));
@@ -4141,7 +4142,7 @@ mod tests {
     #[test]
     fn head_to_head_mercator_stale_families_emit_repair_rows() {
         let parameters =
-            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None);
         let destination = DestinationId::Node(node_id(6));
         let cases: [(&str, ComparisonBuilder); 3] = [
             (
@@ -4178,7 +4179,7 @@ mod tests {
     #[test]
     fn head_to_head_mercator_bridge_and_stale_keep_recovery_windows_visible() {
         let parameters =
-            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None);
         let bridge_destination = DestinationId::Node(NODE_D);
         let stale_destination = DestinationId::Node(node_id(6));
         let cases: [(&str, ComparisonBuilder, DestinationId, usize); 2] = [
@@ -4212,7 +4213,7 @@ mod tests {
     #[test]
     fn head_to_head_mercator_multi_flow_families_avoid_zero_service_tails() {
         let parameters =
-            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None);
         let cases: [(&str, ComparisonBuilder); 3] = [
             (
                 "head-to-head-multi-flow-shared-corridor",
@@ -4249,7 +4250,7 @@ mod tests {
     #[test]
     fn head_to_head_mercator_large_core_periphery_high_materializes_route() {
         let parameters =
-            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None);
         let (scenario, environment) =
             build_comparison_large_core_periphery_high(&parameters, SimulationSeed(41));
         let direct_engine = MercatorEngine::new(NODE_A);
@@ -4297,8 +4298,9 @@ mod tests {
     }
 
     #[test]
-    fn head_to_head_field_concurrent_mixed_activates_both_objectives() {
-        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
+    fn head_to_head_pathway_concurrent_mixed_activates_both_objectives() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Pathway, None, None);
         let (scenario, environment) =
             build_comparison_concurrent_mixed(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);
@@ -4311,8 +4313,9 @@ mod tests {
     }
 
     #[test]
-    fn head_to_head_field_medium_bridge_repair_activates_route() {
-        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
+    fn head_to_head_pathway_medium_bridge_repair_activates_route() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Pathway, None, None);
         let (scenario, environment) =
             build_comparison_medium_bridge_repair(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);
@@ -4362,131 +4365,9 @@ mod tests {
     }
 
     #[test]
-    fn head_to_head_field_large_core_periphery_high_materializes_route() {
-        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
-        let (scenario, environment) =
-            build_comparison_large_core_periphery_high(&parameters, SimulationSeed(41));
-        let reduced = run_reduced_replay(&scenario, &environment);
-        let destination = DestinationId::Node(node_id(14));
-        let first_loss_round = reduced
-            .first_round_without_route_after_presence(NODE_A, &destination)
-            .expect("large Field route should expose the post-loss replay window");
-
-        assert!(reduced.route_seen(NODE_A, &destination));
-        assert!(!reduced
-            .route_present_rounds(NODE_A, &destination)
-            .is_empty());
-        assert!(
-            reduced
-                .rounds
-                .iter()
-                .filter(|round| round.round_index >= first_loss_round)
-                .all(|round| {
-                    let route_active = round.active_routes.iter().any(|route| {
-                        route.owner_node_id == NODE_A && route.destination == destination
-                    });
-                    let selected_result = round.field_replays.iter().any(|field| {
-                        field.local_node_id == NODE_A && field.summary.selected_result_present
-                    });
-                    route_active || !selected_result
-                }),
-            "Field selected-result replay must not leak stale planner records after route loss",
-        );
-        assert!(
-            reduced.failure_class_counts().no_candidate > 0
-                || reduced.failure_class_counts().inadmissible_candidate > 0,
-            "large Field route loss should surface bounded reactivation failures",
-        );
-    }
-
-    #[test]
-    fn large_population_field_bootstrap_uses_owner_adjacent_neighbors() {
-        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
-        for build in [
-            build_comparison_large_core_periphery_moderate,
-            build_comparison_large_core_periphery_high,
-            build_comparison_large_multi_bottleneck_moderate,
-            build_comparison_large_multi_bottleneck_high,
-        ] {
-            let (scenario, _) = build(&parameters, SimulationSeed(41));
-            let primary = scenario
-                .hosts()
-                .iter()
-                .find(|host| host.local_node_id == NODE_A)
-                .expect("large-population Field scenario should include the owner host");
-            assert!(
-                !primary.overrides.field_bootstrap_summaries.is_empty(),
-                "{} should seed Field bootstrap evidence",
-                scenario.name()
-            );
-            for summary in &primary.overrides.field_bootstrap_summaries {
-                assert!(
-                    scenario
-                        .initial_configuration()
-                        .value
-                        .links
-                        .contains_key(&(NODE_A, summary.from_neighbor)),
-                    "{} bootstraps through non-adjacent {:?}",
-                    scenario.name(),
-                    summary.from_neighbor
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn head_to_head_multi_flow_owners_are_primary_profiled_and_field_seeded() {
-        for build in [
-            build_comparison_multi_flow_shared_corridor,
-            build_comparison_multi_flow_asymmetric_demand,
-            build_comparison_multi_flow_detour_choice,
-        ] {
-            let pathway_parameters = ExperimentParameterSet::head_to_head(
-                ComparisonEngineSet::Pathway,
-                None,
-                None,
-                None,
-            );
-            let (pathway_scenario, _) = build(&pathway_parameters, SimulationSeed(41));
-            for binding in pathway_scenario.bound_objectives() {
-                let host = pathway_scenario
-                    .hosts()
-                    .iter()
-                    .find(|host| host.local_node_id == binding.owner_node_id)
-                    .expect("multi-flow owner should have a host");
-                assert!(
-                    host.overrides.routing_profile.is_some(),
-                    "{} owner {:?} should use the primary routing profile",
-                    pathway_scenario.name(),
-                    binding.owner_node_id
-                );
-            }
-
-            let field_parameters = ExperimentParameterSet::head_to_head_field_low_churn();
-            let (field_scenario, _) = build(&field_parameters, SimulationSeed(41));
-            for binding in field_scenario.bound_objectives() {
-                let host = field_scenario
-                    .hosts()
-                    .iter()
-                    .find(|host| host.local_node_id == binding.owner_node_id)
-                    .expect("multi-flow owner should have a host");
-                assert!(
-                    host.overrides
-                        .field_bootstrap_summaries
-                        .iter()
-                        .any(|summary| { summary.destination == binding.objective.destination }),
-                    "{} owner {:?} should be seeded for {:?}",
-                    field_scenario.name(),
-                    binding.owner_node_id,
-                    binding.objective.destination
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn head_to_head_field_large_multi_bottleneck_moderate_materializes_route() {
-        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
+    fn head_to_head_pathway_large_multi_bottleneck_moderate_materializes_route() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Pathway, None, None);
         let (scenario, environment) =
             build_comparison_large_multi_bottleneck_moderate(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);
@@ -4497,8 +4378,9 @@ mod tests {
     }
 
     #[test]
-    fn head_to_head_field_continuity_uncertainty_survives_initial_uncertainty_window() {
-        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
+    fn head_to_head_pathway_continuity_uncertainty_survives_initial_uncertainty_window() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Pathway, None, None);
         let (scenario, environment) =
             build_comparison_corridor_continuity_uncertainty(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);
@@ -4508,7 +4390,7 @@ mod tests {
         assert!(reduced.route_seen(NODE_A, &destination));
         assert!(
             present_rounds.len() >= 8,
-            "field retained route for {} rounds: {:?}",
+            "Pathway retained route for {} rounds: {:?}",
             present_rounds.len(),
             present_rounds
         );

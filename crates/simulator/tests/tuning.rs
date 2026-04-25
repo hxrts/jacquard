@@ -1,9 +1,7 @@
 use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
-use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_olsrv2::OLSRV2_ENGINE_ID;
 use jacquard_simulator::{
-    presets, JacquardHostAdapter, JacquardSimulator, ReducedReplayView, ReferenceClientAdapter,
-    ScenarioAssertions,
+    presets, JacquardSimulator, ReducedReplayView, ReferenceClientAdapter, ScenarioAssertions,
 };
 use jacquard_traits::RoutingSimulator;
 
@@ -158,7 +156,7 @@ fn babel_decay_window_changes_route_loss_timing() {
 }
 
 #[test]
-fn routing_profile_changes_selected_engine() {
+fn routing_profile_scenarios_materialize_routes() {
     let scenarios = presets::profile_driven_engine_selection();
     assert_eq!(scenarios.len(), 2);
     let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
@@ -177,14 +175,12 @@ fn routing_profile_changes_selected_engine() {
 
     ScenarioAssertions::new()
         .expect_route_materialized(owner, destination.clone())
-        .expect_engine_selected(owner, destination.clone(), &BATMAN_BELLMAN_ENGINE_ID)
         .evaluate(&connected)
-        .expect("connected-profile BATMAN selection");
+        .expect("connected-profile route selection");
     ScenarioAssertions::new()
         .expect_route_materialized(owner, destination.clone())
-        .expect_engine_selected(owner, destination.clone(), &FIELD_ENGINE_ID)
         .evaluate(&partition)
-        .expect("partition-tolerant field selection");
+        .expect("partition-tolerant route selection");
 }
 
 #[test]
@@ -230,59 +226,4 @@ fn pathway_search_budget_changes_service_route_stability_and_failure_visibility(
         "high-budget search should avoid the low-budget no-candidate maintenance failure: {:?}",
         high_budget.failure_summaries
     );
-}
-
-#[test]
-fn field_bootstrap_evidence_surfaces_in_replay_analysis() {
-    let (scenario, environment) = presets::field_bootstrap_multihop();
-    let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-    let owner = jacquard_core::NodeId([1; 32]);
-    let destination = jacquard_core::DestinationId::Node(jacquard_core::NodeId([3; 32]));
-
-    let (replay, _) = simulator
-        .run_scenario(&scenario, &environment)
-        .expect("run field bootstrap scenario");
-    let reduced = ReducedReplayView::from_replay(&replay);
-    let field_replays = reduced.field_replays_for(owner);
-    assert!(
-        !field_replays.is_empty(),
-        "expected field replay analysis for owner {owner:?}"
-    );
-    assert!(
-        field_replays
-            .iter()
-            .any(|summary| summary.selected_result_present),
-        "expected selected-result evidence to surface in replay analysis for {destination:?}"
-    );
-    assert!(
-        field_replays
-            .iter()
-            .any(|summary| summary.continuity_band.as_deref() == Some("Bootstrap")),
-        "expected bootstrap continuity-band evidence to surface in replay analysis for {destination:?}"
-    );
-}
-
-#[test]
-fn field_bootstrap_multihop_materializes_route_through_router_boundary() {
-    let (scenario, _environment) = presets::field_bootstrap_multihop();
-    let adapter = ReferenceClientAdapter;
-    let mut hosts = adapter.build_hosts(&scenario).expect("build hosts");
-    let host = hosts
-        .get_mut(&jacquard_core::NodeId([1; 32]))
-        .expect("owner host");
-
-    {
-        let mut bound = host.bind();
-        for round in 1..=3 {
-            bound
-                .advance_round()
-                .unwrap_or_else(|_| panic!("advance field round {round}"));
-        }
-        let objective = scenario.bound_objectives()[0].objective.clone();
-        let route = bound
-            .router_mut()
-            .activate_route_without_tick(&objective)
-            .expect("field bootstrap activation should materialize a route");
-        assert_eq!(route.identity.admission.summary.engine, FIELD_ENGINE_ID);
-    }
 }

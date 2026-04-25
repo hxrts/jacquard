@@ -8,7 +8,7 @@ Jacquard uses a typed deterministic time model. It does not treat wall clock as 
 
 `OrderStamp` is a deterministic ordering token. `RouteEpoch` versions topology and reconfiguration state.
 
-These domains are not interchangeable. `Tick` is not wall clock. `OrderStamp` is not an expiry. `RouteEpoch` is not elapsed time. Field names should carry their domain when needed, such as `*_tick`, `*_ms`, and `*_epoch`.
+These domains are not interchangeable. `Tick` is not wall clock. `OrderStamp` is not an expiry. `RouteEpoch` is not elapsed time. Model field names should carry their domain when needed, such as `*_tick`, `*_ms`, and `*_epoch`.
 
 When validity depends on time, Jacquard passes `Tick` explicitly. A topology or service epoch may version shared state, but it must not be reinterpreted as elapsed time just to satisfy a validity check.
 

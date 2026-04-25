@@ -54,8 +54,8 @@ pub fn composition_next_hop_only_viable() -> (JacquardScenario, ScriptedEnvironm
 pub fn composition_corridor_preferred() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
         topology::node(1).all_engines().build(),
-        topology::node(2).field().build(),
-        topology::node(3).field().build(),
+        topology::node(2).pathway().build(),
+        topology::node(3).pathway().build(),
     );
     let scenario = JacquardScenario::new(
         "composition-corridor-preferred",
@@ -63,11 +63,14 @@ pub fn composition_corridor_preferred() -> (JacquardScenario, ScriptedEnvironmen
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology,
         vec![
-            HostSpec::all_engines(NODE_A),
-            HostSpec::field(NODE_B),
-            HostSpec::field(NODE_C),
+            HostSpec::all_engines(NODE_A).with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C).with_profile(best_effort_connected_profile()),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
+        vec![
+            BoundObjective::new(NODE_A, connected_objective(NODE_B)),
+            BoundObjective::new(NODE_C, connected_objective(NODE_D)),
+        ],
         5,
     );
     (scenario, ScriptedEnvironmentModel::default())
@@ -78,8 +81,8 @@ pub fn composition_concurrent_objectives() -> (JacquardScenario, ScriptedEnviron
     let topology = dual_pair_topology(
         topology::node(1).batman_bellman().build(),
         topology::node(2).batman_bellman().build(),
-        topology::node(3).field().build(),
-        topology::node(4).field().build(),
+        topology::node(3).mercator().build(),
+        topology::node(4).mercator().build(),
     );
     let scenario = JacquardScenario::new(
         "composition-concurrent-objectives",
@@ -89,12 +92,12 @@ pub fn composition_concurrent_objectives() -> (JacquardScenario, ScriptedEnviron
         vec![
             HostSpec::batman_bellman(NODE_A),
             HostSpec::batman_bellman(NODE_B),
-            HostSpec::field(NODE_C),
-            HostSpec::field(NODE_D),
+            HostSpec::mercator(NODE_C).with_profile(best_effort_connected_profile()),
+            HostSpec::mercator(NODE_D),
         ],
         vec![
             BoundObjective::new(NODE_A, connected_objective(NODE_B)),
-            BoundObjective::new(NODE_C, default_objective(NODE_D)),
+            BoundObjective::new(NODE_C, connected_objective(NODE_D)),
         ],
         5,
     );
@@ -107,8 +110,8 @@ pub fn composition_cascade_partition_eliminates_route(
     let topology = dual_pair_topology(
         topology::node(1).batman_bellman().build(),
         topology::node(2).batman_bellman().build(),
-        topology::node(3).field().build(),
-        topology::node(4).field().build(),
+        topology::node(3).pathway().build(),
+        topology::node(4).pathway().build(),
     );
     let scenario = JacquardScenario::new(
         "composition-cascade-partition-eliminates-route",
@@ -118,17 +121,14 @@ pub fn composition_cascade_partition_eliminates_route(
         vec![
             HostSpec::batman_bellman(NODE_A),
             HostSpec::batman_bellman(NODE_B),
-            HostSpec::field(NODE_C),
-            HostSpec::field(NODE_D),
+            HostSpec::pathway(NODE_C).with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_D),
         ],
-        vec![
-            BoundObjective::new(NODE_A, connected_objective(NODE_B)),
-            BoundObjective::new(NODE_C, default_objective(NODE_D)),
-        ],
-        6,
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
+        7,
     );
     let environment = ScriptedEnvironmentModel::new(vec![ScheduledEnvironmentHook::new(
-        Tick(4),
+        Tick(5),
         EnvironmentHook::CascadePartition {
             cuts: vec![(NODE_A, NODE_B), (NODE_C, NODE_D)],
         },

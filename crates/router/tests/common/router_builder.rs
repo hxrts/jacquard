@@ -19,9 +19,6 @@
 //! - `build_router_with_opaque_engine`: registers one opaque external-engine
 //!   double used to prove the router can host a route source it cannot
 //!   introspect.
-//! - `build_router_with_field`: registers the real in-tree `field` engine over
-//!   a field-capable topology so router tests can exercise `CorridorEnvelope`
-//!   hosting without accessing engine-private state.
 //! - `build_router_with_pathway_and_batman`: registers the real in-tree
 //!   `pathway` and `batman` engines in one router over a dual-engine topology.
 
@@ -29,7 +26,6 @@ use std::sync::{Arc, Mutex};
 
 use jacquard_batman_bellman::BatmanBellmanEngine;
 use jacquard_core::{RoutePartitionClass, Tick};
-use jacquard_field::FieldEngine;
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
 };
@@ -234,84 +230,6 @@ pub(crate) fn build_router_with_opaque_engine(
             now,
         )))
         .expect("register opaque external engine");
-    router
-}
-
-// long-block-exception: this test builder keeps full router registration and
-// field-only topology setup together so the hosted-engine fixture is readable.
-pub(crate) fn build_router_with_field(
-    now: Tick,
-) -> MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects> {
-    let topology = jacquard_core::Observation {
-        value: jacquard_core::Configuration {
-            epoch: jacquard_core::RouteEpoch(2),
-            nodes: std::collections::BTreeMap::from([
-                (
-                    LOCAL_NODE_ID,
-                    topology::node(1)
-                        .for_engine(&jacquard_field::FIELD_ENGINE_ID)
-                        .build(),
-                ),
-                (
-                    super::fixtures::PEER_NODE_ID,
-                    topology::node(2)
-                        .for_engine(&jacquard_field::FIELD_ENGINE_ID)
-                        .build(),
-                ),
-                (
-                    super::fixtures::FAR_NODE_ID,
-                    topology::node(3)
-                        .for_engine(&jacquard_field::FIELD_ENGINE_ID)
-                        .build(),
-                ),
-            ]),
-            links: std::collections::BTreeMap::from([(
-                (LOCAL_NODE_ID, super::fixtures::PEER_NODE_ID),
-                topology::link(2)
-                    .with_confidence(jacquard_core::RatioPermille(950))
-                    .build(),
-            )]),
-            environment: jacquard_core::Environment {
-                reachable_neighbor_count: 1,
-                churn_permille: jacquard_core::RatioPermille(80),
-                contention_permille: jacquard_core::RatioPermille(60),
-            },
-        },
-        source_class: jacquard_core::FactSourceClass::Local,
-        evidence_class: jacquard_core::RoutingEvidenceClass::DirectObservation,
-        origin_authentication: jacquard_core::OriginAuthenticationClass::Controlled,
-        observed_at_tick: now,
-    };
-    let policy_inputs = sample_policy_inputs(&topology);
-    let policy_engine = FixedPolicyEngine::new(profile());
-    let network = SharedInMemoryNetwork::default();
-    let endpoints = topology.value.nodes[&LOCAL_NODE_ID]
-        .profile
-        .endpoints
-        .clone();
-    let field_transport = InMemoryTransport::attach(LOCAL_NODE_ID, endpoints, network);
-    let field_engine = FieldEngine::new(
-        LOCAL_NODE_ID,
-        field_transport,
-        InMemoryRuntimeEffects {
-            now,
-            ..Default::default()
-        },
-    );
-
-    let mut router = MultiEngineRouter::new(
-        LOCAL_NODE_ID,
-        policy_engine,
-        InMemoryRuntimeEffects {
-            now,
-            ..Default::default()
-        },
-        topology,
-        policy_inputs,
-    );
-    router
-        .register_engine(Box::new(field_engine))
-        .expect("register field engine");
     router
 }
 

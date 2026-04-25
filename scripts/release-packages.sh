@@ -23,7 +23,6 @@ RELEASE_PACKAGES=(
   "jacquard-olsrv2"
   "jacquard-pathway"
   "jacquard-scatter"
-  "jacquard-field"
   "jacquard-mercator"
   "jacquard-router"
   "jacquard-reference-client"
@@ -47,7 +46,6 @@ manifest_path() {
     jacquard-olsrv2)           echo "crates/olsrv2/Cargo.toml" ;;
     jacquard-pathway)          echo "crates/pathway/Cargo.toml" ;;
     jacquard-scatter)          echo "crates/scatter/Cargo.toml" ;;
-    jacquard-field)            echo "crates/field/Cargo.toml" ;;
     jacquard-mercator)         echo "crates/mercator/Cargo.toml" ;;
     jacquard-router)           echo "crates/router/Cargo.toml" ;;
     jacquard-reference-client) echo "crates/reference-client/Cargo.toml" ;;

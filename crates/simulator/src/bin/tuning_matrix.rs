@@ -15,9 +15,9 @@ use jacquard_simulator::{
         diffusion_local_stage_suite, diffusion_local_suite, diffusion_smoke_suite,
         tuning_babel_equivalence_smoke_suite, tuning_babel_model_smoke_suite,
         tuning_batman_bellman_model_smoke_suite, tuning_batman_classic_model_smoke_suite,
-        tuning_field_model_smoke_suite, tuning_local_stage_suite,
-        tuning_local_stage_suite_with_seeds_and_config, tuning_olsrv2_model_smoke_suite,
-        tuning_pathway_model_smoke_suite, tuning_scatter_model_smoke_suite, tuning_smoke_suite,
+        tuning_local_stage_suite, tuning_local_stage_suite_with_seeds_and_config,
+        tuning_olsrv2_model_smoke_suite, tuning_pathway_model_smoke_suite,
+        tuning_scatter_model_smoke_suite, tuning_smoke_suite,
     },
     summarize_diffusion_boundaries, summarize_tuning_breakdowns, ArtifactSink, DiffusionManifest,
     DiffusionRunSummary, ExperimentManifest, ExperimentModelArtifact, ExperimentRunSummary,
@@ -544,9 +544,6 @@ fn run_selected_suite(
         }
         "babel-equivalence-smoke" => {
             run_single_tuning_suite(&tuning_babel_equivalence_smoke_suite(), output_dir)
-        }
-        "field-model-smoke" => {
-            run_single_tuning_suite(&tuning_field_model_smoke_suite(), output_dir)
         }
         "batman-bellman-model-smoke" => {
             run_single_tuning_suite(&tuning_batman_bellman_model_smoke_suite(), output_dir)

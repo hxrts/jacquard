@@ -132,8 +132,7 @@ pub use bridge::{
     HostBridge,
 };
 pub use clients::{
-    ClientBuilder, EngineKind, FieldBootstrapSummary, ReferenceClient, ReferenceClientBuildError,
-    ReferenceRouter,
+    ClientBuilder, EngineKind, ReferenceClient, ReferenceClientBuildError, ReferenceRouter,
 };
 pub use jacquard_host_support::{
     ObservedLink, ObservedNode, ObservedRoute, ObservedRouteShape, TopologyProjector,

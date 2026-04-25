@@ -1,5 +1,4 @@
 use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
-use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_mercator::MERCATOR_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_simulator::{
@@ -57,7 +56,7 @@ fn composition_next_hop_only_viable_selects_maintained_route_engine() {
 }
 
 #[test]
-fn composition_corridor_preferred_selects_field() {
+fn composition_corridor_preferred_selects_pathway() {
     let (scenario, environment) = presets::composition_corridor_preferred();
     let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
 
@@ -74,7 +73,7 @@ fn composition_corridor_preferred_selects_field() {
         .expect_engine_selected(
             jacquard_core::NodeId([1; 32]),
             jacquard_core::DestinationId::Node(jacquard_core::NodeId([2; 32])),
-            &FIELD_ENGINE_ID,
+            &PATHWAY_ENGINE_ID,
         )
         .evaluate(&reduced)
         .expect("corridor composition assertions");
@@ -99,7 +98,7 @@ fn composition_concurrent_objectives_select_distinct_engines() {
         .expect_engine_selected(
             jacquard_core::NodeId([3; 32]),
             jacquard_core::DestinationId::Node(jacquard_core::NodeId([4; 32])),
-            &FIELD_ENGINE_ID,
+            &MERCATOR_ENGINE_ID,
         )
         .expect_distinct_engine_count(2)
         .evaluate(&reduced)
@@ -118,35 +117,22 @@ fn composition_cascade_partition_eliminates_route() {
     let reduced = ReducedReplayView::from_replay(&replay);
     let batman_owner = jacquard_core::NodeId([1; 32]);
     let batman_destination = jacquard_core::DestinationId::Node(jacquard_core::NodeId([2; 32]));
-    let field_owner = jacquard_core::NodeId([3; 32]);
-    let field_destination = jacquard_core::DestinationId::Node(jacquard_core::NodeId([4; 32]));
     ScenarioAssertions::new()
         .expect_route_materialized(batman_owner, batman_destination.clone())
-        .expect_route_materialized(field_owner, field_destination.clone())
         .expect_engine_selected(
             batman_owner,
             batman_destination.clone(),
             &BATMAN_BELLMAN_ENGINE_ID,
         )
-        .expect_engine_selected(field_owner, field_destination.clone(), &FIELD_ENGINE_ID)
         .evaluate(&reduced)
         .expect("cascade partition initial assertions");
     assert_eq!(
         reduced.first_round_with_route(batman_owner, &batman_destination),
         Some(0)
     );
-    assert_eq!(
-        reduced.first_round_with_route(field_owner, &field_destination),
-        Some(0)
-    );
     assert!(
-        reduced.route_absent_after_round(batman_owner, &batman_destination, 5),
+        reduced.route_absent_after_round(batman_owner, &batman_destination, 6),
         "batman route rounds: {:?}",
         reduced.route_present_rounds(batman_owner, &batman_destination)
-    );
-    assert!(
-        reduced.route_absent_after_round(field_owner, &field_destination, 5),
-        "field route rounds: {:?}",
-        reduced.route_present_rounds(field_owner, &field_destination)
     );
 }

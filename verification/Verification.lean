@@ -1,3 +1,1 @@
-import Field.Field
-
-/-! # Field Verification — top-level entry point -/
+/-! # Jacquard Verification — top-level entry point -/

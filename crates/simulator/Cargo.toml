@@ -16,7 +16,6 @@ jacquard-batman-bellman = { version = "0.8.0", path = "../batman-bellman" }
 jacquard-batman-classic = { version = "0.8.0", path = "../batman-classic" }
 jacquard-cast-support = { version = "0.8.0", path = "../cast-support" }
 jacquard-core = { version = "0.8.0", path = "../core" }
-jacquard-field = { version = "0.8.0", path = "../field" }
 jacquard-mem-link-profile = { version = "0.8.0", path = "../mem-link-profile" }
 jacquard-mem-node-profile = { version = "0.8.0", path = "../mem-node-profile" }
 jacquard-mercator = { version = "0.8.0", path = "../mercator" }

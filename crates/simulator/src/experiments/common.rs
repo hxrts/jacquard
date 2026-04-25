@@ -35,9 +35,6 @@ pub(super) fn apply_overrides(
             if let Some(search_config) = parameters.pathway_search_config() {
                 host = host.with_pathway_search_config(search_config);
             }
-            if let Some(search_config) = parameters.field_search_config() {
-                host = host.with_field_search_config(search_config);
-            }
             if let Some(scatter_config) = parameters.scatter_config() {
                 host = host.with_scatter_config(scatter_config);
             }
@@ -66,7 +63,6 @@ pub(super) fn comparison_topology_node(
         ComparisonEngineSet::Babel => topology::node(node_byte).babel().build(),
         ComparisonEngineSet::OlsrV2 => topology::node(node_byte).olsrv2().build(),
         ComparisonEngineSet::Pathway => topology::node(node_byte).pathway().build(),
-        ComparisonEngineSet::Field => topology::node(node_byte).field().build(),
         ComparisonEngineSet::Scatter => topology::node(node_byte).scatter().build(),
         ComparisonEngineSet::Mercator => topology::node(node_byte).mercator().build(),
         ComparisonEngineSet::PathwayAndBatmanBellman => topology::node(node_byte)
@@ -88,7 +84,6 @@ pub(super) fn comparison_host_spec(
         ComparisonEngineSet::Babel => HostSpec::babel(local_node_id),
         ComparisonEngineSet::OlsrV2 => HostSpec::olsrv2(local_node_id),
         ComparisonEngineSet::Pathway => HostSpec::pathway(local_node_id),
-        ComparisonEngineSet::Field => HostSpec::field(local_node_id),
         ComparisonEngineSet::Scatter => HostSpec::scatter(local_node_id),
         ComparisonEngineSet::Mercator => HostSpec::mercator(local_node_id),
         ComparisonEngineSet::PathwayAndBatmanBellman => {
@@ -98,45 +93,22 @@ pub(super) fn comparison_host_spec(
     }
 }
 
-pub(super) fn with_field_bootstrap_summaries(
+pub(super) fn with_route_bootstrap_summaries(
     host: HostSpec,
-    destination: &DestinationId,
-    summaries: &[FieldBootstrapSeed],
+    _destination: &DestinationId,
+    _summaries: &[RouteBootstrapSeed],
 ) -> HostSpec {
-    summaries.iter().fold(host, |host, summary| {
-        host.with_field_bootstrap_summary(field_bootstrap_summary(
-            destination.clone(),
-            summary.0,
-            summary.1,
-            summary.2,
-            summary.3,
-            summary.4,
-        ))
-    })
-}
-
-pub(super) fn field_hosts_with_bootstrap(
-    destination: &DestinationId,
-    summaries: &[FieldBootstrapSeed],
-    peer_node_ids: &[NodeId],
-) -> Vec<HostSpec> {
-    std::iter::once(with_field_bootstrap_summaries(
-        HostSpec::field(NODE_A),
-        destination,
-        summaries,
-    ))
-    .chain(peer_node_ids.iter().copied().map(HostSpec::field))
-    .collect()
+    host
 }
 
 pub(super) fn comparison_hosts_with_bootstrap(
     comparison_engine_set: Option<ComparisonEngineSet>,
     destination: &DestinationId,
-    summaries: &[FieldBootstrapSeed],
+    summaries: &[RouteBootstrapSeed],
     primary_host: HostSpec,
     peer_node_ids: &[NodeId],
 ) -> Vec<HostSpec> {
-    std::iter::once(with_field_bootstrap_summaries(
+    std::iter::once(with_route_bootstrap_summaries(
         primary_host,
         destination,
         summaries,
@@ -170,16 +142,14 @@ where
         .collect()
 }
 
-pub(super) fn seed_standalone_field_bootstrap(
+pub(super) fn seed_standalone_route_bootstrap(
     host: HostSpec,
     comparison_engine_set: Option<ComparisonEngineSet>,
     destination: &DestinationId,
-    summaries: &[FieldBootstrapSeed],
+    summaries: &[RouteBootstrapSeed],
 ) -> HostSpec {
-    if comparison_engine_set != Some(ComparisonEngineSet::Field) {
-        return host;
-    }
-    with_field_bootstrap_summaries(host, destination, summaries)
+    let _ = (comparison_engine_set, destination, summaries);
+    host
 }
 
 pub(super) fn ratio_permille(numerator: u32, denominator: u32) -> u32 {
@@ -256,20 +226,6 @@ pub(super) fn heuristic_mode_from_str(label: &str) -> PathwaySearchHeuristicMode
     }
 }
 
-pub(super) fn field_heuristic_mode_label(mode: FieldSearchHeuristicMode) -> &'static str {
-    match mode {
-        FieldSearchHeuristicMode::Zero => "zero",
-        FieldSearchHeuristicMode::HopLowerBound => "hop-lower-bound",
-    }
-}
-
-pub(super) fn field_heuristic_mode_from_str(label: &str) -> FieldSearchHeuristicMode {
-    match label {
-        "hop-lower-bound" => FieldSearchHeuristicMode::HopLowerBound,
-        _ => FieldSearchHeuristicMode::Zero,
-    }
-}
-
 pub(super) fn normalized_engine_id(engine_id: &jacquard_core::RoutingEngineId) -> &'static str {
     if engine_id == &BATMAN_BELLMAN_ENGINE_ID {
         "batman-bellman"
@@ -283,8 +239,6 @@ pub(super) fn normalized_engine_id(engine_id: &jacquard_core::RoutingEngineId) -
         "pathway"
     } else if engine_id == &SCATTER_ENGINE_ID {
         "scatter"
-    } else if engine_id == &FIELD_ENGINE_ID {
-        "field"
     } else {
         "other"
     }
@@ -406,42 +360,6 @@ pub(super) fn cascade_partition_hook(
             cuts: cuts.to_vec(),
         },
     )
-}
-
-pub(super) fn field_service_freshness_inversion_environment(
-    restore: &Configuration,
-) -> ScriptedEnvironmentModel {
-    ScriptedEnvironmentModel::new(vec![
-        asymmetric_degradation_hook(
-            8,
-            NODE_A,
-            NODE_B,
-            RatioPermille(520),
-            RatioPermille(340),
-            RatioPermille(760),
-            RatioPermille(120),
-        ),
-        replace_topology_hook(11, restore),
-        asymmetric_degradation_hook(
-            13,
-            NODE_A,
-            NODE_C,
-            RatioPermille(560),
-            RatioPermille(300),
-            RatioPermille(760),
-            RatioPermille(130),
-        ),
-        replace_topology_hook(16, restore),
-        asymmetric_degradation_hook(
-            18,
-            NODE_A,
-            NODE_D,
-            RatioPermille(600),
-            RatioPermille(260),
-            RatioPermille(760),
-            RatioPermille(140),
-        ),
-    ])
 }
 
 pub(super) fn comparison_corridor_continuity_uncertainty_environment(
@@ -885,21 +803,6 @@ pub(super) fn fanout_service_topology5(
     })
 }
 
-pub(super) fn field_fanout_service_topology5(
-    contention_permille: RatioPermille,
-    loss_permille: RatioPermille,
-) -> Observation<Configuration> {
-    let mut topology = fanout_service_topology5(
-        topology::node(1).field().build(),
-        topology::node(2).field().build(),
-        topology::node(3).field().build(),
-        topology::node(4).field().build(),
-        topology::node(5).field().build(),
-    );
-    set_environment(&mut topology, 4, contention_permille, loss_permille);
-    topology
-}
-
 pub(super) fn comparison_bridge_topology(
     comparison_engine_set: Option<ComparisonEngineSet>,
     contention_permille: RatioPermille,
@@ -932,29 +835,6 @@ pub(super) fn connected_objective(destination: NodeId) -> RoutingObjective {
     }
 }
 
-pub(super) fn field_bootstrap_summary(
-    destination: DestinationId,
-    from_neighbor: NodeId,
-    delivery_support: u16,
-    min_hops: u8,
-    max_hops: u8,
-    reverse_feedback: Option<u16>,
-) -> FieldBootstrapSummary {
-    let observation = FieldForwardSummaryObservation::new(
-        RouteEpoch(1),
-        Tick(1),
-        delivery_support,
-        min_hops,
-        max_hops,
-    );
-    let summary = FieldBootstrapSummary::new(destination, from_neighbor, observation);
-    if let Some(reverse_feedback) = reverse_feedback {
-        summary.with_reverse_feedback(reverse_feedback, Tick(1))
-    } else {
-        summary
-    }
-}
-
 pub(super) fn default_objective(destination: NodeId) -> RoutingObjective {
     RoutingObjective {
         destination: DestinationId::Node(destination),
@@ -981,23 +861,6 @@ pub(super) fn service_objective(service_id: Vec<u8>) -> RoutingObjective {
         target_connectivity: ConnectivityPosture {
             repair: RouteRepairClass::Repairable,
             partition: RoutePartitionClass::ConnectedOnly,
-        },
-        hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
-        latency_budget_ms: jacquard_core::Limit::Bounded(DurationMs(250)),
-        protection_priority: PriorityPoints(10),
-        connectivity_priority: PriorityPoints(20),
-    }
-}
-
-pub(super) fn field_service_objective(service_id: Vec<u8>) -> RoutingObjective {
-    RoutingObjective {
-        destination: DestinationId::Service(jacquard_core::ServiceId(service_id)),
-        service_kind: RouteServiceKind::Move,
-        target_protection: RouteProtectionClass::LinkProtected,
-        protection_floor: RouteProtectionClass::LinkProtected,
-        target_connectivity: ConnectivityPosture {
-            repair: RouteRepairClass::Repairable,
-            partition: RoutePartitionClass::PartitionTolerant,
         },
         hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
         latency_budget_ms: jacquard_core::Limit::Bounded(DurationMs(250)),

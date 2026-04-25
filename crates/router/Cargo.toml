@@ -24,7 +24,6 @@ serde = { workspace = true, default-features = false }
 
 [dev-dependencies]
 jacquard-batman-bellman = { path = "../batman-bellman" }
-jacquard-field = { path = "../field" }
 jacquard-pathway = { path = "../pathway" }
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
 jacquard-testkit = { path = "../testkit", features = ["topology-full"] }

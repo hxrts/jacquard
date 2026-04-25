@@ -14,8 +14,6 @@ pub mod dx_surface;
 pub mod engine_service_boundary;
 #[path = "../../../checks/rust/fail_closed_ordering.rs"]
 pub mod fail_closed_ordering;
-#[path = "../../../checks/lean/field_code_map.rs"]
-pub mod field_code_map;
 #[path = "../../../checks/rust/invariant_specs.rs"]
 pub mod invariant_specs;
 #[path = "../../../checks/rust/long_file.rs"]
@@ -68,7 +66,6 @@ pub fn run(args: Vec<String>) -> Result<()> {
         "dx-surface" => dx_surface::run(),
         "dry-code" => dry_code::run(),
         "engine-service-boundary" => engine_service_boundary::run(),
-        "field-code-map" => field_code_map::run(),
         "fail-closed-ordering" => fail_closed_ordering::run(),
         "invariant-specs" => invariant_specs::run(),
         "long-file" => long_file::run(),
