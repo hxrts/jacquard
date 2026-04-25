@@ -54,7 +54,7 @@ impl OpaqueNoopEngine {
 }
 ```
 
-`RouteShapeVisibility` signals what shape of route the engine publishes. Pathway uses `ExplicitPath`, field uses `CorridorEnvelope`, the distance-vector engines use `NextHopOnly`, and scatter uses `Opaque`. Choose the weakest shape the engine actually provides. Routers will not promise callers a richer shape than the engine advertises.
+`RouteShapeVisibility` signals what shape of route the engine publishes. Pathway uses `ExplicitPath`, Mercator uses `CorridorEnvelope`, the distance-vector engines use `NextHopOnly`, and scatter uses `Opaque`. Choose the weakest shape the engine actually provides. Routers will not promise callers a richer shape than the engine advertises.
 
 Capability choices cascade into admission. An engine that advertises `Unsupported` for `repair_support` will be skipped for repair-bearing objectives.
 

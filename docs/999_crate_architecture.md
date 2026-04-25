@@ -191,4 +191,4 @@ The extension surface is split across [Core Types](201_core_types.md), [Routing 
 
 For first-party pathway specifically, Telltale stays an internal implementation substrate. Shared crates remain runtime-free. Router integration drives pathway through shared planning, tick, maintenance, and checkpoint orchestration. It must not depend on pathway-private choreography payloads, protocol session keys, or guest-runtime internals.
 
-DualTide is now the canonical home for the migrated research line, paper, and theorem boundary. Jacquard keeps only legacy report compatibility fields needed to read historical artifacts.
+DualTide is now the canonical home for the migrated research line, paper, and theorem boundary. Jacquard keeps only historical report-reader compatibility fields needed to read preserved artifacts.

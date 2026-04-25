@@ -144,11 +144,10 @@ where
 
 pub(super) fn seed_standalone_route_bootstrap(
     host: HostSpec,
-    comparison_engine_set: Option<ComparisonEngineSet>,
-    destination: &DestinationId,
-    summaries: &[RouteBootstrapSeed],
+    _comparison_engine_set: Option<ComparisonEngineSet>,
+    _destination: &DestinationId,
+    _summaries: &[RouteBootstrapSeed],
 ) -> HostSpec {
-    let _ = (comparison_engine_set, destination, summaries);
     host
 }
 

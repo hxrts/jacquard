@@ -109,7 +109,7 @@ let roster = vec![
 ];
 ```
 
-Each constructor returns a `HostSpec` with a sensible default overrides bundle. Single-engine constructors include `pathway`, `field`, `batman_bellman`, `batman_classic`, `babel`, `olsrv2`, and `scatter`. Multi-engine constructors include the pairwise composites plus `all_engines`. Per-host knobs apply through `.with_profile`, `.with_policy_inputs`, `.with_batman_bellman_decay_window`, and similar builders.
+Each constructor returns a `HostSpec` with a sensible default overrides bundle. Single-engine constructors include `pathway`, `batman_bellman`, `batman_classic`, `babel`, `olsrv2`, `scatter`, and `mercator`. Multi-engine constructors include the maintained pairwise composites plus `all_engines`. Per-host knobs apply through `.with_profile`, `.with_policy_inputs`, `.with_batman_bellman_decay_window`, and similar builders.
 
 ## Inspecting Replay Artifacts
 

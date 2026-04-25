@@ -72,7 +72,7 @@ Transport ownership is split deliberately:
 
 `macros` owns syntax-local code generation and annotation-site validation. The flake-input `toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `toolkit/lints/` and `toolkit/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
-DualTide is the canonical home for the migrated research engine, paper, and theorem boundary. Jacquard keeps only legacy report compatibility fields needed to read historical `analysis/` and `analysis_2/` artifacts.
+DualTide is the canonical home for the migrated research engine, paper, and theorem boundary. Jacquard keeps only historical report-reader compatibility fields needed to read preserved `analysis/` and `analysis_2` artifacts.
 
 `jacquard-batman-bellman` is the enhanced BATMAN engine using local Bellman-Ford over a gossip-merged topology graph with TQ enrichment and a bootstrap shortcut. `jacquard-batman-classic` is the spec-faithful BATMAN IV engine with OGM-carried TQ, TTL-bounded propagation, and echo-only bidirectionality. `jacquard-babel` implements RFC 8966 with bidirectional ETX link cost, additive metric, and a feasibility distance table for loop-free route selection.
 

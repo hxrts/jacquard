@@ -8,7 +8,7 @@ See [Profile Implementations](305_profile_reference.md) for the profile-boundary
 
 `ClientBuilder` is the wiring entry point. It attaches one bridge-owned `InMemoryTransport` driver to a `SharedInMemoryNetwork`, constructs queue-backed sender capabilities for each enabled engine, registers the engine set on a fresh `MultiEngineRouter`, and returns a `ReferenceClient` host bridge.
 
-The builder accepts any combination of in-tree engines: pathway, batman-bellman, batman-classic, babel, olsrv2, field, and scatter. The `EngineKind` enum names the selectable engines. Multiple clients built against the same network share one deterministic carrier. Each client advances routing state through its own explicit bridge rounds.
+The builder accepts any combination of in-tree engines: pathway, batman-bellman, batman-classic, babel, olsrv2, scatter, and mercator. The `EngineKind` enum names the selectable engines. Multiple clients built against the same network share one deterministic carrier. Each client advances routing state through its own explicit bridge rounds.
 
 The bridge surface exposes `HostBridge` and `BoundHostBridge` for binding and round advancement. Round outcomes flow through `BridgeRoundReport` and `BridgeWaitState`, with `BridgeQueueConfig` controlling ingress queueing behavior. Together these let a caller drive synchronous rounds, inspect per-round outcomes, and observe the bridge's waiting behavior.
 

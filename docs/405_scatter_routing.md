@@ -62,7 +62,7 @@ Diffusion planning is pure up to the point where packets are actually sent. The 
 
 - `batman-bellman`, `batman-classic`, `babel`, and `olsrv2` retain routing control state but do not buffer payloads for deferred delivery
 - `pathway` supports deferred delivery through explicit path and retention boundaries plus full-route search
-- `field` carries forward bounded routing and service evidence rather than general payload custody
+- `mercator` carries forward bounded corridor evidence and limited custody posture rather than general payload custody
 - `scatter` is the in-tree opaque deferred-delivery baseline, so payload custody stays local, bounded, and diffusion-oriented
 
 ## Current Non-Goals

@@ -4,7 +4,7 @@ This page describes the trait surface for adding a routing algorithm to Jacquard
 
 ## Routing Engine Contract
 
-A routing engine is a routing algorithm that consumes the shared world picture and realizes routes under router-provided identity. Jacquard ships eight in-tree engines: `pathway` (explicit-path), `field` (corridor-envelope), `mercator` (hybrid corridor), `batman-bellman` (Bellman-Ford-enhanced next-hop), `batman-classic` (spec-faithful BATMAN IV next-hop), `babel` (RFC 8966 distance-vector), `olsrv2` (OLSRv2 link-state), and `scatter` (bounded deferred-delivery diffusion). External engines can plug into the same contract without depending on any in-tree engine's internals.
+A routing engine is a routing algorithm that consumes the shared world picture and realizes routes under router-provided identity. Jacquard ships seven in-tree engines: `pathway` (explicit-path), `mercator` (hybrid corridor), `batman-bellman` (Bellman-Ford-enhanced next-hop), `batman-classic` (spec-faithful BATMAN IV next-hop), `babel` (RFC 8966 distance-vector), `olsrv2` (OLSRv2 link-state), and `scatter` (bounded deferred-delivery diffusion). External engines can plug into the same contract without depending on any in-tree engine's internals.
 
 ```rust
 pub trait RoutingEnginePlanner {
@@ -87,7 +87,7 @@ An engine may use a richer internal runtime model behind that hook. First-party 
 
 That private choreography runtime does not replace the shared Jacquard effect traits. Generated Telltale effect interfaces remain engine-private implementation details, and the pathway interpreter adapts them onto the stable `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `TransportSenderEffects` surfaces exposed by `jacquard-traits`. Host-owned `TransportDriver` implementations stop at the router or bridge layer, which delivers explicit ingress before each synchronous router round.
 
-First-party field follows the same ownership rule with a narrower proof boundary. The deterministic local observer-controller remains the semantic owner of corridor belief and posture choice. Any field-private choreography layer may provide only observational summary inputs. Canonical route publication remains router-owned.
+The migrated research engine now lives in DualTide. Jacquard keeps the shared route contract and host ownership rules available for external engines without carrying that engine as an in-tree implementation.
 
 Router-led recovery follows the same split. The baseline engine hook restores route-private runtime from route identity. The router also supplies the current topology to a richer recovery hook so engines can rebuild topology-derived forwarding state without persisting that derived view in checkpoints.
 
