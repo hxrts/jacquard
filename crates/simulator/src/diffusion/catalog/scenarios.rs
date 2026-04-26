@@ -1,112 +1,9 @@
 // long-file-exception: the maintained diffusion scenario catalog is kept as one
 // explicit roster so regime definitions stay easy to review together.
 use super::{
-    CodedContributionValidityRule, CodedEvidenceOriginMode, CodedEvidenceTransformKind,
-    CodedInferenceReadinessScenario, CodedInferenceSpec, CodedLocalObservationSpec,
-    CodedRecodingRuleSpec, DiffusionMessageMode, DiffusionMobilityProfile, DiffusionNodeSpec,
-    DiffusionRegimeDescriptor, DiffusionScenarioSpec, DiffusionTransportKind,
+    DiffusionMessageMode, DiffusionMobilityProfile, DiffusionNodeSpec, DiffusionRegimeDescriptor,
+    DiffusionScenarioSpec, DiffusionTransportKind,
 };
-
-#[allow(dead_code)]
-// long-block-exception: scenario fixture keeps all coded-inference dimensions in one auditable constructor.
-pub(crate) fn build_coded_inference_readiness_scenario() -> CodedInferenceReadinessScenario {
-    let cluster_count = 5;
-    let hidden_anomaly_cluster_id = 3;
-    let mut nodes = clustered_nodes_with_strides(100, cluster_count, true, 17, 23);
-    set_uniform_resources(&mut nodes, 12_000, 384);
-    boost_bridge_resources(&mut nodes, 15_000, 512);
-    let local_observations = nodes
-        .iter()
-        .map(|node| CodedLocalObservationSpec {
-            observation_id: node.node_id,
-            node_id: node.node_id,
-            cluster_id: node.cluster_id,
-            evidence_vector: anomaly_evidence_vector(
-                node.node_id,
-                node.cluster_id,
-                hidden_anomaly_cluster_id,
-                cluster_count,
-            ),
-            noise_class: u8::try_from(node.node_id % 4).unwrap_or(0),
-            contribution_ledger_id: 10_000 + node.node_id,
-        })
-        .collect::<Vec<_>>();
-    let diffusion = DiffusionScenarioSpec {
-        family_id: "coded-inference-100-node-readiness".to_string(),
-        regime: DiffusionRegimeDescriptor {
-            density: "clustered-100".to_string(),
-            mobility_model: "temporal-community-bridgers".to_string(),
-            transport_mix: "ble-wifi-lora".to_string(),
-            pressure: "path-free-coded-inference".to_string(),
-            objective_regime: "coded-inference-readiness".to_string(),
-            stress_score: 100,
-        },
-        round_count: 96,
-        creation_round: 4,
-        payload_bytes: 384,
-        message_mode: DiffusionMessageMode::Unicast,
-        source_node_id: 1,
-        destination_node_id: Some(100),
-        nodes,
-        node_index_by_id: std::collections::BTreeMap::new(),
-        pair_descriptors: Vec::new(),
-    }
-    .with_runtime_indexes();
-    CodedInferenceReadinessScenario {
-        artifact_namespace: "artifacts/coded-inference/readiness".to_string(),
-        diffusion,
-        coded_inference: CodedInferenceSpec {
-            target_id: "cluster-anomaly".to_string(),
-            message_id: "source-payload".to_string(),
-            cluster_count,
-            hidden_anomaly_cluster_id,
-            receiver_node_id: 100,
-            source_node_id: 1,
-            evidence_origin_modes: vec![
-                CodedEvidenceOriginMode::SourceCoded,
-                CodedEvidenceOriginMode::LocalObservation,
-                CodedEvidenceOriginMode::RecodedAggregate,
-            ],
-            source_fragment_count: 12,
-            reconstruction_threshold: 8,
-            fragment_payload_bytes: 32,
-            uncoded_message_payload_bytes: 384,
-            decision_margin_threshold: 24,
-            minimum_decision_evidence_count: 8,
-            initial_score_vector: vec![0; usize::from(cluster_count)],
-            local_observations,
-            recoding_rule: CodedRecodingRuleSpec {
-                enabled: true,
-                transform_kind: CodedEvidenceTransformKind::ContributionLedgerUnion,
-                validity_rule: CodedContributionValidityRule::CanonicalContributionLedger,
-                max_parent_evidence_count: 2,
-                allows_local_observation_contribution: true,
-            },
-        },
-    }
-}
-
-#[allow(dead_code)]
-fn anomaly_evidence_vector(
-    node_id: u32,
-    cluster_id: u8,
-    hidden_anomaly_cluster_id: u8,
-    cluster_count: u8,
-) -> Vec<i32> {
-    (0..cluster_count)
-        .map(|candidate| {
-            if candidate == hidden_anomaly_cluster_id && cluster_id == hidden_anomaly_cluster_id {
-                4
-            } else if candidate == cluster_id
-                || (node_id.is_multiple_of(11) && candidate == hidden_anomaly_cluster_id)
-            {
-                1
-            } else {
-                0
-            }
-        })
-        .collect()
-}
 
 pub(super) fn build_partitioned_clusters_scenario() -> DiffusionScenarioSpec {
     DiffusionScenarioSpec {
@@ -678,7 +575,7 @@ fn clustered_nodes(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, BTreeSet};
+    use std::collections::BTreeSet;
 
     use super::super::{
         diffusion_engine_profile, diffusion_smoke_suite, field_diffusion_profiles,
@@ -686,15 +583,13 @@ mod tests {
     };
     use super::{
         build_adversarial_observation_scenario, build_bridge_drought_scenario,
-        build_coded_inference_readiness_scenario, build_congestion_cascade_scenario,
-        build_disaster_broadcast_scenario, build_energy_starved_relay_scenario,
-        build_high_density_overload_scenario, build_large_congestion_threshold_high_scenario,
+        build_congestion_cascade_scenario, build_disaster_broadcast_scenario,
+        build_energy_starved_relay_scenario, build_high_density_overload_scenario,
+        build_large_congestion_threshold_high_scenario,
         build_large_congestion_threshold_moderate_scenario,
         build_large_regional_shift_high_scenario, build_large_regional_shift_moderate_scenario,
         build_large_sparse_threshold_high_scenario, build_large_sparse_threshold_moderate_scenario,
         build_partitioned_clusters_scenario, build_sparse_long_delay_scenario,
-        CodedContributionValidityRule, CodedEvidenceOriginMode, CodedEvidenceTransformKind,
-        DiffusionMessageMode, DiffusionMobilityProfile,
     };
     use crate::diffusion::{
         posture::{field_budget_kind, field_forwarding_suppressed},
@@ -720,117 +615,6 @@ mod tests {
         let first = generate_contacts(41, &scenario, 5);
         let second = generate_contacts(41, &scenario, 5);
         assert_eq!(first, second);
-    }
-
-    #[test]
-    // long-block-exception: fixture validates the full route-independent coded-inference scenario contract.
-    fn coded_inference_readiness_scenario_is_deterministic_and_route_independent() {
-        let first = build_coded_inference_readiness_scenario();
-        let second = build_coded_inference_readiness_scenario();
-        assert_eq!(first, second);
-        assert_eq!(
-            first.artifact_namespace,
-            "artifacts/coded-inference/readiness"
-        );
-
-        let scenario = &first.diffusion;
-        assert_eq!(scenario.family_id, "coded-inference-100-node-readiness");
-        assert_eq!(scenario.nodes.len(), 100);
-        assert_eq!(scenario.destination_node_id, Some(100));
-        assert_eq!(scenario.payload_bytes, 384);
-        assert_eq!(scenario.message_mode, DiffusionMessageMode::Unicast);
-        assert!(
-            !diffusion_smoke_suite()
-                .runs
-                .iter()
-                .any(|run| run.family_id == scenario.family_id),
-            "coded-inference readiness must not enter the maintained report suites"
-        );
-
-        let mut cluster_counts = BTreeMap::<u8, u32>::new();
-        for node in &scenario.nodes {
-            *cluster_counts.entry(node.cluster_id).or_default() += 1;
-        }
-        assert_eq!(cluster_counts.len(), 5);
-        assert!(cluster_counts.values().all(|count| *count == 20));
-        assert!(scenario.nodes.iter().any(|node| matches!(
-            node.mobility_profile,
-            DiffusionMobilityProfile::LongRangeMover
-        )));
-
-        let inference = &first.coded_inference;
-        assert_eq!(inference.cluster_count, 5);
-        assert_eq!(inference.hidden_anomaly_cluster_id, 3);
-        assert_eq!(inference.receiver_node_id, 100);
-        assert_eq!(inference.source_fragment_count, 12);
-        assert_eq!(inference.reconstruction_threshold, 8);
-        assert_eq!(inference.fragment_payload_bytes, 32);
-        assert_eq!(inference.uncoded_message_payload_bytes, 384);
-        assert_eq!(inference.initial_score_vector, vec![0; 5]);
-        assert_eq!(
-            inference.evidence_origin_modes,
-            vec![
-                CodedEvidenceOriginMode::SourceCoded,
-                CodedEvidenceOriginMode::LocalObservation,
-                CodedEvidenceOriginMode::RecodedAggregate,
-            ]
-        );
-        assert_eq!(inference.local_observations.len(), 100);
-        assert!(inference
-            .local_observations
-            .iter()
-            .filter(|observation| observation.cluster_id == inference.hidden_anomaly_cluster_id)
-            .all(|observation| observation.evidence_vector[3] >= 4));
-        assert!(inference.recoding_rule.enabled);
-        assert_eq!(
-            inference.recoding_rule.transform_kind,
-            CodedEvidenceTransformKind::ContributionLedgerUnion
-        );
-        assert_eq!(
-            inference.recoding_rule.validity_rule,
-            CodedContributionValidityRule::CanonicalContributionLedger
-        );
-
-        let contact_shape = |scenario: &DiffusionScenarioSpec| {
-            (scenario.creation_round..scenario.creation_round + 8)
-                .map(|round| {
-                    let contacts = generate_contacts(41, scenario, round);
-                    let inter_cluster_contacts = contacts
-                        .iter()
-                        .filter(|contact| {
-                            let left = scenario
-                                .nodes
-                                .get(*scenario.node_index_by_id.get(&contact.node_a).unwrap())
-                                .unwrap();
-                            let right = scenario
-                                .nodes
-                                .get(*scenario.node_index_by_id.get(&contact.node_b).unwrap())
-                                .unwrap();
-                            left.cluster_id != right.cluster_id
-                        })
-                        .count();
-                    (round, contacts.len(), inter_cluster_contacts)
-                })
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(contact_shape(scenario), contact_shape(&second.diffusion));
-
-        let policy = diffusion_engine_profile("mercator");
-        let first_summary = simulate_diffusion_run(&DiffusionRunSpec {
-            suite_id: "coded-inference-readiness".to_string(),
-            family_id: scenario.family_id.clone(),
-            seed: 41,
-            policy: policy.clone(),
-            scenario: scenario.clone(),
-        });
-        let second_summary = simulate_diffusion_run(&DiffusionRunSpec {
-            suite_id: "coded-inference-readiness".to_string(),
-            family_id: second.diffusion.family_id.clone(),
-            seed: 41,
-            policy,
-            scenario: second.diffusion.clone(),
-        });
-        assert_eq!(first_summary, second_summary);
     }
 
     #[test]

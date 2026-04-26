@@ -184,15 +184,11 @@ external_runs.jsonl; those files are intentionally not consumed by the
 current `analysis/` report. They are for downstream harnesses, consumer tests,
 and future extraction work.
 
-The paper-facing active-belief/coded-diffusion artifacts are a separate
-`analysis_2/` surface. The simulator exposes their contract through
-`active_belief_artifact_contract()`: the contract identifies `analysis_2` as the
-consumer, marks the rows as not consumed by route analysis, and lists required
-CSV files such as `active_belief_raw_rounds.csv`,
-`active_belief_receiver_runs.csv`,
-`coded_inference_experiment_c_phase_diagram.csv`, and
-`coded_inference_experiment_e_observer_frontier.csv`. Moving paper-facing code
-must not remove or rename artifacts required by `analysis/`.
+The former paper-facing research artifacts now live in DualTide. Jacquard's
+simulator keeps the route-visible and diffusion artifact files consumed by the
+maintained `analysis/` report, including the multi-router comparison corpus.
+Moving or pruning research code must not remove or rename artifacts required by
+`analysis/`.
 
 ## Review Guidance
 

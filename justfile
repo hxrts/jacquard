@@ -51,18 +51,6 @@ report-sanity artifact_dir='artifacts/analysis/local/latest':
       echo "report-sanity: skipped; {{artifact_dir}}/report does not exist"
     fi
 
-# generate the active-belief paper report and figures
-active-belief-report artifact_dir='artifacts/analysis_2/latest':
-    #!/usr/bin/env bash
-    set -euo pipefail
-    nix develop --command python3 -m analysis_2.report "{{artifact_dir}}"
-
-# validate the active-belief paper report and figures
-active-belief-sanity artifact_dir='artifacts/analysis_2/latest':
-    #!/usr/bin/env bash
-    set -euo pipefail
-    nix develop --command python3 -m analysis_2.sanity "{{artifact_dir}}"
-
 # run the benchmark-audit regression surface without the full tuning matrix
 benchmark-audit:
     #!/usr/bin/env bash
@@ -76,7 +64,7 @@ benchmark-audit:
     cargo test -p jacquard-simulator adversarial_observation_reports_non_zero_leakage_for_broad_baseline
     cargo test -p jacquard-simulator bounded_state_classifies_regions
     cargo test -p jacquard-simulator energy_starved_relay_separates_conservative_and_broad_profiles
-    nix develop --command python3 -m unittest analysis.tests.test_scoring analysis.tests.test_sanity analysis_2.tests.test_sanity
+    nix develop --command python3 -m unittest analysis.tests.test_scoring analysis.tests.test_sanity
 
 # format code (uses the toolkit-owned nightly rustfmt policy)
 fmt:
@@ -231,7 +219,6 @@ ci-dry-run:
     add_step "Tests"                      "cargo test --workspace"
     add_step "Benchmark Audit"           "just benchmark-audit"
     add_step "Report Sanity"             "just report-sanity"
-    add_step "Lean Style"                 "just lean-style"
     add_step "No Std Check"               "just no-std-check"
     add_step "Wasm Check"                 "just wasm-check"
     add_step "Wasm Reference Client Test" "just wasm-test-reference-client"
@@ -251,7 +238,6 @@ ci-dry-run:
     add_step "Public Type Width"          "{{toolkit_cmd}} check public-type-width --repo-root . --config toolkit/toolkit.toml"
     add_step "Dependency Policy"          "{{toolkit_cmd}} check dependency-policy --repo-root . --config toolkit/toolkit.toml"
     add_step "Test Boundaries"            "{{toolkit_cmd}} check test-boundaries --repo-root . --config toolkit/toolkit.toml"
-    add_step "Lean Escape Hatches"        "{{toolkit_cmd}} check lean-escape-hatches --repo-root . --config toolkit/toolkit.toml"
     add_step "Text Formatting"            "{{toolkit_cmd}} check text-formatting --repo-root . --config toolkit/toolkit.toml"
     add_step "Workspace Hygiene"          "{{toolkit_cmd}} check workspace-hygiene --repo-root . --config toolkit/toolkit.toml"
     add_step "Workflow Actions"           "{{toolkit_cmd}} check workflow-actions --repo-root . --config toolkit/toolkit.toml"
@@ -403,25 +389,6 @@ release \
       args+=(--no-require-main)
     fi
     ./scripts/release-publish.sh "${args[@]}"
-
-# Hydrate the Mathlib olean cache so lean-build never rebuilds Mathlib from source.
-# Must be run once from inside `nix develop` before lean-build will work.
-lean-setup:
-    ./scripts/lean-prebuilt.sh
-
-# Run the generic Lean source-style policy over the verification tree.
-lean-style:
-    {{toolkit_cmd}} check lean-style --repo-root . --config toolkit/toolkit.toml
-
-# Build the Lean verification package (requires lean-setup to have been run once).
-lean-build:
-    cd verification && lake build
-
-# Run Lean source-style policy, hydrate the cache if needed, then build.
-lean-check:
-    just lean-style
-    just lean-setup
-    cd verification && lake build
 
 # install git hooks
 install-hooks:

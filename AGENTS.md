@@ -17,8 +17,6 @@ just test           # cargo test --workspace
 just lint           # cargo clippy --workspace --all-targets -- -D warnings
 just fmt            # toolkit-owned nightly rustfmt policy
 just fmt-check      # toolkit-owned nightly rustfmt policy with --check
-just lean-style     # toolkit-owned Lean source-style policy over verification/
-just lean-check     # lean-style, lean setup, then lake build
 just no-std-check   # check portable no_std crates on host and thumbv7em-none-eabihf
 just wasm-check     # build jacquard-pathway and jacquard-reference-client for wasm32-unknown-unknown
 just wasm-test-reference-client # run the reference-client wasm integration test under wasm-bindgen-test
@@ -72,8 +70,6 @@ Transport ownership is split deliberately:
 
 `macros` owns syntax-local code generation and annotation-site validation. The flake-input `toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `toolkit/lints/` and `toolkit/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
-DualTide is the canonical home for the migrated research engine, paper, and theorem boundary. Jacquard keeps only historical report-reader compatibility fields needed to read preserved `analysis/` and `analysis_2` artifacts.
-
 `jacquard-batman-bellman` is the enhanced BATMAN engine using local Bellman-Ford over a gossip-merged topology graph with TQ enrichment and a bootstrap shortcut. `jacquard-batman-classic` is the spec-faithful BATMAN IV engine with OGM-carried TQ, TTL-bounded propagation, and echo-only bidirectionality. `jacquard-babel` implements RFC 8966 with bidirectional ETX link cost, additive metric, and a feasibility distance table for loop-free route selection.
 
 `jacquard-olsrv2` implements an OLSRv2-class proactive link-state engine with deterministic MPR election and TC-style topology flooding. `jacquard-scatter` is the bounded deferred-delivery diffusion engine and publishes opaque viability claims. `jacquard-mercator` is a hybrid corridor routing engine skeleton under active development and has no dedicated `docs/` entry yet.
@@ -108,12 +104,6 @@ For nightly compiler-backed lint parity, use the toolkit wrappers for portable l
 ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint trait_must_use --all -- --all-targets
 ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint naked_map_err --all -- --all-targets
 ```
-
-For Lean verification work, use `just lean-style` for targeted source-policy
-checking and `nix develop --command just lean-check` for the full local style +
-build path. The CI lane currently blocks on Lean style only; full Lean build is
-still local-only while the verification package depends on sibling path
-checkouts.
 
 ## Test layout
 

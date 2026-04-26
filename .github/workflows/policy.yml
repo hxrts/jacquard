@@ -58,8 +58,6 @@ jobs:
         run: ./scripts/toolkit-shell.sh toolkit-xtask check dependency-policy --repo-root . --config toolkit/toolkit.toml
       - name: Test Boundaries
         run: ./scripts/toolkit-shell.sh toolkit-xtask check test-boundaries --repo-root . --config toolkit/toolkit.toml
-      - name: Lean Escape Hatches
-        run: ./scripts/toolkit-shell.sh toolkit-xtask check lean-escape-hatches --repo-root . --config toolkit/toolkit.toml
       - name: Text Formatting
         run: ./scripts/toolkit-shell.sh toolkit-xtask check text-formatting --repo-root . --config toolkit/toolkit.toml
       - name: Workspace Hygiene

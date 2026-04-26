@@ -64,7 +64,6 @@
           mdbook-mermaid
           ripgrep
           perl
-          elan
           nodejs
         ]
         ++ toolkitSupport.packages
@@ -93,7 +92,6 @@
 
             echo "Jacquard development environment"
             echo "Rust: $(rustc --version)"
-            echo "Lean: $(elan show 2>/dev/null | head -1 || echo 'run: elan default leanprover/lean4:v4.26.0')"
           '';
         };
       }

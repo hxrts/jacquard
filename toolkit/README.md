@@ -25,7 +25,6 @@ toolkit/
   README.md
   toolkit.toml
   checks/
-    lean/
     rust/
     pre_commit.rs
   lints/
@@ -44,20 +43,3 @@ If a rule is generic and only needs Jacquard-specific scope, configure it in
 If a rule depends on Jacquard crate topology, routing semantics, transport
 ownership, or other Jacquard architecture concepts, implement it under
 `toolkit/`.
-
-## Lean Style
-
-Generic Lean source-style enforcement is toolkit-owned and configured here
-through `[checks.lean_style]` in `toolkit.toml`.
-
-Current rollout:
-
-- `just lean-style` runs the generic Lean source-style checker only
-- `just lean-check` runs `just lean-style`, then `just lean-setup`, then
-  `lake build`
-- CI currently enforces the style checker, not the full Lean build, so the
-  toolkit lane stays fast while the verification build remains a separate
-  developer workflow
-
-That keeps the Lean style check blocking in the normal repo workflow without
-pretending the full Lean build is already CI-portable.

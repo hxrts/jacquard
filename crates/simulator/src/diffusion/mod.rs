@@ -2,15 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-mod baselines;
 mod catalog;
-mod coded_inference;
-mod core_experiment;
-mod local_policy;
 mod model;
-mod near_critical;
-mod observer;
-mod paper;
 mod posture;
 mod runtime;
 mod scoring;
@@ -50,10 +43,6 @@ pub use model::{
     DiffusionMessageMode, DiffusionMobilityProfile, DiffusionNodeSpec, DiffusionPolicyConfig,
     DiffusionRegimeDescriptor, DiffusionRunSummary, DiffusionSuite, DiffusionSuiteBuildError,
     DiffusionTransportKind, DIFFUSION_ARTIFACT_SCHEMA_VERSION,
-};
-pub use paper::{
-    active_belief_artifact_contract, PaperExperimentArtifactContract,
-    ACTIVE_BELIEF_REQUIRED_CSV_FILES,
 };
 pub use runtime::{aggregate_diffusion_runs, run_diffusion_suite, summarize_diffusion_boundaries};
 

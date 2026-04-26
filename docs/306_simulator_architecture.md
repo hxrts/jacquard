@@ -14,7 +14,7 @@ Execution has three modes. `full-stack` runs the maintained comparative families
 
 ## Engine Selection Per Host
 
-The simulator selects engines per host through `EngineLane`. Single-engine variants cover `Pathway`, `BatmanBellman`, `BatmanClassic`, `Babel`, `OlsrV2`, `Scatter`, and `Mercator`. Mixed-engine variants include `PathwayAndBatmanBellman`, `PathwayAndBabel`, `PathwayAndOlsrV2`, `BabelAndBatmanBellman`, `OlsrV2AndBatmanBellman`, `AllEngines`, and `RouteVisibleEngines`. The migrated research engine and paper now live in the sibling DualTide repository. Legacy report schemas may still contain `field_*` columns so historical `analysis/` and `analysis_2/` artifacts remain readable.
+The simulator selects engines per host through `EngineLane`. Single-engine variants cover `Pathway`, `BatmanBellman`, `BatmanClassic`, `Babel`, `OlsrV2`, `Scatter`, and `Mercator`. Mixed-engine variants include `PathwayAndBatmanBellman`, `PathwayAndBabel`, `PathwayAndOlsrV2`, `BabelAndBatmanBellman`, `OlsrV2AndBatmanBellman`, `AllEngines`, and `RouteVisibleEngines`. The migrated research engine and paper now live in the sibling DualTide repository. Jacquard keeps only the simulator surfaces needed for the maintained routing report and multi-router comparison corpus.
 
 All engines share one host bridge per node. The bridge owns ingress draining and `Tick` stamping. Engines keep private runtime state below the shared routing boundary.
 

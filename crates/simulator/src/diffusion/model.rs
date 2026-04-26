@@ -77,27 +77,6 @@ pub enum DiffusionMessageMode {
     Broadcast,
 }
 
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) enum CodedEvidenceOriginMode {
-    SourceCoded,
-    LocalObservation,
-    RecodedAggregate,
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) enum CodedEvidenceTransformKind {
-    ForwardOriginal,
-    ContributionLedgerUnion,
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) enum CodedContributionValidityRule {
-    CanonicalContributionLedger,
-}
-
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DiffusionNodeSpec {
     pub node_id: u32,
@@ -106,56 +85,6 @@ pub struct DiffusionNodeSpec {
     pub energy_budget: u32,
     pub storage_capacity: u32,
     pub transport_capabilities: Vec<DiffusionTransportKind>,
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) struct CodedLocalObservationSpec {
-    pub observation_id: u32,
-    pub node_id: u32,
-    pub cluster_id: u8,
-    pub evidence_vector: Vec<i32>,
-    pub noise_class: u8,
-    pub contribution_ledger_id: u32,
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) struct CodedRecodingRuleSpec {
-    pub enabled: bool,
-    pub transform_kind: CodedEvidenceTransformKind,
-    pub validity_rule: CodedContributionValidityRule,
-    pub max_parent_evidence_count: u8,
-    pub allows_local_observation_contribution: bool,
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) struct CodedInferenceSpec {
-    pub target_id: String,
-    pub message_id: String,
-    pub cluster_count: u8,
-    pub hidden_anomaly_cluster_id: u8,
-    pub receiver_node_id: u32,
-    pub source_node_id: u32,
-    pub evidence_origin_modes: Vec<CodedEvidenceOriginMode>,
-    pub source_fragment_count: u32,
-    pub reconstruction_threshold: u32,
-    pub fragment_payload_bytes: u32,
-    pub uncoded_message_payload_bytes: u32,
-    pub decision_margin_threshold: i32,
-    pub minimum_decision_evidence_count: u32,
-    pub initial_score_vector: Vec<i32>,
-    pub local_observations: Vec<CodedLocalObservationSpec>,
-    pub recoding_rule: CodedRecodingRuleSpec,
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) struct CodedInferenceReadinessScenario {
-    pub artifact_namespace: String,
-    pub diffusion: DiffusionScenarioSpec,
-    pub coded_inference: CodedInferenceSpec,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

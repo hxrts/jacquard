@@ -1096,7 +1096,6 @@ pub(super) fn family_cluster_probabilities(family_id: &str) -> Option<(u32, u32,
         "diffusion-large-sparse-threshold-high" => Some((180, 60, 2)),
         "diffusion-large-congestion-threshold-moderate" => Some((940, 720, 360)),
         "diffusion-large-congestion-threshold-high" => Some((980, 800, 520)),
-        "coded-inference-100-node-readiness" => Some((540, 96, 0)),
         _ => None,
     }
 }
