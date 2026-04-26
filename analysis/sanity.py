@@ -159,6 +159,7 @@ PERMILLE_COLUMN_TOKENS = (
     "broker_concentration",
     "broker_participation",
     "cluster_coverage",
+    "continuity_persistence",
     "corridor_persistence",
     "coverage",
     "delivery_probability",

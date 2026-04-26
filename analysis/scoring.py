@@ -270,9 +270,25 @@ def _diffusion_regime_expr() -> pl.Expr:
     )
 
 
+def _normalize_diffusion_persistence_columns(
+    diffusion_aggregates: pl.DataFrame,
+) -> pl.DataFrame:
+    current = "continuity_persistence_permille_mean"
+    legacy = "corridor_persistence_permille_mean"
+    if (
+        current not in diffusion_aggregates.columns
+        and legacy in diffusion_aggregates.columns
+    ):
+        return diffusion_aggregates.with_columns(pl.col(legacy).alias(current))
+    return diffusion_aggregates
+
+
 def _grouped_diffusion_regime_candidates(
     diffusion_aggregates: pl.DataFrame, regime_column: str
 ) -> pl.DataFrame:
+    diffusion_aggregates = _normalize_diffusion_persistence_columns(
+        diffusion_aggregates
+    )
     return diffusion_aggregates.with_columns(
         _diffusion_regime_expr().alias(regime_column)
     ).group_by(regime_column, "config_id").agg(
@@ -288,8 +304,8 @@ def _grouped_diffusion_regime_candidates(
         pl.col("estimated_reproduction_permille_mean").mean().alias(
             "estimated_reproduction_mean"
         ),
-        pl.col("corridor_persistence_permille_mean").mean().alias(
-            "corridor_persistence_mean"
+        pl.col("continuity_persistence_permille_mean").mean().alias(
+            "continuity_persistence_mean"
         ),
         pl.col("observer_leakage_permille_mean").mean().alias("observer_leakage_mean"),
         _stable_mode_expr("bounded_state_mode"),
@@ -307,7 +323,7 @@ def _regime_scored_diffusion_candidates(diffusion_aggregates: pl.DataFrame) -> p
                 pl.col("delivery_probability_mean") * 0.95
                 + pl.col("coverage_mean") * 0.35
                 + pl.col("cluster_coverage_mean") * 0.25
-                + pl.col("corridor_persistence_mean") * 0.25
+                + pl.col("continuity_persistence_mean") * 0.25
                 - pl.col("total_transmissions_mean") * 8.0
                 - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.08
             )
@@ -843,7 +859,8 @@ def _generic_diffusion_score_expr(weights: dict[str, float]) -> pl.Expr:
         pl.col("delivery_probability_permille_mean") * weights["delivery"]
         + pl.col("coverage_permille_mean") * weights["coverage"]
         + pl.col("cluster_coverage_permille_mean") * weights["cluster_coverage"]
-        + pl.col("corridor_persistence_permille_mean") * weights["corridor_persistence"]
+        + pl.col("continuity_persistence_permille_mean")
+        * weights["continuity_persistence"]
         - pl.col("delivery_latency_rounds_mean").fill_null(0) * weights["latency_penalty"]
         - pl.col("total_transmissions_mean") * weights["transmission_penalty"]
         - pl.col("energy_per_delivered_message_mean").fill_null(0)
@@ -864,7 +881,7 @@ _BALANCED_DIFFUSION_WEIGHTS = {
     "delivery": 1.0,
     "coverage": 0.6,
     "cluster_coverage": 0.35,
-    "corridor_persistence": 0.15,
+    "continuity_persistence": 0.15,
     "latency_penalty": 16.0,
     "transmission_penalty": 10.0,
     "energy_penalty": 0.18,
@@ -879,7 +896,7 @@ _DELIVERY_HEAVY_DIFFUSION_WEIGHTS = {
     "delivery": 1.15,
     "coverage": 0.75,
     "cluster_coverage": 0.45,
-    "corridor_persistence": 0.12,
+    "continuity_persistence": 0.12,
     "latency_penalty": 12.0,
     "transmission_penalty": 8.0,
     "energy_penalty": 0.12,
@@ -894,7 +911,7 @@ _BOUNDEDNESS_HEAVY_DIFFUSION_WEIGHTS = {
     "delivery": 0.85,
     "coverage": 0.5,
     "cluster_coverage": 0.35,
-    "corridor_persistence": 0.2,
+    "continuity_persistence": 0.2,
     "latency_penalty": 20.0,
     "transmission_penalty": 14.0,
     "energy_penalty": 0.25,
@@ -959,6 +976,9 @@ def diffusion_family_weight_sensitivity_table(
 ) -> pl.DataFrame:
     if diffusion_aggregates.is_empty():
         return pl.DataFrame()
+    diffusion_aggregates = _normalize_diffusion_persistence_columns(
+        diffusion_aggregates
+    )
 
     def winners_for(profile_id: str, weights: dict[str, float]) -> pl.DataFrame:
         return (
@@ -1000,6 +1020,9 @@ def diffusion_family_weight_sensitivity_table(
 def diffusion_engine_summary_table(diffusion_aggregates: pl.DataFrame) -> pl.DataFrame:
     if diffusion_aggregates.is_empty():
         return pl.DataFrame()
+    diffusion_aggregates = _normalize_diffusion_persistence_columns(
+        diffusion_aggregates
+    )
     scored = diffusion_aggregates.with_columns(
         _generic_diffusion_score_expr(_BALANCED_DIFFUSION_WEIGHTS).alias("score")
     )
@@ -1045,6 +1068,9 @@ def diffusion_engine_summary_table(diffusion_aggregates: pl.DataFrame) -> pl.Dat
 def diffusion_engine_comparison_table(diffusion_aggregates: pl.DataFrame) -> pl.DataFrame:
     if diffusion_aggregates.is_empty():
         return pl.DataFrame()
+    diffusion_aggregates = _normalize_diffusion_persistence_columns(
+        diffusion_aggregates
+    )
     return diffusion_aggregates.with_columns(
         _generic_diffusion_score_expr(_BALANCED_DIFFUSION_WEIGHTS).alias("score")
     ).sort(["family_id", "score", "config_id"], descending=[False, True, False])
