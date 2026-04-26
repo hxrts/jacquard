@@ -10,21 +10,21 @@ documentation.workspace = true
 description = "Scenario and replay harness for deterministic Jacquard routing analysis"
 
 [dependencies]
-jacquard-host-support = { version = "0.8.0", path = "../host-support" }
-jacquard-babel = { version = "0.8.0", path = "../babel" }
-jacquard-batman-bellman = { version = "0.8.0", path = "../batman-bellman" }
-jacquard-batman-classic = { version = "0.8.0", path = "../batman-classic" }
-jacquard-cast-support = { version = "0.8.0", path = "../cast-support" }
-jacquard-core = { version = "0.8.0", path = "../core" }
-jacquard-mem-link-profile = { version = "0.8.0", path = "../mem-link-profile" }
-jacquard-mem-node-profile = { version = "0.8.0", path = "../mem-node-profile" }
-jacquard-mercator = { version = "0.8.0", path = "../mercator" }
-jacquard-olsrv2 = { version = "0.8.0", path = "../olsrv2" }
-jacquard-pathway = { version = "0.8.0", path = "../pathway" }
-jacquard-reference-client = { version = "0.8.0", path = "../reference-client" }
-jacquard-router = { version = "0.8.0", path = "../router" }
-jacquard-scatter = { version = "0.8.0", path = "../scatter" }
-jacquard-traits = { version = "0.8.0", path = "../traits" }
+jacquard-host-support = { version = "0.9.0", path = "../host-support" }
+jacquard-babel = { version = "0.9.0", path = "../babel" }
+jacquard-batman-bellman = { version = "0.9.0", path = "../batman-bellman" }
+jacquard-batman-classic = { version = "0.9.0", path = "../batman-classic" }
+jacquard-cast-support = { version = "0.9.0", path = "../cast-support" }
+jacquard-core = { version = "0.9.0", path = "../core" }
+jacquard-mem-link-profile = { version = "0.9.0", path = "../mem-link-profile" }
+jacquard-mem-node-profile = { version = "0.9.0", path = "../mem-node-profile" }
+jacquard-mercator = { version = "0.9.0", path = "../mercator" }
+jacquard-olsrv2 = { version = "0.9.0", path = "../olsrv2" }
+jacquard-pathway = { version = "0.9.0", path = "../pathway" }
+jacquard-reference-client = { version = "0.9.0", path = "../reference-client" }
+jacquard-router = { version = "0.9.0", path = "../router" }
+jacquard-scatter = { version = "0.9.0", path = "../scatter" }
+jacquard-traits = { version = "0.9.0", path = "../traits" }
 
 serde = { workspace = true, default-features = false }
 serde_json.workspace = true

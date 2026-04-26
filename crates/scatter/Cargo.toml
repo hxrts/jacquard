@@ -13,8 +13,8 @@ description = "Deterministic bounded deferred-delivery routing engine for Jacqua
 workspace = true
 
 [dependencies]
-jacquard-core = { path = "../core", version = "0.8.0" }
-jacquard-traits = { path = "../traits", version = "0.8.0" }
+jacquard-core = { path = "../core", version = "0.9.0" }
+jacquard-traits = { path = "../traits", version = "0.9.0" }
 postcard = { workspace = true }
 serde = { workspace = true, default-features = false }
 

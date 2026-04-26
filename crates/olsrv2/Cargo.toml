@@ -13,9 +13,9 @@ description = "Deterministic OLSRv2-class link-state routing engine for Jacquard
 workspace = true
 
 [dependencies]
-jacquard-host-support = { path = "../host-support", version = "0.8.0" }
-jacquard-core = { path = "../core", version = "0.8.0" }
-jacquard-traits = { path = "../traits", version = "0.8.0" }
+jacquard-host-support = { path = "../host-support", version = "0.9.0" }
+jacquard-core = { path = "../core", version = "0.9.0" }
+jacquard-traits = { path = "../traits", version = "0.9.0" }
 postcard = { workspace = true }
 serde = { workspace = true, default-features = false }
 

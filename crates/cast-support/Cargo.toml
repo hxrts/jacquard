@@ -17,5 +17,5 @@ default = ["std"]
 std = ["jacquard-core/std", "serde/std"]
 
 [dependencies]
-jacquard-core = { path = "../core", version = "0.8.0", default-features = false }
+jacquard-core = { path = "../core", version = "0.9.0", default-features = false }
 serde = { workspace = true, default-features = false }

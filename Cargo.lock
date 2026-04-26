@@ -583,7 +583,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jacquard-babel"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-core",
  "jacquard-host-support",
@@ -597,7 +597,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-batman-bellman"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-core",
  "jacquard-host-support",
@@ -611,7 +611,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-batman-classic"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-core",
  "jacquard-host-support",
@@ -625,7 +625,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-cast-support"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-core",
  "serde",
@@ -633,7 +633,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-core"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-macros",
  "jacquard-traits",
@@ -643,7 +643,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-host-support"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "cfg-if",
  "jacquard-core",
@@ -653,7 +653,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-macros"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -665,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-mem-link-profile"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-cast-support",
  "jacquard-core",
@@ -676,7 +676,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-mem-node-profile"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-core",
  "jacquard-host-support",
@@ -686,7 +686,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-mercator"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-cast-support",
  "jacquard-core",
@@ -699,7 +699,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-olsrv2"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-core",
  "jacquard-host-support",
@@ -713,7 +713,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-pathway"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "cfg-if",
  "jacquard-core",
@@ -729,7 +729,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-reference-client"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-babel",
  "jacquard-batman-bellman",
@@ -752,7 +752,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-router"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-batman-bellman",
  "jacquard-core",
@@ -766,7 +766,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-scatter"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-core",
  "jacquard-host-support",
@@ -780,7 +780,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-simulator"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-babel",
  "jacquard-batman-bellman",
@@ -806,7 +806,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-testkit"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "jacquard-babel",
  "jacquard-batman-bellman",
@@ -825,7 +825,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-toolkit-xtask"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "camino",
@@ -844,7 +844,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-traits"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "blake3",
  "jacquard-core",

@@ -17,12 +17,12 @@ default = ["std"]
 std = ["jacquard-core/std", "jacquard-traits/std", "serde/std"]
 
 [dependencies]
-jacquard-core = { path = "../core", version = "0.8.0", default-features = false }
-jacquard-traits = { path = "../traits", version = "0.8.0", default-features = false }
+jacquard-core = { path = "../core", version = "0.9.0", default-features = false }
+jacquard-traits = { path = "../traits", version = "0.9.0", default-features = false }
 serde = { workspace = true, default-features = false }
 
 [dev-dependencies]
-jacquard-cast-support = { path = "../cast-support", version = "0.8.0" }
+jacquard-cast-support = { path = "../cast-support", version = "0.9.0" }
 jacquard-host-support = { path = "../host-support" }
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
 jacquard-mem-node-profile = { path = "../mem-node-profile" }
