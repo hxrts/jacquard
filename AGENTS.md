@@ -72,7 +72,7 @@ Transport ownership is split deliberately:
 
 `jacquard-batman-bellman` is the enhanced BATMAN engine using local Bellman-Ford over a gossip-merged topology graph with TQ enrichment and a bootstrap shortcut. `jacquard-batman-classic` is the spec-faithful BATMAN IV engine with OGM-carried TQ, TTL-bounded propagation, and echo-only bidirectionality. `jacquard-babel` implements RFC 8966 with bidirectional ETX link cost, additive metric, and a feasibility distance table for loop-free route selection.
 
-`jacquard-olsrv2` implements an OLSRv2-class proactive link-state engine with deterministic MPR election and TC-style topology flooding. `jacquard-scatter` is the bounded deferred-delivery diffusion engine and publishes opaque viability claims. `jacquard-mercator` is a hybrid corridor routing engine skeleton under active development and has no dedicated `docs/` entry yet.
+`jacquard-olsrv2` implements an OLSRv2-class proactive link-state engine with deterministic MPR election and TC-style topology flooding. `jacquard-scatter` is the bounded deferred-delivery diffusion engine and publishes opaque viability claims. `jacquard-mercator` is the hybrid corridor routing engine with bounded evidence, stale-safe repair, and bounded custody fallback.
 
 `jacquard-simulator` is the scenario and replay harness above the shared boundaries. It reuses reference-client bridge ownership and round advancement rather than maintaining a simulator-only stack. The `tuning_matrix` binary runs experiment suites and generates analysis reports via `python3 -m analysis.report`. Artifacts land under `artifacts/analysis/{suite}/{timestamp}/` with a `latest` symlink.
 
@@ -121,7 +121,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-babel`: ETX link cost, additive metric, feasibility distance table, seqno ordering, and router integration.
 - `jacquard-olsrv2`: HELLO-driven neighbor learning, deterministic MPR election, TC flooding, SPF derivation, and router integration.
 - `jacquard-scatter`: retained-message expiry, replication budgets, opportunistic forwarding, and bounded custody handoff.
-- `jacquard-mercator`: corridor evidence accumulation and planner skeleton (engine under active development).
+- `jacquard-mercator`: corridor planning, evidence accumulation, stale-safe repair, custody fallback, fairness, and cast surfaces.
 - `jacquard-macros`: proc-macro compile checks and trybuild UI regression tests for annotation contracts.
 - `jacquard-mem-link-profile`: transport, retention, and runtime-effect adapter integration.
 - `jacquard-mem-node-profile`: node profile and capability modeling.
