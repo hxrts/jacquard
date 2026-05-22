@@ -154,29 +154,30 @@ The simulator can run experiment matrices across all seven engines and emit a PD
 
 The following definitions are compact restatements of terms used above.
 
-- admission: an engine's check that a candidate satisfies a router objective and profile constraints, returning a route-shaped proof
-- bridge: host glue. Owns ingress draining and `Tick` stamping. Reference implementation is `ReferenceClient`
-- candidate: a `RouteCandidate`. An engine's advisory output before admission
-- choreography: an engine-private protocol state machine. In pathway, expressed via Telltale session-type macros
-- corridor: Mercator's published route shape. A primary realization plus engine-private alternates sharing a topology epoch
-- custody: store-carry-forward of a payload when no connected route is supportable
-- driver: a `TransportDriver`. Host-owned, transport-specific ingress and supervision
-- engine: a `RoutingEngine` implementation. Owns a strategy and engine-private state
-- epoch: a `RouteEpoch`. Versions a topology reconfiguration. Objects from different epochs are not interchangeable
-- estimate: an `Estimate<T>`. A belief derived from observations with a confidence permille
-- evidence: a provenance discriminator on routing inputs
-- evidence class: a `RoutingEvidenceClass`, one of `DirectObservation`, `PeerClaim`, or `AdmissionWitnessed`
-- fact: a `Fact<T>`. Established routing truth
-- gateway: an objective variant. A destination role distinct from a plain node or service
-- materialization: an engine realizing an admitted route under router-issued canonical identity
-- objective: what a route is for. A node, a service, or a gateway
-- observation: an `Observation<T>`. A raw input plus provenance and a tick
-- OrderStamp: a deterministic total ordering used for content-addressing and tiebreaks
-- pathway: the first-party explicit-path engine. Uses Telltale for choreography
-- publication: the router announcing a canonical route and its commitments
-- RouteEpoch: see epoch
-- router: `jacquard-router`. Owns canonical identity, leases, publications, and round advancement
-- support state: Mercator's per-objective ladder of `Fresh`, `Suspect`, `Repairing`, `Withdrawn`, and `CustodyOnly`
-- Telltale: the session-type DSL used by pathway for choreography. The runtime adapts onto shared trait boundaries
-- Tick: a local monotonic round counter
-- viability claim: what scatter publishes. An opaque indication that an objective is reachable eventually. Carries no path or next hop
+| Term | Definition |
+|---|---|
+| admission | An engine's check that a candidate satisfies a router objective and profile constraints, returning a route-shaped proof. |
+| bridge | Host glue. Owns ingress draining and `Tick` stamping. Reference implementation is `ReferenceClient`. |
+| candidate | A `RouteCandidate`. An engine's advisory output before admission. |
+| choreography | An engine-private protocol state machine. In pathway, expressed via Telltale session-type macros. |
+| corridor | Mercator's published route shape. A primary realization plus engine-private alternates sharing a topology epoch. |
+| custody | Store-carry-forward of a payload when no connected route is supportable. |
+| driver | A `TransportDriver`. Host-owned, transport-specific ingress and supervision. |
+| engine | A `RoutingEngine` implementation. Owns a strategy and engine-private state. |
+| epoch | A `RouteEpoch`. Versions a topology reconfiguration. Objects from different epochs are not interchangeable. |
+| estimate | An `Estimate<T>`. A belief derived from observations with a confidence permille. |
+| evidence | A provenance discriminator on routing inputs. |
+| evidence class | A `RoutingEvidenceClass`, one of `DirectObservation`, `PeerClaim`, or `AdmissionWitnessed`. |
+| fact | A `Fact<T>`. Established routing truth. |
+| gateway | An objective variant. A destination role distinct from a plain node or service. |
+| materialization | An engine realizing an admitted route under router-issued canonical identity. |
+| objective | What a route is for. A node, a service, or a gateway. |
+| observation | An `Observation<T>`. A raw input plus provenance and a tick. |
+| OrderStamp | A deterministic total ordering used for content-addressing and tiebreaks. |
+| pathway | The first-party explicit-path engine. Uses Telltale for choreography. |
+| publication | The router announcing a canonical route and its commitments. |
+| RouteEpoch | See epoch. |
+| router | `jacquard-router`. Owns canonical identity, leases, publications, and round advancement. |
+| support state | Mercator's per-objective ladder of `Fresh`, `Suspect`, `Repairing`, `Withdrawn`, and `CustodyOnly`. |
+| Tick | A local monotonic round counter. |
+| viability claim | What scatter publishes. An opaque indication that an objective is reachable eventually. Carries no path or next hop. |
