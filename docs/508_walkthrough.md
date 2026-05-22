@@ -14,7 +14,7 @@ Three commitments shape everything else. Determinism rules out floats, ambient r
 
 Jacquard's shared world model uses three types in increasing order of certainty: `Observation<T>`, `Estimate<T>`, and `Fact<T>`. An observation is a raw input plus source, auth, evidence class, and `Tick`. An estimate is a belief derived from observations and carries a confidence permille from 0 to 1000. A fact is established routing truth produced by admission or publication.
 
-See [Core Types](201_core_types.md) for the full type definitions. The evidence class on each observation discriminates the kind of source. The enum lives at `crates/core/src/base/qualifiers.rs:109`.
+See [Core Types](201_core_types.md) for the full type definitions. The evidence class on each observation discriminates the kind of source. The enum lives at `crates/core/src/base/qualifiers.rs`.
 
 ```rust
 pub enum RoutingEvidenceClass {
@@ -86,7 +86,7 @@ Pathway assumes a path exists end-to-end at the time the packet is forwarded. BA
 
 Mercator targets the regime in between. Connectivity to a destination might be good for one window and bad in the next. The engine publishes a useful description of how to reach the destination when connectivity is good and degrades through bounded states when connectivity is poor.
 
-The published route shape is a corridor. The struct lives at `crates/mercator/src/corridor.rs:39`.
+The published route shape is a corridor. The struct lives at `crates/mercator/src/corridor.rs`.
 
 ```rust
 pub struct MercatorCorridor {
@@ -101,7 +101,7 @@ The router only sees a `CorridorEnvelope` worth of route shape. The alternates a
 
 ## 8. Mercator: Support State and Custody
 
-A single objective's relationship with the network degrades along a named ladder. The enum lives at `crates/mercator/src/evidence.rs:54`.
+A single objective's relationship with the network degrades along a named ladder. The enum lives at `crates/mercator/src/evidence.rs`.
 
 ```rust
 pub enum MercatorSupportState {
@@ -115,7 +115,7 @@ pub enum MercatorSupportState {
 
 The states replace the implicit flapping that would otherwise occur when every blip triggers a withdraw and re-announce cycle. An objective slides smoothly from confirmed support, through degraded states, to a custody-only fallback in which no connected route is supportable.
 
-The custody fallback is bounded. The relevant config struct lives at `crates/mercator/src/public_state.rs:28`.
+The custody fallback is bounded. The relevant config struct lives at `crates/mercator/src/public_state.rs`.
 
 ```rust
 pub struct MercatorOperationalBounds {
